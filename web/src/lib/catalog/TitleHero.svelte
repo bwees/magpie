@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { TitleResponse } from '$lib/sdk';
-	import PipelineBar from './PipelineBar.svelte';
+	import StageBar from '$lib/activity/StageBar.svelte';
 	import PosterImage from './PosterImage.svelte';
 	import { Button } from '$lib/components/ui/button';
 
@@ -59,6 +59,6 @@
 		</div>
 	</div>
 	<div class="px-4 pb-5 md:px-8 md:pb-6">
-		<PipelineBar />
+		<StageBar titleId={title.id} class="text-white" />
 	</div>
 </section>

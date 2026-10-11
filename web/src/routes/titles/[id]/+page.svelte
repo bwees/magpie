@@ -7,6 +7,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import Timeline from '$lib/activity/Timeline.svelte';
 	import TitleHero from '$lib/catalog/TitleHero.svelte';
 	import TitleSettings from '$lib/catalog/TitleSettings.svelte';
 	import { TIMELINE_COLUMN_QUERY, TitleTab } from '$lib/catalog/layout';
@@ -38,12 +39,6 @@
 <svelte:head>
 	<title>{title.title?.name ?? 'Title'} · Magpie</title>
 </svelte:head>
-
-{#snippet timeline()}
-	<p class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-		Nothing has happened yet.
-	</p>
-{/snippet}
 
 {#if title.status === PageStatus.LOADING}
 	<div class="flex flex-col gap-6" aria-busy="true">
@@ -77,7 +72,7 @@
 					<Tabs.Trigger value={TitleTab.SETTINGS}>Settings</Tabs.Trigger>
 				</Tabs.List>
 				<Tabs.Content value={TitleTab.TIMELINE} class="pt-4 lg:hidden">
-					{@render timeline()}
+					<Timeline titleId={title.id} />
 				</Tabs.Content>
 				<Tabs.Content value={TitleTab.FILES} class="pt-4">
 					<p class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -88,9 +83,9 @@
 					<TitleSettings page={title} onRemoved={() => goto(Route.HOME)} />
 				</Tabs.Content>
 			</Tabs.Root>
-			<aside class="hidden lg:block">
+			<aside class="hidden w-[340px] lg:block">
 				<h2 class="mb-3 text-sm font-semibold">Timeline</h2>
-				{@render timeline()}
+				<Timeline titleId={title.id} />
 			</aside>
 		</div>
 	</div>
