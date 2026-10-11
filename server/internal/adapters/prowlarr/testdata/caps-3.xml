@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<caps>
+  <server title="Prowlarr" />
+  <limits default="100" max="100" />
+  <searching>
+    <search available="yes" supportedParams="q" />
+    <tv-search available="yes" supportedParams="q,season,ep,imdbid" />
+    <movie-search available="no" supportedParams="q" />
+    <music-search available="no" supportedParams="q" />
+    <audio-search available="no" supportedParams="q" />
+    <book-search available="no" supportedParams="q" />
+  </searching>
+  <categories>
+    <category id="5000" name="TV">
+      <subcat id="5030" name="TV/SD" />
+      <subcat id="5040" name="TV/HD" />
+    </category>
+  </categories>
+  <tags />
+</caps>

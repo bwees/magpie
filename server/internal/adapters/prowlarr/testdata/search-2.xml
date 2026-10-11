@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+  <channel>
+    <atom:link rel="self" type="application/rss+xml" />
+    <title>BeyondHD</title>
+    <item>
+      <title>The.Matrix.1999.2160p.UHD.BluRay.REMUX.HDR.HEVC.Atmos-GROUP</title>
+      <guid>https://beyond-hd.me/details/101</guid>
+      <prowlarrindexer id="2" type="private">BeyondHD</prowlarrindexer>
+      <comments>https://beyond-hd.me/details/101</comments>
+      <pubDate>Sat, 11 Oct 2026 08:30:00 +0000</pubDate>
+      <size>63350767616</size>
+      <description />
+      <link>http://prowlarr:9696/2/download?apikey=test-key&amp;link=abc&amp;file=The.Matrix</link>
+      <category>2045</category>
+      <category>100001</category>
+      <enclosure url="http://prowlarr:9696/2/download?apikey=test-key&amp;link=abc&amp;file=The.Matrix" length="63350767616" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="2045" />
+      <torznab:attr name="seeders" value="57" />
+      <torznab:attr name="peers" value="61" />
+      <torznab:attr name="infohash" value="0A1B2C3D4E5F60718293A4B5C6D7E8F901234567" />
+      <torznab:attr name="downloadvolumefactor" value="0" />
+      <torznab:attr name="uploadvolumefactor" value="1" />
+    </item>
+    <item>
+      <title>The.Matrix.1999.1080p.BluRay.x264-GROUP</title>
+      <guid>https://beyond-hd.me/details/102</guid>
+      <pubDate>Fri, 10 Oct 2026 20:00:00 +0000</pubDate>
+      <size>11811160064</size>
+      <link>magnet:?xt=urn:btih:89ABCDEF0123456789ABCDEF0123456789ABCDEF&amp;dn=The.Matrix.1999.1080p</link>
+      <category>2040</category>
+      <torznab:attr name="seeders" value="12" />
+      <torznab:attr name="peers" value="14" />
+    </item>
+  </channel>
+</rss>

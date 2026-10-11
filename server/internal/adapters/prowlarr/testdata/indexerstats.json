@@ -1,0 +1,53 @@
+{
+  "id": 1,
+  "indexers": [
+    {
+      "indexerId": 1,
+      "indexerName": "1337x",
+      "averageResponseTime": 0,
+      "averageGrabResponseTime": 0,
+      "numberOfQueries": 41,
+      "numberOfGrabs": 0,
+      "numberOfRssQueries": 12,
+      "numberOfAuthQueries": 0,
+      "numberOfFailedQueries": 41,
+      "numberOfFailedGrabs": 0,
+      "numberOfFailedRssQueries": 12,
+      "numberOfFailedAuthQueries": 0
+    },
+    {
+      "indexerId": 2,
+      "indexerName": "BeyondHD",
+      "averageResponseTime": 420,
+      "averageGrabResponseTime": 310,
+      "numberOfQueries": 318,
+      "numberOfGrabs": 22,
+      "numberOfRssQueries": 96,
+      "numberOfAuthQueries": 0,
+      "numberOfFailedQueries": 3,
+      "numberOfFailedGrabs": 0,
+      "numberOfFailedRssQueries": 1,
+      "numberOfFailedAuthQueries": 0
+    },
+    {
+      "indexerId": 3,
+      "indexerName": "EZTV",
+      "averageResponseTime": 2210,
+      "averageGrabResponseTime": 0,
+      "numberOfQueries": 205,
+      "numberOfGrabs": 4,
+      "numberOfRssQueries": 96,
+      "numberOfAuthQueries": 0,
+      "numberOfFailedQueries": 9,
+      "numberOfFailedGrabs": 0,
+      "numberOfFailedRssQueries": 2,
+      "numberOfFailedAuthQueries": 0
+    }
+  ],
+  "userAgents": [
+    { "userAgent": "Magpie", "numberOfQueries": 524, "numberOfGrabs": 26 }
+  ],
+  "hosts": [
+    { "host": "magpie", "numberOfQueries": 524, "numberOfGrabs": 26 }
+  ]
+}

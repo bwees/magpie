@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<caps>
+  <server title="Prowlarr" />
+  <limits default="100" max="100" />
+  <searching>
+    <search available="yes" supportedParams="q" />
+    <tv-search available="yes" supportedParams="q,season,ep,imdbid,tvdbid,tmdbid" />
+    <movie-search available="yes" supportedParams="q,imdbid,tmdbid" />
+    <music-search available="no" supportedParams="q" />
+    <audio-search available="no" supportedParams="q" />
+    <book-search available="no" supportedParams="q" />
+  </searching>
+  <categories>
+    <category id="2000" name="Movies">
+      <subcat id="2040" name="Movies/HD" />
+      <subcat id="2045" name="Movies/UHD" />
+    </category>
+    <category id="5000" name="TV">
+      <subcat id="5040" name="TV/HD" />
+      <subcat id="5045" name="TV/UHD" />
+    </category>
+    <category id="100001" name="Movies" />
+    <category id="100002" name="TV" />
+  </categories>
+  <tags />
+</caps>
