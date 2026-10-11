@@ -11,6 +11,7 @@ import (
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/owner"
+	"magpie/internal/transcode/api/agentproto"
 
 	"go.uber.org/fx"
 )
@@ -32,6 +33,8 @@ func Migrations() db.MigrationSet {
 var Module = fx.Module(string(owner.Transcode),
 	db.ProvideMigrations(owner.Transcode, Migrations().FS),
 	fx.Supply(DefaultTimings),
+	// Agents present the shared secret instead of a session; the socket checks it itself.
+	httpserver.AsSelfAuthenticated(agentproto.ControlPath),
 	fx.Provide(
 		newAgentSecret,
 		NewAgentRepository,
