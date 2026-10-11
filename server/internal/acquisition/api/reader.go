@@ -49,10 +49,21 @@ const (
 	PropersDoNotPrefer      PropersMode = "DO_NOT_PREFER"
 )
 
+// QualityPreset names a first-run resolution preset: one group holding every source at that resolution.
+type QualityPreset string
+
+const (
+	Preset720p  QualityPreset = "720P"
+	Preset1080p QualityPreset = "1080P"
+	Preset2160p QualityPreset = "2160P"
+)
+
 type Profile struct {
 	ID             domain.ProfileID
 	Name           string
 	UpgradeAllowed bool
+	// Preset is set for a profile built from a resolution preset; TRaSH sync keeps its formats attached.
+	Preset QualityPreset
 	// Items are in preference order, most preferred first. Members of a group rank equally.
 	Items []ProfileItem
 	// Cutoff is the index into Items of the cutoff quality or group.
@@ -63,6 +74,8 @@ type Profile struct {
 	PropersMode           PropersMode
 	FormatScores          []FormatScore
 	TrashProfileID        string // "" when not linked to a TRaSH guide profile
+	// TrashScoreSet picks which of a format's TRaSH scores apply; "" means TRaSH's "default" set.
+	TrashScoreSet string
 }
 
 // ProfileItem is one quality or one group of equally ranked qualities.
@@ -94,6 +107,7 @@ type ProfileSummary struct {
 	ID             domain.ProfileID
 	Name           string
 	UpgradeAllowed bool
+	Preset         QualityPreset
 	TrashProfileID string
 }
 

@@ -264,14 +264,15 @@ type TrashProfileItem struct {
 type TrashQualityProfile struct {
 	TrashID               string
 	Name                  string
-	ScoreSet              string // which trash_scores context the format scores come from
+	ScoreSet              string // which trash_scores context the format scores come from; "default" when unset
 	UpgradeAllowed        bool
 	Cutoff                string // item name
 	MinFormatScore        int
 	CutoffFormatScore     int
 	MinUpgradeFormatScore int
 	Items                 []TrashProfileItem // most preferred first
-	FormatScores          map[string]int     // by custom format trash_id
+	// Formats are the trash_ids of the formats it scores; each score is that format's Scores[ScoreSet].
+	Formats []string
 }
 
 // TrashQualitySize is TRaSH's recommended MB per minute for one quality.

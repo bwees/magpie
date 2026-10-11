@@ -100,7 +100,7 @@ func (f *Fake) Profiles(ctx context.Context) ([]api.ProfileSummary, error) {
 	defer f.mu.RUnlock()
 	summaries := []api.ProfileSummary{}
 	for _, p := range f.profiles {
-		summaries = append(summaries, api.ProfileSummary{ID: p.ID, Name: p.Name, UpgradeAllowed: p.UpgradeAllowed, TrashProfileID: p.TrashProfileID})
+		summaries = append(summaries, api.ProfileSummary{ID: p.ID, Name: p.Name, UpgradeAllowed: p.UpgradeAllowed, Preset: p.Preset, TrashProfileID: p.TrashProfileID})
 	}
 	slices.SortFunc(summaries, func(a, b api.ProfileSummary) int { return cmp.Compare(a.Name, b.Name) })
 	return summaries, nil

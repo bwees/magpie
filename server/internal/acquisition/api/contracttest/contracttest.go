@@ -5,6 +5,7 @@ package contracttest
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -41,17 +42,77 @@ const (
 	storedCFScore   = 1700
 )
 
-var (
-	start    = time.Date(2026, time.March, 1, 12, 0, 0, 0, time.UTC)
-	web1080p = domain.Quality{ID: 3, Name: "WEBDL-1080p", Source: "WEB", Resolution: 1080}
+const (
+	firstGroupID      = 1000
+	minMBPerMin       = 12.5
+	preferredMBPerMin = 1999
+	maxMBPerMin       = 2000
+	blockScore        = -10000
+	tierScore         = 1700
+	cutoffScore       = 2000
+	upgradeIncrement  = 100
 )
 
-// Run checks a Reader against the acquisition contract.
+var (
+	start       = time.Date(2026, time.March, 1, 12, 0, 0, 0, time.UTC)
+	web1080p    = domain.Quality{ID: 3, Name: "WEBDL-1080p", Source: "WEBDL", Resolution: 1080}
+	webrip1080p = domain.Quality{ID: 15, Name: "WEBRip-1080p", Source: "WEBRIP", Resolution: 1080}
+	bluray1080p = domain.Quality{ID: 7, Name: "Bluray-1080p", Source: "BLURAY", Resolution: 1080}
+)
+
+// Run checks a Reader against the whole acquisition contract.
 func Run(t *testing.T, newReader Factory) {
+	RunProfiles(t, newReader)
+	runDownloadsBlocklistAndCutoff(t, newReader)
+}
+
+// RunProfiles checks Profile and Profiles. The fixture holds profiles only, so a repository that
+// stores nothing else yet can run this part.
+func RunProfiles(t *testing.T, newReader Factory) {
+	ctx := context.Background()
+
+	full := detailedProfile("1080p")
+	p2160 := profile("2160p", true)
+	locked := profile("archive", false)
+	fixture := Fixture{Profiles: []api.Profile{p2160, locked, full}}
+
+	t.Run("Profile returns items, groups, sizes and scores, and ErrNotFound for an unknown ID", func(t *testing.T) {
+		r := newReader(t, fixture)
+		got, err := r.Profile(ctx, full.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, full) {
+			t.Errorf("Profile =\n%+v\nwant\n%+v", got, full)
+		}
+		if _, err := r.Profile(ctx, domain.NewID[domain.ProfileID]()); !errors.Is(err, api.ErrNotFound) {
+			t.Errorf("unknown profile err = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("Profiles lists every profile ordered by name", func(t *testing.T) {
+		r := newReader(t, fixture)
+		got, err := r.Profiles(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := make([]string, 0, len(got))
+		for _, p := range got {
+			names = append(names, p.Name)
+		}
+		if want := []string{full.Name, p2160.Name, locked.Name}; !slices.Equal(names, want) {
+			t.Errorf("Profiles = %v, want %v", names, want)
+		}
+		if got[0].Preset != full.Preset || got[0].TrashProfileID != full.TrashProfileID {
+			t.Errorf("summary = %+v, want preset %q and TRaSH link %q", got[0], full.Preset, full.TrashProfileID)
+		}
+	})
+}
+
+func runDownloadsBlocklistAndCutoff(t *testing.T, newReader Factory) {
 	ctx := context.Background()
 
 	p1080 := profile("1080p", true)
-	p2160 := profile("2160p", true)
 	locked := profile("archive", false)
 
 	movie, series := domain.NewID[domain.TitleID](), domain.NewID[domain.TitleID]()
@@ -70,40 +131,11 @@ func Run(t *testing.T, newReader Factory) {
 	noUpgrades := fileScore(series, locked.ID, true, false)
 
 	fixture := Fixture{
-		Profiles:   []api.Profile{p2160, locked, p1080},
+		Profiles:   []api.Profile{locked, p1080},
 		Downloads:  []api.Download{oldGrab, removed, newGrab},
 		Blocklist:  []api.BlocklistEntry{olderBlock, seriesBlock, newerBlock},
 		FileScores: []FileScore{upgradable, transcoded, noUpgrades},
 	}
-
-	t.Run("Profile returns the profile and ErrNotFound for an unknown ID", func(t *testing.T) {
-		r := newReader(t, fixture)
-		got, err := r.Profile(ctx, p1080.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got.Name != p1080.Name || len(got.Items) != len(p1080.Items) || got.CutoffFormatScore != p1080.CutoffFormatScore {
-			t.Errorf("Profile = %+v, want %+v", got, p1080)
-		}
-		if _, err := r.Profile(ctx, domain.NewID[domain.ProfileID]()); !errors.Is(err, api.ErrNotFound) {
-			t.Errorf("unknown profile err = %v, want ErrNotFound", err)
-		}
-	})
-
-	t.Run("Profiles lists every profile ordered by name", func(t *testing.T) {
-		r := newReader(t, fixture)
-		got, err := r.Profiles(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		names := make([]string, 0, len(got))
-		for _, p := range got {
-			names = append(names, p.Name)
-		}
-		if want := []string{p1080.Name, p2160.Name, locked.Name}; !slices.Equal(names, want) {
-			t.Errorf("Profiles = %v, want %v", names, want)
-		}
-	})
 
 	t.Run("ActiveDownloads excludes removed downloads, newest first", func(t *testing.T) {
 		r := newReader(t, fixture)
@@ -171,6 +203,34 @@ func profile(name string, upgradeAllowed bool) api.Profile {
 		UpgradeAllowed: upgradeAllowed,
 		Items:          []api.ProfileItem{{Qualities: []domain.Quality{web1080p}, Allowed: true}},
 		PropersMode:    api.PropersPreferAndUpgrade,
+		FormatScores:   []api.FormatScore{},
+	}
+}
+
+// detailedProfile has a group, a single quality, sizes, every score field and two format scores
+// (ordered by format name), so a store that drops any of them fails the round trip.
+func detailedProfile(name string) api.Profile {
+	sizes := api.SizeLimits{MinMBPerMin: minMBPerMin, PreferredMBPerMin: preferredMBPerMin, MaxMBPerMin: maxMBPerMin}
+	return api.Profile{
+		ID:             domain.NewID[domain.ProfileID](),
+		Name:           name,
+		UpgradeAllowed: true,
+		Preset:         api.Preset1080p,
+		Items: []api.ProfileItem{
+			{Group: &api.QualityGroup{ID: firstGroupID, Name: "WEB 1080p"}, Qualities: []domain.Quality{web1080p, webrip1080p}, Allowed: true, Sizes: sizes},
+			{Qualities: []domain.Quality{bluray1080p}, Allowed: false, Sizes: sizes},
+		},
+		Cutoff:                0,
+		MinFormatScore:        0,
+		CutoffFormatScore:     cutoffScore,
+		MinUpgradeFormatScore: upgradeIncrement,
+		PropersMode:           api.PropersDoNotPrefer,
+		FormatScores: []api.FormatScore{
+			{Format: domain.NewID[api.CustomFormatID](), Name: "BR-DISK", Score: blockScore},
+			{Format: domain.NewID[api.CustomFormatID](), Name: "WEB Tier 01", Score: tierScore, UserOverride: true},
+		},
+		TrashProfileID: "e8c5acb741363a0dbda67d3978f4912f",
+		TrashScoreSet:  "default",
 	}
 }
 
