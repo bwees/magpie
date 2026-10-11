@@ -28,6 +28,11 @@ run = "pnpm dev"
 description = "Run the server and web dev servers together"
 depends = ["dev:server", "dev:web"]
 
+[tasks."dev:seed-request"]
+description = "Publish a RequestApproved into the dev database (until Requests lands); e.g. -tmdb 974576"
+dir = "server"
+run = "go run ./devtools/seedrequest"
+
 [tasks."openapi:export"]
 description = "Generate the OpenAPI spec from the Go server"
 dir = "server"
