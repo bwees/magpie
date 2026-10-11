@@ -57,12 +57,25 @@ const (
 	AttentionTranscodeFailed = "TRANSCODE_FAILED"
 )
 
+// AttentionItem.Action values: the suggested action, which the UI turns into a button calling the item's owner.
+const (
+	ActionApprove      = "APPROVE"
+	ActionRegrab       = "REGRAB"
+	ActionSearchAgain  = "SEARCH_AGAIN"
+	ActionRetry        = "RETRY"
+	ActionViewAgent    = "VIEW_AGENT"
+	ActionOpenTitle    = "OPEN_TITLE"
+	ActionOpenSettings = "OPEN_SETTINGS"
+)
+
 type PipelineRow struct {
-	Title     domain.TitleID
-	Episode   *domain.EpisodeID // nil for movies
-	Stage     Stage
-	Failed    bool
-	Detail    string         // human text, e.g. "Waiting for Jellyfin", "No accepted release"
+	Title   domain.TitleID
+	Episode *domain.EpisodeID // nil for movies
+	Stage   Stage
+	Failed  bool
+	Detail  string // human text, e.g. "Waiting for Jellyfin", "No accepted release"
+	// Download is set while DOWNLOADING; the UI overlays live % from ephemeral acquisition.DownloadProgressed.
+	Download  *domain.DownloadID
 	Subs      *SubsChip      // nil until a file exists
 	Transcode *TranscodeChip // nil until the file is eligible (CutoffMet) or skipped
 	Updated   time.Time
@@ -91,10 +104,14 @@ type TimelineEntry struct {
 	EventID  string
 	Type     string
 	Severity string
-	Episodes []domain.EpisodeID
-	Text     string
-	Detail   string
-	At       time.Time
+	// Title is nil for history entries about no title (users, agents, services, requests not yet added).
+	Title *domain.TitleID
+	// TitleName is the title's name when the entry was recorded, so history keeps it after the title is removed.
+	TitleName string
+	Episodes  []domain.EpisodeID
+	Text      string
+	Detail    string
+	At        time.Time
 }
 
 type Notification struct {

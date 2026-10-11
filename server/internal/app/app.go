@@ -27,4 +27,4 @@ var Contexts = fx.Options(
 	activity.Module,
 )
 
-var Module = fx.Options(platform.Module, Contexts, PortFakes, httpserver.AsSchemas(messageSchemas()))
+var Module = fx.Options(platform.Module, Contexts, PortFakes, ReaderFakes, httpserver.AsSchemas(messageSchemas()))

@@ -233,7 +233,8 @@ func notification(at time.Time, read bool) api.Notification {
 type attentionID string
 
 func attention(at time.Time) api.AttentionItem {
-	return api.AttentionItem{ID: string(domain.NewID[attentionID]()), Kind: api.AttentionAgentOffline, Ref: fixtureText, OpenedAt: at}
+	id := string(domain.NewID[attentionID]())
+	return api.AttentionItem{ID: id, Kind: api.AttentionAgentOffline, Ref: id, OpenedAt: at}
 }
 
 func sameEpisode(a, b *domain.EpisodeID) bool {

@@ -3,7 +3,7 @@
 What happened, and telling the right people. Activity records every durable event onto title timelines and the global history, keeps the per-movie/episode pipeline status the UI shows, and delivers notifications in-app and to each user's external URLs.
 
 - **Depends on (Readers):** `catalog.Reader`, `identity.Reader`, `requests.Reader`.
-- **Publishes:** `activity.NotificationCreated`, `activity.AttentionChanged`.
+- **Publishes:** `activity.NotificationCreated`, `activity.AttentionChanged`, and the ephemeral `activity.ProjectionUpdated`.
 - **Consumes:** every durable event in the [event catalog](../00-context-map.md#event-catalog), including `platform.ServiceHealthChanged`.
 - **Importer entrypoint:** `api.Importer` (migration job only): Sonarr/Radarr grab and import history onto timelines.
 - **Decided in:**
@@ -26,9 +26,11 @@ What happened, and telling the right people. Activity records every durable even
 | Table | Key columns |
 |---|---|
 | `activity_timeline` | `id`, `event_id` (unique), `title_id`, `episode_ids` JSON, `type`, `severity` (`INFO` \| `WARN` \| `ERROR`), `text`, `detail`, `at` |
-| `activity_history` | `id`, `event_id` (unique), `type`, `severity`, `title_id` (nullable), `summary`, `at` |
-| `activity_pipeline` | PK (`title_id`, `episode_id`; `episode_id` = `""` for movies), facet columns (see Behaviour), `stage`, `failed`, `detail`, `subs_chip` JSON, `transcode_chip` JSON, `last_event_id`, `updated_at` |
-| `activity_attention` | `id`, `kind` (`REQUEST_PENDING` \| `ISSUE_OPEN` \| `PIPELINE_FAILED` \| `AGENT_OFFLINE` \| `SERVICE_DOWN` \| `TRANSCODE_FAILED`), `ref` (request/issue/title+episode/agent/service ID), `title_id?`, `text`, `action` (suggested action label), `opened_at`, `cleared_at?`; unique open (`kind`, `ref`) |
+| `activity_history` | `id`, `event_id` (unique), `type`, `severity`, `title_id` (nullable), `title_name` (the name when recorded, kept after removal), `episode_ids` JSON, `summary`, `detail`, `at` |
+| `activity_pipeline` | PK (`title_id`, `episode_id`; `episode_id` = `""` for movies), `season`, `number` (sort order, from `catalog.Reader` and `EpisodeGroupChanged`), facet columns `wanted`, `search`, `download`, `file`, `media_file_id`, `jellyfin`, `note` (the latest event's own detail), `stage`, `failed`, `detail`, `subs_chip` JSON, `transcode_chip` JSON, `last_event_id`, `updated_at` |
+| `activity_attention` | `id`, `kind` (`REQUEST_PENDING` \| `ISSUE_OPEN` \| `PIPELINE_FAILED` \| `AGENT_OFFLINE` \| `SERVICE_DOWN` \| `TRANSCODE_FAILED`), `ref` (request/issue/title/media file/agent/service ID), `title_id?`, `text`, `action` (`APPROVE` \| `REGRAB` \| `SEARCH_AGAIN` \| `RETRY` \| `VIEW_AGENT` \| `OPEN_TITLE` \| `OPEN_SETTINGS`; the UI picks the label and the owner's endpoint), `opened_at`, `opened_event_id`, `cleared_at?`, `cleared_event_id?`; unique open (`kind`, `ref`); unique (`kind`, `opened_event_id`) and (`kind`, `cleared_event_id`) so a redelivered event changes nothing |
+| `activity_refs` | PK (`kind` `MEDIA_FILE` \| `DOWNLOAD` \| `SEARCH`, `ref`), `title_id`, `episode_ids` JSON. Written by every handler from `FileImported`, `ReleaseGrabbed`/`DownloadCompleted` and `SearchStarted`, so events carrying only a file, download or search ID find their title |
+| `activity_removed_titles` | `title_id` PK, `removed_at`. Events arriving after `catalog.TitleRemoved` (e.g. `FileDeleted{TITLE_REMOVED}`) add nothing to that title's timeline or pipeline |
 | `activity_notifications` | `id`, `user_id`, `event_id`, `kind`, `title`, `body`, `link`, `created_at`, `read_at`; unique (`user_id`, `event_id`, `kind`) |
 | `activity_notification_urls` | `id`, `user_id`, `label`, `url` (secret; never returned unmasked), `kinds` JSON, `created_at`, `last_sent_at`, `last_error` |
 
@@ -46,6 +48,7 @@ type PipelineRow struct {
     Stage     Stage
     Failed    bool
     Detail    string // human text, e.g. "Waiting for Jellyfin", "No accepted release"
+    Download  *domain.DownloadID // set while download=ACTIVE: the UI overlays live % from ephemeral DownloadProgressed
     Subs      *SubsChip      // nil until a file exists
     Transcode *TranscodeChip // nil until the file is eligible (CutoffMet) or skipped
     Updated   time.Time
@@ -71,10 +74,12 @@ type AttentionItem struct {
 }
 
 type TimelineEntry struct {
-    EventID  string
-    Type     string
-    Severity string
-    Episodes []domain.EpisodeID
+    EventID   string
+    Type      string
+    Severity  string
+    Title     *domain.TitleID // nil for history entries about no title
+    TitleName string          // history: the title's name when recorded
+    Episodes  []domain.EpisodeID
     Text     string
     Detail   string
     At       time.Time
@@ -149,20 +154,27 @@ type AttentionChanged struct {
     Open   bool   // false = cleared
     Count  int    // open items after this change (Home badge)
 }
+
+// Ephemeral. A handler committed a change to a projection; views showing it refetch.
+// Views can't refetch on the source event: the projection may not have handled it yet.
+type ProjectionUpdated struct {
+    Projection string          // TIMELINE | HISTORY | PIPELINE
+    Title      *domain.TitleID // nil for HISTORY
+}
 ```
 
-- Aggregate ID: the user for `NotificationCreated`, the attention item for `AttentionChanged`.
+- Aggregate ID: the user for `NotificationCreated`, the attention item for `AttentionChanged`, the title (or `HISTORY`) for `ProjectionUpdated`.
 
 ## Events and commands consumed
 
-Every durable event is handled by three handlers. Each dedupes on (`handler`, `event_id`) and on the unique `event_id` columns.
+Every durable event other contexts and the platform publish is handled by the handlers below; Activity's own events and the `transcode.RunAgentJob` command are not. Each dedupes on (`handler`, `event_id`) and on the unique `event_id` columns. After each change a handler emits `ProjectionUpdated` once its transaction commits.
 
 | Handler | Reaction | Failure |
 |---|---|---|
-| `timeline` | Events that carry a title write one `activity_timeline` row with rendered text. `catalog.TitleRemoved` deletes that title's timeline and pipeline rows. | Retry via the dispatcher. Render errors fall back to the raw event type as text. |
-| `history` | Every durable event writes one `activity_history` row. | Same |
-| `pipeline` | Updates facets for the affected movie/episode rows, then recomputes `stage` and the chips (tables below). Ignores events older than `last_event_id` for the row (ULID order). | Same |
-| `attention` | Opens and clears `activity_attention` items (table below) and publishes `AttentionChanged` for each change. | Same |
+| `timeline` | Events about a title (directly, or through `activity_refs`) write one `activity_timeline` row with rendered text. `catalog.TitleRemoved` deletes that title's timeline. | Retry via the dispatcher. Render errors fall back to the raw event type as text. |
+| `history` | Every durable event writes one `activity_history` row, with the title's name from `catalog.Reader`. | Same |
+| `pipeline` | Updates facets for the affected movie/episode rows, then recomputes `stage` and the chips (tables below). Ignores events older than `last_event_id` for the row (ULID order). `catalog.TitleRemoved` deletes the title's rows. Opens and clears `PIPELINE_FAILED` items, since only it knows when a row's `failed` changes. | Same |
+| `attention` | Opens and clears the other `activity_attention` items (table below) and publishes `AttentionChanged` for each change. | Same |
 | `notify` | Maps the event to notification kinds and recipients (table below), writes in-app rows, publishes `NotificationCreated`, and enqueues one backlite `activity.send` job per matching external URL. | `send` retries 3× with backoff, then stores `last_error`. It never blocks the dispatcher. |
 
 ### Pipeline facets
@@ -187,6 +199,14 @@ Every durable event is handled by three handlers. Each dedupes on (`handler`, `e
 | `library.FileTranscoded` | `transcode=DONE`, saved % from sizes |
 | `library.ItemAvailable` | `jellyfin=true` |
 | `library.FileDeleted` | `REMOVED` / `TITLE_REMOVED`: `file=NONE`, transcode/subtitles/jellyfin cleared. `UPGRADED`: no change, because the row already reflects the replacing file from its `FileImported`. |
+
+Which rows an event changes:
+- Events with episodes change those episodes' rows; events with a title and no episodes change every row of the title (a movie has one).
+- `SearchCompleted` and `DownloadFailed` use the episodes their `SearchStarted` / `ReleaseGrabbed` named; `ImportFailed` finds its title through the download.
+- File events (`CoverageSettled`, `Job…`, `TranscodeSkipped`, `FileTranscoded`, `FileDeleted`) change the rows whose `media_file_id` is that file, so late events for a replaced file change nothing.
+- `ReleaseRejected` sets its detail only on rows that are searching or downloading.
+- `FileImported` also stores `media_file_id` and clears the transcode chip: the new file isn't eligible yet.
+- The detail is the latest event's note ("Rejected: …", "No accepted release", a failure reason) unless a stage rule names one.
 
 ### Stage derivation
 
@@ -223,7 +243,7 @@ Shown beside the bar; they never change the main stage.
 | `requests.RequestCreated` | `RequestApproved` / `RequestDeclined` for that request | `REQUEST_PENDING` |
 | `requests.IssueReported` | `requests.IssueResolved` | `ISSUE_OPEN` |
 | pipeline row becomes `failed=true` | row no longer failed | `PIPELINE_FAILED` (one per title) |
-| `transcode.JobFailed{Final}` | a later `JobQueued` or `FileTranscoded` for the file | `TRANSCODE_FAILED` |
+| `transcode.JobFailed{Final}` (transcode kind) | a later `JobQueued` or `FileTranscoded` for the file | `TRANSCODE_FAILED` (ref = media file) |
 | `transcode.AgentOffline` | `transcode.AgentOnline` | `AGENT_OFFLINE` |
 | `platform.ServiceHealthChanged{Healthy: false}` | same with `Healthy: true` | `SERVICE_DOWN` |
 
@@ -272,11 +292,11 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 
 | Route | Who | Purpose |
 |---|---|---|
-| `GET /api/activity/timeline?title=` | signed in (requesters: own requested titles) | Title timeline |
+| `GET /api/activity/timeline?title=&before=&limit=` | signed in (requesters: own requested titles, without details such as release names) | Title timeline |
 | `GET /api/activity/pipeline?title=` | same | Pipeline rows (stage + chips) for one title |
-| `GET /api/activity/pipeline?titles=` | signed in | Summary stage per title (library grids) |
-| `GET /api/activity/pipeline?active=true` | signed in (requesters: own titles) | Rows currently searching, downloading, importing or transcoding ("Live now") |
-| `GET /api/activity/history` | admin | Global feed |
+| `GET /api/activity/pipeline?titles=…&titles=…` | signed in (requesters: own titles; at most 500 titles) | Summary stage per title (library grids) |
+| `GET /api/activity/pipeline?active=true` | signed in (requesters: own titles) | Rows currently searching, downloading, importing or transcoding ("Live now"), at most 200 |
+| `GET /api/activity/history?severity=&before=&limit=` | admin | Global feed |
 | `GET /api/activity/attention` | admin | Open attention items ("Needs you") |
 | `GET /api/activity/notifications` | signed in | Own in-app notifications |
 | `POST /api/activity/notifications/{id}/read`, `POST …/read-all` | signed in | Mark read |
@@ -285,12 +305,18 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 | `PATCH/DELETE /api/activity/notification-urls/{id}` | owner | Edit label/kinds, delete |
 | `POST /api/activity/notification-urls/{id}/test` | owner | Send a test message now |
 
+- Pipeline takes exactly one of `title`, `titles` or `active=true`; anything else is `400`. A title a requester may not see is `404`.
+- `before` is an RFC 3339 time; `limit` follows `Page` (default 50, max 200).
+- Requesters may see a title when `requests.Reader.Requesters` lists them, or any requester with `ViewOthersRequests`.
+
 ## Behaviour
 
 - **Retention:**
   - Timeline rows live as long as their title and are deleted on `catalog.TitleRemoved`.
   - History rows older than 90 days, and in-app notifications older than 90 days, are pruned daily.
 - **Severity:** `*Failed`, `ReleaseRejected`, `AgentOffline`, `SearchCompleted` with nothing accepted → `WARN` or `ERROR`. The rest are `INFO`.
+  - `ERROR`: `DownloadFailed`, `ImportFailed`, `TitleAddFailed`, final `JobFailed`, `ServiceHealthChanged{Healthy: false}`.
+  - `WARN`: `ReleaseRejected`, `TranscodeSwapRejected`, `AgentOffline`, `SearchCompleted{NOTHING_ACCEPTED}`, non-final `JobFailed`.
 - **"Needs you"** (home screen) is the attention list Activity owns (table above). The UI reads `GET /api/activity/attention`, updates it from `AttentionChanged`, and calls the owning context's API for each action (approve → Requests, search again → Acquisition, view agent → Transcode).
 - **Limits:** at most 10 notification URLs per user. A URL is validated on save; invalid → `422`.
 - **Secrets:** URLs are never returned in full. Responses show scheme and host plus `…`, and only the owner can edit them.

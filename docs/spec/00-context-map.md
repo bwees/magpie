@@ -124,7 +124,7 @@ type Event struct {
   - Delivery is at least once and in order per `AggregateID` **per handler**.
   - A failing handler retries with backoff and holds back only its own later events for that aggregate. It never blocks other handlers or other aggregates. After 10 failures the event is parked for that handler, visible in Activity → History.
   - Handlers record the event ID in `processed_events` and must be idempotent.
-- **Ephemeral events** (`…Progressed`, `SearchResultsReceived`): published on the in-process bus only. They aren't persisted, and only the live gateway's replay buffer can resend them. No state may depend on them.
+- **Ephemeral events** (`…Progressed`, `SearchResultsReceived`, `ProjectionUpdated`): published on the in-process bus only. They aren't persisted, and only the live gateway's replay buffer can resend them. No state may depend on them.
 - **Commands:** same envelope, exactly one owning handler. Used only when the sender needs a specific action from the owner. v1 has exactly one: `transcode.RunAgentJob`.
 - **Live gateway:** `internal/platform/live` forwards events to browser WebSocket clients, filtered by the user's role (reads `identity.Reader`, `requests.Reader`). Envelope sequence numbers allow resume after reconnect ([01-architecture.md](01-architecture.md#live-updates-to-browsers)).
 
@@ -180,6 +180,7 @@ type Event struct {
 | `transcode.AgentOnline` / `AgentOffline` | Transcode | agent | Activity → notify / attention on offline, clear on online |
 | `activity.NotificationCreated` | Activity | notification, user, kind, title, link | live gateway (to that user only) |
 | `activity.AttentionChanged` | Activity | item, kind, ref, open, count | live gateway (admins) |
+| `activity.ProjectionUpdated` *(ephemeral)* | Activity | projection `TIMELINE` \| `HISTORY` \| `PIPELINE`, title? | live gateway → views refetch the timeline, history or stage bar |
 | `platform.ServiceHealthChanged` | Platform | service, healthy, error | Activity → notify + attention |
 
 | Command | Sender | Owner → behaviour |
