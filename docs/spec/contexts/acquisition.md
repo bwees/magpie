@@ -1,0 +1,469 @@
+# Acquisition
+
+Finds, ranks, grabs and downloads the right release for each wanted movie or episode, and decides when a file is good enough.
+
+- **Depends on (Readers):** `catalog.Reader`, `library.Reader`
+- **Publishes:** `SearchStarted`, `SearchResultsReceived` *(ephemeral)*, `SearchCompleted`, `ReleaseGrabbed`, `ReleaseRejected`, `DownloadProgressed` *(ephemeral)*, `DownloadCompleted`, `DownloadFailed`, `CutoffMet`
+- **Consumes:**
+  - From Catalog: `TitleAdded`, `MonitoringChanged`, `ProfileChanged`, `EpisodesAnnounced`, `WantedReleased`, `TitleRemoved`.
+  - From Requests: `IssueActionRequested` (REGRAB).
+  - From Library: `FileImported`, `ImportFailed`, `FileTranscoded`, `FileDeleted`.
+- **Importer entrypoint:** `api.Importer` (migration job only): profiles, custom formats, blocklist, file scores.
+
+Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md), [blocked files](../../../.scratch/v1-spec/issues/11-blocked-file-policy.md), [search UX](../../../.scratch/v1-spec/issues/12-progressive-search-ux.md), [import and library](../../../.scratch/v1-spec/issues/18-import-and-library.md), [Prowlarr integration](../../../.scratch/v1-spec/issues/22-indexer-engine.md), [scheduling](../../../.scratch/v1-spec/issues/24-scheduling.md), [import gaps](../../../.scratch/v1-spec/issues/31-import-wizard-and-model-gaps.md). Research: [03](../../../.scratch/v1-spec/research/03-release-decision-engine.md), [02](../../../.scratch/v1-spec/research/02-cardigann-indexers.md), [04](../../../.scratch/v1-spec/research/04-qbittorrent-and-import.md), [28](../../../.scratch/v1-spec/research/28-arr-import-mapping.md).
+
+## Owns / Must not
+
+| Owns (only Acquisition writes) | Must not |
+|---|---|
+| Quality definitions, quality profiles, custom formats, TRaSH sync state and user overrides | Add, remove or monitor titles (Catalog) |
+| Indexer settings layered on Prowlarr's list (priority, minimum seeders, seeding mode override, seeding goals) | Configure indexers in Prowlarr (read-only use) |
+| Searches and their in-memory result cache | Move, link, rename or delete library files (Library) |
+| Release decisions, pending (delayed) releases, blocklist | Talk to Jellyfin |
+| Downloads in qBittorrent: grab, metadata check, progress, seeding goals, removal | Trigger transcodes or subtitles directly (only via `CutoffMet` / events others consume) |
+| Cutoff evaluation for library files | Write `library` or `catalog` tables |
+| The ported release-title parser | |
+
+## Data model
+
+| Table | Key fields |
+|---|---|
+| `qualities` | `id` (Radarr IDs, see below), `name`, `source`, `resolution` |
+| `quality_profiles` | `id`, `name`, `upgrade_allowed`, `cutoff_item_id`, `min_format_score`, `cutoff_format_score` (upgrade-until), `min_upgrade_format_score` (increment), `propers_mode` (`PREFER_AND_UPGRADE` \| `DO_NOT_UPGRADE` \| `DO_NOT_PREFER`), `trash_profile_id?` |
+| `quality_profile_items` | `profile_id`, `order`, `quality_id?` or `group_id`, `allowed`, `min_mb_per_min`, `preferred_mb_per_min`, `max_mb_per_min` (sizes live on the profile) |
+| `quality_groups` | `id` (≥1000), `profile_id`, `name`, member quality IDs (equal rank inside a group) |
+| `custom_formats` | `id`, `name`, `trash_id?`, `include_when_renaming=false`, `specs` (JSON: kind, negate, required, value) |
+| `profile_format_scores` | `profile_id`, `format_id`, `score`, `user_override bool` |
+| `indexers` | `prowlarr_id`, `name`, `caps` (search modes, ID params, categories), `status`, `priority`, `min_seeders`, `seeding_mode_override?`, `seed_ratio?`, `seed_time?`, `last_ok_at` |
+| `searches` | `id`, `title_id`, `episode_ids`, `trigger` (`RSS` \| `AUTO` \| `USER_AUTO` \| `INTERACTIVE` \| `REGRAB`), `started_at`, `completed_at`, counts. Results are not persisted. |
+| `pending_releases` | `id`, `title_id`, `episode_ids`, release snapshot, `publish_at`, `reason` (delay) |
+| `blocklist` | `title_id`, `info_hash`, `release_name`, `indexer`, `reason` (`BLOCKED_FILE` \| `METADATA_TIMEOUT` \| `STALLED` \| `IMPORT_FAILED` \| `DOWNLOAD_FAILED` \| `USER` \| `ISSUE` \| `MIGRATED`), `at`, `expires_at?` (null = permanent) |
+| `downloads` | `id`, `info_hash`, `qbit_hash`, `title_id`, `episode_ids`, `release_name`, `indexer_id`, `quality_id`, `cf_score`, `state`, `seeding_mode`, `goal_ratio?`, `goal_time?`, `grabbed_at`, `completed_at?`, `removed_at?`, `search_id?` |
+| `file_scores` | `media_file_id`, `title_id`, `episode_ids`, `quality_id`, `cf_score`, `cutoff_met bool`, `transcoded bool`, `origin` (Acquisition's own view of library files; built from `FileImported`/`FileTranscoded`/`FileDeleted`) |
+
+**Qualities** use Radarr's 30 IDs. Imported Sonarr IDs are remapped (13→20, 22→21, 20→30, 21→31). Profiles and custom formats are **one pool shared by movies and TV**; the title references a profile by `ProfileID` (stored in Catalog).
+
+## Query port
+
+```go
+package api // internal/acquisition/api
+
+// Reader is read-only and backed by Acquisition's repository. No other context depends on it
+// (see the context map); it exists for Acquisition's own HTTP layer. The UI's profile pickers call
+// GET /api/acquisition/profiles directly.
+type Reader interface {
+    // Profile returns a quality profile with items, groups, sizes and format scores.
+    // Returns ErrNotFound for unknown IDs.
+    Profile(ctx context.Context, id domain.ProfileID) (Profile, error)
+    // Profiles lists all profiles, ordered by name.
+    Profiles(ctx context.Context) ([]ProfileSummary, error)
+    // ActiveDownloads lists downloads not yet removed from qBittorrent, newest first.
+    ActiveDownloads(ctx context.Context) ([]Download, error)
+    // DownloadsForTitle lists every download for a title, including removed ones.
+    DownloadsForTitle(ctx context.Context, title domain.TitleID) ([]Download, error)
+    // Blocklist lists entries for a title (or all when title is empty), newest first.
+    Blocklist(ctx context.Context, title domain.TitleID) ([]BlocklistEntry, error)
+    // CutoffStatus reports whether a library file meets its profile cutoff and whether upgrades are still allowed.
+    CutoffStatus(ctx context.Context, file domain.MediaFileID) (CutoffStatus, error)
+}
+
+type CutoffStatus struct {
+    File            domain.MediaFileID
+    Quality         domain.Quality
+    CFScore         int
+    CutoffMet       bool // quality ≥ cutoff AND CF score ≥ cutoff_format_score
+    UpgradesAllowed bool // false once transcoded, or profile.upgrade_allowed == false
+}
+```
+
+## Events published
+
+All durable unless marked ephemeral. Aggregate ID = title ID (searches, downloads, cutoff), so a title's events stay ordered.
+
+```go
+type SearchStarted struct {
+    Search      domain.SearchID
+    Title       domain.TitleID
+    Episodes    []domain.EpisodeID // empty for movies
+    Trigger     SearchTrigger      // RSS, AUTO, USER_AUTO, INTERACTIVE, REGRAB
+    Interactive bool
+    Indexers    []string           // names queried
+}
+
+// Ephemeral: one per indexer answer (or failure). Never persisted; drives the live search dialog.
+type SearchResultsReceived struct {
+    Search   domain.SearchID
+    Indexer  string
+    Status   IndexerRunStatus // DONE, FAILED, SKIPPED (no ID support and title search found nothing)
+    Message  string           // failure reason for FAILED/SKIPPED
+    Releases []ReleaseDecision
+}
+
+type ReleaseDecision struct {
+    Release     domain.ReleaseID // stable per (search, indexer, guid)
+    Name        string
+    Indexer     string
+    InfoHash    string           // may be empty until grab
+    Quality     domain.Quality
+    Formats     []string         // matched custom format names
+    CFScore     int
+    SizeBytes   int64
+    Seeders     int
+    PublishedAt time.Time
+    Freeleech   bool
+    Rejections  []Rejection      // empty = accepted
+    Rank        int              // position among accepted releases at time of emit
+}
+
+type Rejection struct { Reason RejectionReason; Message string; Temporary bool }
+
+type SearchCompleted struct {
+    Search          domain.SearchID
+    Title           domain.TitleID
+    Accepted, Total int
+    FailedIndexers  []string
+    Outcome         SearchOutcome      // GRABBED | NOTHING_ACCEPTED | PENDING_DELAY (interactive searches: NOTHING_ACCEPTED or GRABBED after a user grab)
+    Grabbed         *domain.DownloadID // set when Outcome = GRABBED
+}
+
+type ReleaseGrabbed struct {
+    Download domain.DownloadID
+    Title    domain.TitleID
+    Episodes []domain.EpisodeID
+    Release  string
+    Indexer  string
+    InfoHash string
+    Quality  domain.Quality
+    CFScore  int
+    Trigger  SearchTrigger
+    Override bool // user grabbed a rejected release
+}
+
+type ReleaseRejected struct {
+    Title       domain.TitleID
+    Release     string
+    InfoHash    string
+    Indexer     string
+    Reason      RejectionReason // BLOCKED_FILE, METADATA_TIMEOUT, STALLED, IMPORT_FAILED, DOWNLOAD_FAILED
+    BlockedFile *string         // matched file path inside the torrent
+    Next        *domain.DownloadID // the fallback grab, if one was made
+}
+
+// Ephemeral: emitted on each qBittorrent poll that changes progress or state.
+type DownloadProgressed struct {
+    Download domain.DownloadID
+    State    DownloadState // AWAITING_METADATA, DOWNLOADING, STALLED, COMPLETED, SEEDING
+    Progress float64       // 0..1
+    SpeedBps int64
+    ETA      time.Duration
+    Ratio    float64
+}
+
+type DownloadCompleted struct {
+    Download    domain.DownloadID
+    Title       domain.TitleID
+    Episodes    []domain.EpisodeID
+    ContentPath string         // as qBittorrent reports it (remote path mapping already applied)
+    Files       []DownloadFile // relative path + size; only files with priority > 0
+    ReleaseName string
+    Quality     domain.Quality
+    CFScore     int
+    SeedingMode SeedingMode    // SEED_UNTIL_GOALS → Library hardlinks (copy fallback); DONT_SEED → Library moves
+}
+
+type DownloadFailed struct {
+    Download domain.DownloadID
+    Title    domain.TitleID
+    Reason   string // qBittorrent error/missingFiles, stalled past limit, etc.
+}
+
+type CutoffMet struct {
+    File     domain.MediaFileID
+    Title    domain.TitleID
+    Episodes []domain.EpisodeID
+    Quality  domain.Quality
+    CFScore  int
+    Origin   domain.Origin // copied from FileImported: DOWNLOAD | LIBRARY_SCAN | MIGRATION
+}
+```
+
+## Events and commands consumed
+
+Idempotency: every handler records `event.ID` in `processed_events` within the same transaction as its effects. All search work is enqueued as backlite jobs keyed by `(title, episodes, trigger)` so redelivery collapses into one job.
+
+| Event | From | Reaction | Failure handling |
+|---|---|---|---|
+| `catalog.TitleAdded` | Catalog | `Origin` = REQUEST or MANUAL: for each monitored item whose release date has passed (`catalog.Reader`), enqueue AUTO search; others wait for `WantedReleased`. `Origin` = LIBRARY_SCAN or MIGRATION: no immediate search; once Library has linked the files (`FileImported` with that origin), the normal missing (daily) and cutoff-unmet (weekly) sweeps apply. | Search job retries with backoff; Prowlarr down → `SearchCompleted` with all indexers failed. |
+| `catalog.MonitoringChanged` | Catalog | Newly monitored and released → enqueue AUTO search. Unmonitored → drop matching pending releases. | — |
+| `catalog.ProfileChanged` | Catalog | Re-evaluate cutoff for the Title's `file_scores` against the new profile; publish `CutoffMet` for files that newly meet it. Files below the new cutoff become eligible for upgrade (unless transcoded). | — |
+| `catalog.EpisodesAnnounced` | Catalog | No search. Episodes become eligible for RSS matching once released. | — |
+| `catalog.WantedReleased` | Catalog | Enqueue AUTO search for the listed items (movie digital/physical release date or episode air date reached). | — |
+| `catalog.TitleRemoved` | Catalog | Cancel running searches; drop pending releases; remove its downloads from qBittorrent (`deleteFiles=true` only if `deleteFiles`); keep blocklist rows. | qBit unreachable → retry job. |
+| `requests.IssueActionRequested{REGRAB}` | Requests | Resolve the current file for `Title`/`Episode` via `library.Reader` (its source info hash and release name). Blocklist that hash permanently (`ISSUE`) and enqueue a REGRAB search for the episode or movie. A transcoded file does **not** block a REGRAB. | No source hash (scan/migration file) → blocklist by release name + indexer if known, else just search. |
+| `requests.IssueActionRequested{RERUN_SUBTITLES}` | Requests | Ignored. | — |
+| `library.FileImported` | Library | Compute CF score from `ReleaseName` (fall back to file name). Upsert `file_scores` with `Origin`. If cutoff met → publish `CutoffMet{Origin}`. If `Download` set: mark download `IMPORTED`; if its mode is `DONT_SEED`, remove the torrent (no data delete; Library moved it). `Replaces` is informational; cleanup of the old file happens on `FileDeleted`. | — |
+| `library.FileDeleted` | Library | Drop the file's `file_scores` row (any `Reason`). | — |
+| `library.ImportFailed` | Library | Mark download `IMPORT_FAILED`, blocklist (`IMPORT_FAILED`), remove torrent with data, grab next cached release or search. | — |
+| `library.FileTranscoded` | Library | Set `file_scores.transcoded = true`; upgrades stop for that file. Its CF score is **not** recomputed from the new file. | — |
+
+## External ports
+
+```go
+// ports.go — implemented by internal/adapters/prowlarr
+type Prowlarr interface {
+    // Indexers lists enabled indexers with Torznab caps. Called hourly and on demand.
+    Indexers(ctx context.Context) ([]ProwlarrIndexer, error)
+    // Search queries ONE indexer's Torznab endpoint (/{id}/api). Never the aggregate search.
+    // The query carries ID params the indexer supports, else a title query; ctx carries the 60 s timeout.
+    Search(ctx context.Context, indexerID int, q TorznabQuery) ([]TorznabItem, error)
+    // RSS fetches an indexer's recent feed (Torznab search with no query).
+    RSS(ctx context.Context, indexerID int, categories []int) ([]TorznabItem, error)
+    // Download fetches a .torrent; returns MagnetRedirect when the URL 30x-redirects to a magnet.
+    Download(ctx context.Context, link string) (TorrentPayload, error)
+}
+// Errors: ErrUnauthorized, ErrIndexerFailed{Code, Message} (Torznab <error>), ErrTimeout, ErrUnavailable.
+
+// ports.go — implemented by internal/adapters/qbittorrent. Requires qBittorrent ≥ 5.2 (WebAPI ≥ 2.15).
+type QBittorrent interface {
+    Version(ctx context.Context) (WebAPIVersion, error) // startup check; < 2.15 → ErrUnsupportedVersion
+    // AddTorrent adds a parsed .torrent or magnet in category "magpie" with stopCondition=MetadataReceived
+    // (magnets) or stopped=true (.torrent files whose file list was already checked). Returns the info hash.
+    AddTorrent(ctx context.Context, t AddRequest) (InfoHash string, err error)
+    Start(ctx context.Context, hashes ...string) error
+    Delete(ctx context.Context, deleteFiles bool, hashes ...string) error
+    // Files returns the file list; empty until has_metadata.
+    Files(ctx context.Context, hash string) ([]TorrentFile, error)
+    // Sync returns incremental state since rid (sync/maindata), merged by the adapter.
+    Sync(ctx context.Context, rid int64) (SyncState, error)
+    // SetShareLimits always sends the full parameter set (ratio, seeding time, inactive time, action, mode).
+    SetShareLimits(ctx context.Context, hash string, l ShareLimits) error
+}
+// Auth: API key (Authorization: Bearer). Errors: ErrUnauthorized, ErrNotFound (hash gone), ErrUnavailable.
+```
+
+The adapter maps remote paths to local ones, so `DownloadCompleted.ContentPath` is always a path the server can read.
+
+## HTTP surface
+
+Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/searches` | Start a search `{title, episodes?, interactive}` → `{searchId}`. Results arrive over the live WebSocket. |
+| POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results |
+| DELETE | `/searches/{id}` | Cancel |
+| GET | `/downloads` · DELETE `/downloads/{id}?deleteData=` | Queue view; remove |
+| GET/POST/PUT/DELETE | `/profiles`, `/custom-formats` | Profile and CF CRUD; `POST /profiles/from-preset` |
+| POST | `/trash/sync` · GET `/trash/profiles` | Manual TRaSH sync; list guide profiles |
+| GET · PUT | `/indexers` · `/indexers/{id}` | List (from Prowlarr) and per-indexer settings |
+| GET · DELETE | `/blocklist` · `/blocklist/{id}` | View and remove |
+| GET · PUT | `/settings` | Blocked patterns, metadata timeout, delay, settle window, seeding defaults, search-on-add |
+
+## Behaviour
+
+### Indexers (Prowlarr)
+
+- **Indexer list:** pulled from Prowlarr hourly and on demand. New indexers get default settings; removed ones are marked gone, and their history is kept. Indexers are configured only in Prowlarr; Magpie stores priority, minimum seeders, seeding override and goals.
+- **Fan-out:** a search queries every enabled indexer whose caps cover the media kind, in parallel, one goroutine per indexer. Each result goes out as `SearchResultsReceived` as soon as that indexer answers.
+- **Query tiers per indexer:**
+  1. ID search with whatever the caps support: `tmdbid`, `imdbid`, `tvdbid` (from `catalog.Reader` external IDs).
+  2. Title + year (movies) or title + season/episode (TV) when tier 1 is unsupported or returns nothing.
+  - No ID support and no title results → status `SKIPPED`.
+- **Timeout:** 60 s per indexer. A late answer still streams into an open search; a timed-out indexer reports `FAILED`.
+- **Cache:** results are kept in memory per `(indexer, query)` for 30 min, and per search for the "next best release" fallback. A restart loses it; the fallback then runs a fresh search.
+- **Backoff:** an indexer failing repeatedly is put in backoff (`BlockedIndexer`, temporary rejection) and shown as failing.
+
+### Parsing and quality
+
+- **Parser:** Sonarr/Radarr's release-title parser, ported to Go (allowed under GPL-3.0). Their ~2.7k fixture titles are the parser's test suite.
+- **Quality** = source × resolution + revision (proper/repack/real/version). Everything else (codec, HDR, audio, group tier) comes from **custom formats**.
+- **Custom formats:** specs compile with `dlclark/regexp2` with a match timeout of 100 ms per regex. A timeout counts as "no match" and logs a warning. There are no release profiles; "must not contain" is a CF with a large negative score. The UI's "block term" creates one.
+- **TRaSH sync:** daily, plus manual. Formats and profiles are fetched and matched by `trash_id`, else by name (Sonarr/Radarr Remux names are aliased). Scores the user edited (`user_override`) are never overwritten.
+- **First-run presets** are resolution-only: `720p`, `1080p`, `2160p` ([ticket 31 follow-up](../../../.scratch/v1-spec/issues/29-assemble-spec.md)).
+  - Each preset is one quality group containing every source at that resolution (WEB-DL, WEBRip, HDTV, Bluray, Remux), and that group is the cutoff. The first accepted release at that resolution meets cutoff; the file then transcodes and upgrades stop.
+  - Source preference inside the group comes from TRaSH custom-format scores during selection (ranking: CF score breaks the tie inside a group).
+  - No lower-resolution stopgap. Imported Sonarr/Radarr profiles keep their own structure.
+- **Sizes:** MB per minute × runtime (from `catalog.Reader`), set per profile item. Runtime 0 → rejected with `UNKNOWN_RUNTIME`, except episodes airing in the last 24 h.
+
+### Decision engine
+
+Every release goes through the same specs, whatever triggered the search. Each spec decides whether it applies to the trigger. All specs in tier 0 run and every rejection is collected; tier 1 (disk) runs only if tier 0 passed. A rejection is **permanent** or **temporary**; temporary rejections go to `pending_releases`.
+
+| Spec (tier 0 unless noted) | Kind | Applies to |
+|---|---|---|
+| UnknownTitle / UnknownEpisode / UnableToParse | P | all |
+| QualityAllowedByProfile | P | all |
+| CustomFormatAllowedByProfile (score ≥ min) | P | all |
+| AcceptableSize (profile item MB/min × runtime) and MaximumSize (global) | P | all |
+| NotSample, RawDisk, SplitEpisode | P | all |
+| Blocklisted (by info hash; else name + indexer) | P | all |
+| AlreadyImported | P | all |
+| TorrentSeeding (seeders ≥ indexer minimum) | P | all |
+| BlockedIndexer (backoff) | T | all |
+| UpgradeAllowed / UpgradeDisk (upgrade rule below; file transcoded → reject) | P | all |
+| Repack (same group as existing file) and Proper (7-day window) | P | all / RSS |
+| SameEpisodesGrab, Queue (a download already meets cutoff or is better), History | P | all / RSS |
+| FullSeason (season pack only once every episode has aired) | P | all |
+| MultiSeason: accepted only when every contained season is wanted | P | all |
+| SeasonPackOnly (season search after the season ended) | P | search |
+| Monitored | P | all except interactive |
+| Searched title/season/episode match | P | search |
+| Released (`catalog.Reader` release date passed) | P | auto/RSS |
+| Delay (delay profile wait unless bypass) | T | auto/RSS |
+| Pending (a pending release already covers these items) | T | auto/RSS |
+| FreeSpace (tier 1) | P | all |
+
+Dropped:
+- Usenet-only specs: MinimumAge, Retention, Protocol.
+- Anime and scene-mapping specs.
+- AirDate restriction, and IndexerTag scoping.
+
+**Ranking** (accepted only): quality rank (profile order; members of a group are equal) → CF score → episode count (packs first when equal) → indexer priority (lower first) → seeders (log10 buckets) → size closest to preferred (200 MB buckets).
+
+**Upgrade rule**, in order:
+1. Better quality while below cutoff → upgrade.
+2. Worse → reject.
+3. Same quality, higher revision → upgrade, unless propers are `DO_NOT_PREFER`.
+4. Upgrades disabled → reject.
+5. Lower revision → reject.
+6. Better quality but cutoff met → reject.
+7. New CF score ≤ current → reject.
+8. Current ≥ upgrade-until → reject.
+9. New < current + increment → reject.
+10. Otherwise upgrade.
+
+A file with `transcoded = true` is never upgraded automatically; only REGRAB or an interactive grab replaces it.
+
+**Cutoff met** = quality ≥ cutoff AND CF score ≥ upgrade-until. Evaluated on every `FileImported`, on `ProfileChanged` for that Title, and when a profile's contents change (re-evaluated for files using it, emitting `CutoffMet` for newly met files). The resolution presets set upgrade-until to 0, so reaching the resolution is enough.
+
+### Search and grab
+
+- **Triggers:**
+  - AUTO: on title add, on `WantedReleased`, and in backlog sweeps.
+  - USER_AUTO: the title page's Search button.
+  - INTERACTIVE: the search dialog.
+  - RSS: every 15 min per indexer.
+  - REGRAB: issue action.
+- **Automatic grab and the settle window:**
+  - Wait until every indexer answered or 30 s passed (setting), then grab the top accepted release.
+  - Grab early when the top release meets the quality cutoff with the profile's **maximum attainable CF score**, because nothing can beat it.
+  - Grab each item once per batch; a pack covers its episodes.
+- **Interactive:**
+  - Nothing is grabbed automatically. The user grabs any accepted release.
+  - A rejected one can be grabbed with `override=true`. Override skips the decision engine, but the blocked-file check still runs.
+- **Delay profiles:**
+  - Wait N minutes from the indexer's publish time for a better release (default 0 = off; the 30 s settle window still applies).
+  - Bypassed when the release meets cutoff, or its CF score ≥ the bypass threshold.
+  - User-invoked searches ignore the delay.
+  - The pending queue is checked every minute; when the oldest pending release for an item passes the delay, the best pending one is grabbed.
+- **RSS:** feed items are parsed and matched to monitored, released, wanted items via `catalog.Reader` (title, aliases, year, S/E numbering after episode group). They then go through the same engine.
+- **Backlog sweeps:** missing items daily, cutoff-unmet items weekly. Both are spread out so each indexer gets at most one query per 2 s.
+
+### Grab and blocked-file policy
+
+The check is on by default and can be turned off in settings.
+
+1. **.torrent:**
+   - Download through Prowlarr and parse the info dict locally.
+   - If any file matches a blocked pattern, reject: blocklist the info hash permanently (`BLOCKED_FILE`), publish `ReleaseRejected`, and fall back (step 4).
+   - Otherwise add stopped, then start.
+2. **Magnet** (or a .torrent link that redirects to one):
+   - Add with `stopCondition=MetadataReceived`.
+   - Poll until `has_metadata`, then `Files` and the same check.
+   - Pass → `Start`. Fail → `Delete(deleteFiles=true)` and the rejection path above.
+   - No content bytes are fetched before the check.
+3. **Metadata timeout:**
+   - No metadata after 5 min (setting) → delete, then a **temporary** blocklist entry (`METADATA_TIMEOUT`, expires after 24 h), publish `ReleaseRejected`, fall back.
+4. **Fallback:**
+   - Take the next accepted, not-yet-tried release from the search's cached ranking. Grab it and set `ReleaseRejected.Next`.
+   - Cache empty or expired → enqueue a fresh AUTO search.
+5. **Patterns:**
+   - Editable glob or `regex:` list.
+   - Default: `*.exe *.msi *.bat *.cmd *.com *.scr *.lnk *.ps1 *.vbs *.js *.jar *.apk *.dmg *.iso *.rar *.r[0-9][0-9] *.zip *.7z`.
+   - Matching is case-insensitive on the file name; folder names are not matched.
+6. **Any** blocked file rejects the whole torrent. Files are never skipped selectively.
+
+### Downloads and seeding
+
+- **Polling:** `Sync` every 2 s while any download is active, 15 s when idle. Changes emit `DownloadProgressed` (ephemeral).
+- **Completion:** at 100% (`uploading`/`stalledUP`/`stoppedUP`):
+  1. **Blocked-file backstop:** re-check the final file list (priority > 0) against the blocked patterns. A match is handled exactly like a `BLOCKED_FILE` rejection: delete with data, permanent blocklist, `ReleaseRejected`, fallback. No `DownloadCompleted`.
+  2. Otherwise publish `DownloadCompleted` once. `Files` = files with priority > 0 (Library drops samples and unknown extensions). `SeedingMode` = the indexer override, else the global default.
+- **Failure:**
+  - `error` or `missingFiles` state → `DownloadFailed`, permanent blocklist (`DOWNLOAD_FAILED`), delete with data, fall back.
+  - Stalled (no progress) for longer than the stalled limit (setting, default 6 h) → `DownloadFailed`, **temporary** blocklist (`STALLED`, expires after 24 h), delete with data, fall back.
+- **SEED_UNTIL_GOALS:**
+  - After `FileImported`, keep seeding.
+  - Every 5 min, check ratio and seeding time against the indexer's goals, else the global defaults (ratio 2.0 or 14 days, whichever first). When either goal is met: `Delete(deleteFiles=true)`. The library copy is a hardlink or copy, so it survives.
+- **DONT_SEED:** after `FileImported`, `Delete(deleteFiles=false)`. Library has already moved the files.
+- Downloads not grabbed by Magpie (other categories) are ignored.
+
+## Test seeds
+
+1. **Ranking:**
+   - Given accepted releases A (WEB 2160p, CF 300) and B (WEB 1080p, CF 2300) in a profile ordering 2160p above 1080p, when ranked, then A ranks first (quality beats CF score).
+   - Given A and B both WEB-DL 1080p in group `WEB 1080p` with CF 1700 and 300, then the 1700 one ranks first.
+2. **Ranking tiebreak:** given two equal-quality, equal-CF releases from indexers with priority 10 and 25, then the priority-10 one ranks first. With equal priority, more seeders (log10 bucket) wins.
+3. **Streaming:**
+   - Given a search over 3 indexers answering at 1 s, 5 s and timing out at 60 s, then exactly 3 `SearchResultsReceived` events are emitted: 2 `DONE`, 1 `FAILED`.
+   - Then `SearchCompleted.FailedIndexers` lists the third.
+4. **Settle window:**
+   - Given an AUTO search where the first indexer returns an accepted WEB 1080p release below cutoff at 1 s, then nothing is grabbed before 30 s or before all indexers answer.
+   - When a better release arrives at 10 s and all indexers finish at 12 s, then the better one is grabbed at 12 s.
+5. **Early grab:** given cutoff WEB 2160p and maximum attainable CF score 2300, when a WEB 2160p release with CF 2300 arrives at 1 s, then it is grabbed immediately, before the settle window.
+6. **Interactive:**
+   - Given an interactive search, then no automatic grab happens.
+   - Given a release rejected for `QUALITY_NOT_ALLOWED`, when grabbed with `override=true`, then `ReleaseGrabbed.Override = true`.
+7. **Blocked .torrent:**
+   - Given a .torrent containing `Movie.exe`, when grabbed, then it is never added to qBittorrent.
+   - Then a permanent blocklist row (`BLOCKED_FILE`) exists, `ReleaseRejected.BlockedFile = "Movie.exe"`, and the next cached release is grabbed.
+8. **Blocked magnet:**
+   - Given a magnet whose metadata lists `Show.S01E01.rar`, when metadata arrives, then the torrent is deleted with `deleteFiles=true`.
+   - Then `Start` was never called, and the release is blocklisted.
+9. **Metadata timeout:**
+   - Given a magnet with no metadata after 5 min, then it is deleted and a temporary `METADATA_TIMEOUT` row expiring in 24 h is written.
+   - Given an empty search cache, then an AUTO search is enqueued.
+10. **Blocked check off:** given the setting disabled, when a .torrent with `.rar` is grabbed, then it is added and started.
+11. **Blocklist match:**
+    - Given info hash H is blocklisted for title T, then any release with hash H for T is rejected `BLOCKLISTED`.
+    - The same hash for a different title is not rejected.
+12. **Delay:**
+    - Given a 2 h delay and an RSS release published 30 min ago below cutoff, then it goes to `pending_releases`.
+    - After 2 h from publish, the best pending release for that item is grabbed.
+    - A release meeting cutoff bypasses the delay.
+13. **Released rule:** given a movie whose digital release date is in the future, when `TitleAdded` arrives, then no search is enqueued. When `WantedReleased` arrives, one AUTO search is enqueued.
+14. **Redelivery:**
+    - Given `TitleAdded` E1 already processed, when E1 is delivered again, then no second search job exists.
+    - Given `FileImported` E2 delivered twice, then `CutoffMet` is published once.
+15. **Cutoff:**
+    - Given profile cutoff WEB 2160p / upgrade-until 2000, when `FileImported` brings WEB 2160p with CF 2300, then `CutoffMet` is published.
+    - With CF 1700, then not, and the file is cutoff-unmet in the weekly sweep.
+16. **Profile change:**
+    - Given 5 files with WEB 1080p and a profile cutoff of WEB 2160p, when the cutoff is changed to WEB 1080p, then `CutoffMet` is published for each file whose CF score is ≥ upgrade-until.
+17. **Upgrade after transcode:**
+    - Given a file with `FileTranscoded` processed, when RSS finds a better release, then it is rejected (`UPGRADE_NOT_ALLOWED`).
+    - When an `IssueActionRequested{REGRAB}` arrives for that file, then the source info hash is blocklisted and a REGRAB search runs and may grab.
+18. **Upgrade rule:** given an existing WEB 1080p file with CF 1700, upgrade-until 2000 and increment 100, then:
+    - A WEB 1080p release with CF 1750 is rejected (below increment).
+    - CF 1800 is accepted.
+    - A REPACK from a different group is rejected.
+19. **Seed until goals:**
+    - Given mode `SEED_UNTIL_GOALS` with goal ratio 2.0, when `FileImported` arrives, then the torrent stays.
+    - When the ratio reaches 2.0, then `Delete(deleteFiles=true)` is called.
+20. **Don't seed:** given the global mode `DONT_SEED`, when `FileImported` arrives, then `Delete(deleteFiles=false)` is called immediately.
+    - Given an indexer override `SEED_UNTIL_GOALS`, then the torrent stays.
+21. **DownloadCompleted payload:** given a pack with `S01E01.mkv` (priority 1) and `sample.mkv` (priority 0), then `Files` contains only `S01E01.mkv` and `SeedingMode` reflects the indexer override.
+22. **Import failed:** given `ImportFailed` for download D, then D's hash is blocklisted (`IMPORT_FAILED`), the torrent is deleted with data, and the next cached release is grabbed.
+23. **ID-then-title:**
+    - Given an indexer whose caps lack `tmdbid` but support `imdbid`, then the search query uses `imdbid`.
+    - Given no ID support, the query uses title + year. Given zero results, the status is `SKIPPED`.
+24. **qBittorrent version:** given WebAPI 2.11 (qBittorrent 5.0), when Acquisition starts, then the health check fails with `ErrUnsupportedVersion` and no grabs are attempted.
+25. **Multi-season pack:** given seasons 1–2 wanted and season 3 unmonitored, then an S01–S03 pack is rejected; given all three wanted, it is accepted.
+26. **CF regex timeout:** given a custom format whose regex exceeds the 100 ms match timeout on a title, then that format doesn't match and the decision still completes.
+27. **Completion backstop:** given a magnet that passed the metadata check but whose final file list now contains `extras/setup.exe` with priority 1, when it completes, then no `DownloadCompleted` is published, the torrent is deleted with data, the hash is blocklisted permanently, and the next release is grabbed.
+28. **Stalled:** given the stalled limit 6 h and a download with no progress for 6 h 1 min, then `DownloadFailed` is published, a `STALLED` blocklist row expiring in 24 h is written, and the next release is grabbed. Changing the setting to 12 h means a 7 h stall is left alone.
+29. **Scan origin:** given `TitleAdded{Origin: LIBRARY_SCAN}` for a released movie, then no search is enqueued. Given `FileImported{Origin: LIBRARY_SCAN}` below cutoff, then the title appears in the next cutoff-unmet sweep and `CutoffMet` carries `Origin: LIBRARY_SCAN` when met.
+30. **Upgrade cleanup:** given `FileImported{Replaces: F1}` for F2 and then `FileDeleted{File: F1, Reason: UPGRADED}`, then `file_scores` has F2 and not F1; redelivering `FileDeleted` changes nothing.
+31. **Resolution preset:** given the `1080p` preset, when `FileImported` brings Bluray 1080p with CF 0, then `CutoffMet` is published; a WEB 2160p release is rejected `QUALITY_NOT_ALLOWED`; between two 1080p releases with CF 1700 (WEB) and 300 (Bluray) the WEB one ranks first.
+32. **SearchCompleted outcome:** given an AUTO search with no accepted releases, then `SearchCompleted{Outcome: NOTHING_ACCEPTED}`; given a delay profile holding the best release, then `Outcome: PENDING_DELAY`; given a grab, then `Outcome: GRABBED` with `Grabbed` set.
+33. **ProfileChanged:** given a Title moved from profile `2160p` to `1080p` with a WEB 1080p file, when `ProfileChanged` arrives, then `CutoffMet` is published once.

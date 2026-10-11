@@ -1,0 +1,301 @@
+# Activity
+
+What happened, and telling the right people. Activity records every durable event onto title timelines and the global history, keeps the per-movie/episode pipeline status the UI shows, and delivers notifications in-app and to each user's external URLs.
+
+- **Depends on (Readers):** `catalog.Reader`, `identity.Reader`, `requests.Reader`.
+- **Publishes:** `activity.NotificationCreated`, `activity.AttentionChanged`.
+- **Consumes:** every durable event in the [event catalog](../00-context-map.md#event-catalog), including `platform.ServiceHealthChanged`.
+- **Importer entrypoint:** `api.Importer` (migration job only): Sonarr/Radarr grab and import history onto timelines.
+- **Decided in:**
+  - [ticket 25](../../../.scratch/v1-spec/issues/25-notifications-activity.md), including the shoutrrr amendment.
+  - [ticket 23](../../../.scratch/v1-spec/issues/23-module-boundaries.md): the pipeline status projection.
+  - [ticket 17](../../../.scratch/v1-spec/issues/17-pipeline-ia.md): the timeline and "Needs you" UI.
+
+## Owns / Must not
+
+| Owns | Must not |
+|---|---|
+| Title timelines, global history, pipeline-status projection | Change any other context's state |
+| The attention list ("Needs you" and the Home badge) | Act on attention items (actions call the owning context's HTTP API) |
+| In-app notifications and read state | Decide *whether* something failed; it only reports events |
+| Each user's notification URLs and their event subscriptions | Send notifications for events the user's role may not see |
+| The shoutrrr sender adapter port | Store progress ticks (ephemeral events) |
+
+## Data model
+
+| Table | Key columns |
+|---|---|
+| `activity_timeline` | `id`, `event_id` (unique), `title_id`, `episode_ids` JSON, `type`, `severity` (`INFO` \| `WARN` \| `ERROR`), `text`, `detail`, `at` |
+| `activity_history` | `id`, `event_id` (unique), `type`, `severity`, `title_id` (nullable), `summary`, `at` |
+| `activity_pipeline` | PK (`title_id`, `episode_id`; `episode_id` = `""` for movies), facet columns (see Behaviour), `stage`, `failed`, `detail`, `subs_chip` JSON, `transcode_chip` JSON, `last_event_id`, `updated_at` |
+| `activity_attention` | `id`, `kind` (`REQUEST_PENDING` \| `ISSUE_OPEN` \| `PIPELINE_FAILED` \| `AGENT_OFFLINE` \| `SERVICE_DOWN` \| `TRANSCODE_FAILED`), `ref` (request/issue/title+episode/agent/service ID), `title_id?`, `text`, `action` (suggested action label), `opened_at`, `cleared_at?`; unique open (`kind`, `ref`) |
+| `activity_notifications` | `id`, `user_id`, `event_id`, `kind`, `title`, `body`, `link`, `created_at`, `read_at`; unique (`user_id`, `event_id`, `kind`) |
+| `activity_notification_urls` | `id`, `user_id`, `label`, `url` (secret; never returned unmasked), `kinds` JSON, `created_at`, `last_sent_at`, `last_error` |
+
+## Query port
+
+```go
+package api
+
+// Main stages only. Subtitles and transcode are separate chips beside the bar.
+type Stage string // REQUESTED | SEARCHING | DOWNLOADING | IMPORTING | AVAILABLE
+
+type PipelineRow struct {
+    Title     domain.TitleID
+    Episode   *domain.EpisodeID // nil for movies
+    Stage     Stage
+    Failed    bool
+    Detail    string // human text, e.g. "Waiting for Jellyfin", "No accepted release"
+    Subs      *SubsChip      // nil until a file exists
+    Transcode *TranscodeChip // nil until the file is eligible (CutoffMet) or skipped
+    Updated   time.Time
+}
+
+type SubsChip struct {
+    State     string            // PENDING | SETTLED
+    Satisfied []domain.Language // e.g. [en] → "Subs ✓ en"
+    Missing   []domain.Language
+}
+
+type TranscodeChip struct {
+    State   string // QUEUED | RUNNING | DONE | SKIPPED | FAILED
+    Saved   *int   // percent saved, when DONE
+    Reason  string // skip/failure reason
+    Job     *domain.JobID // RUNNING: the UI overlays live % from ephemeral transcode.JobProgressed
+}
+
+type AttentionItem struct {
+    ID, Kind, Ref, Text, Action string
+    Title    *domain.TitleID
+    OpenedAt time.Time
+}
+
+type TimelineEntry struct {
+    EventID  string
+    Type     string
+    Severity string
+    Episodes []domain.EpisodeID
+    Text     string
+    Detail   string
+    At       time.Time
+}
+
+type Notification struct {
+    ID, Kind, Title, Body, Link string
+    CreatedAt                   time.Time
+    Read                        bool
+}
+
+type Page struct{ Before *time.Time; Limit int } // Limit default 50, max 200
+
+type Reader interface {
+    // Timeline returns a title's entries, newest first. Unknown title → empty slice, no error.
+    Timeline(ctx context.Context, title domain.TitleID, p Page) ([]TimelineEntry, error)
+    // History returns the global feed (90-day retention), newest first, optionally filtered by severity.
+    History(ctx context.Context, minSeverity string, p Page) ([]TimelineEntry, error)
+    // Pipeline returns one row per movie or per episode of the title, episodes in season/number order.
+    // A title with no events yet returns rows at REQUESTED once catalog.TitleAdded is processed; unknown → empty.
+    Pipeline(ctx context.Context, title domain.TitleID) ([]PipelineRow, error)
+    // TitleStages returns the summary stage per title (the least-advanced unfinished row), for library grids.
+    TitleStages(ctx context.Context, titles []domain.TitleID) (map[domain.TitleID]PipelineRow, error)
+    // Notifications returns a user's in-app notifications, newest first.
+    Notifications(ctx context.Context, user domain.UserID, unreadOnly bool, p Page) ([]Notification, error)
+    UnreadCount(ctx context.Context, user domain.UserID) (int, error)
+    // Attention returns open attention items, oldest first. Admin view; requesters get none.
+    Attention(ctx context.Context) ([]AttentionItem, error)
+}
+```
+
+No other context depends on this Reader in v1. The UI uses it through HTTP.
+
+## Events published
+
+```go
+// Durable. One per recipient per notification, so the live gateway can push it to that user only.
+type NotificationCreated struct {
+    Notification string // ID
+    User         domain.UserID
+    Kind         string
+    Title, Link  string
+}
+
+// Durable. An attention item opened or cleared. Admin-only on the live gateway.
+type AttentionChanged struct {
+    Item   string // attention item ID
+    Kind   string
+    Ref    string
+    Open   bool   // false = cleared
+    Count  int    // open items after this change (Home badge)
+}
+```
+
+## Events and commands consumed
+
+Every durable event is handled by three handlers. Each dedupes on (`handler`, `event_id`) and on the unique `event_id` columns.
+
+| Handler | Reaction | Failure |
+|---|---|---|
+| `timeline` | Events that carry a title write one `activity_timeline` row with rendered text. `catalog.TitleRemoved` deletes that title's timeline and pipeline rows. | Retry via the dispatcher. Render errors fall back to the raw event type as text. |
+| `history` | Every durable event writes one `activity_history` row. | Same |
+| `pipeline` | Updates facets for the affected movie/episode rows, then recomputes `stage` and the chips (tables below). Ignores events older than `last_event_id` for the row (ULID order). | Same |
+| `attention` | Opens and clears `activity_attention` items (table below) and publishes `AttentionChanged` for each change. | Same |
+| `notify` | Maps the event to notification kinds and recipients (table below), writes in-app rows, publishes `NotificationCreated`, and enqueues one backlite `activity.send` job per matching external URL. | `send` retries 3× with backoff, then stores `last_error`. It never blocks the dispatcher. |
+
+### Pipeline facets
+
+| Event | Facet change (for the payload's title/episodes) |
+|---|---|
+| `catalog.TitleAdded`, `MonitoringChanged` (+) | Create rows: `wanted=true`, everything else empty |
+| `catalog.MonitoringChanged` (−) | `wanted=false` (row kept, shown as unmonitored) |
+| `acquisition.SearchStarted` | `search=RUNNING` |
+| `acquisition.SearchCompleted` | `Outcome = NOTHING_ACCEPTED` → `search=NOTHING_ACCEPTED`; `GRABBED` or `PENDING_DELAY` → `search` cleared (detail "Waiting for a better release" when pending) |
+| `acquisition.ReleaseRejected` | Detail "Rejected: <reason>", search stays `RUNNING` |
+| `acquisition.ReleaseGrabbed` | `download=ACTIVE` |
+| `acquisition.DownloadFailed` | `download=FAILED` |
+| `acquisition.DownloadCompleted` | `download=DONE` |
+| `library.FileImported` | `file=PRESENT`, `jellyfin=false`, `subtitles=PENDING`, `download=` cleared |
+| `library.ImportFailed` | `download=FAILED`, detail = reason |
+| `subtitles.CoverageSettled` | `subtitles=SETTLED` with satisfied/missing languages |
+| `transcode.JobQueued` (transcode kind) | `transcode=QUEUED` |
+| `transcode.JobStarted` (transcode kind) | `transcode=RUNNING`, job ID stored |
+| `transcode.TranscodeSkipped` | `transcode=SKIPPED` with reason |
+| `transcode.JobFailed` (transcode kind, `Final`) | `transcode=FAILED` |
+| `library.FileTranscoded` | `transcode=DONE`, saved % from sizes |
+| `library.ItemAvailable` | `jellyfin=true` |
+| `library.FileDeleted` | `REMOVED` / `TITLE_REMOVED`: `file=NONE`, transcode/subtitles/jellyfin cleared. `UPGRADED`: no change, because the row already reflects the replacing file from its `FileImported`. |
+
+### Stage derivation
+
+Main stages: Requested → Searching → Downloading → Importing → Available, where Available means Jellyfin confirmed the file. Evaluated top to bottom; the first match wins.
+
+1. `download=ACTIVE` → `DOWNLOADING` (detail "Upgrade" when `file=PRESENT`).
+2. `file=NONE` and `download=DONE` → `IMPORTING`.
+3. `file=NONE` and `download=FAILED` → `DOWNLOADING`, `failed=true`.
+4. `file=NONE` and `search=RUNNING` → `SEARCHING`.
+5. `file=NONE` and `search=NOTHING_ACCEPTED` → `SEARCHING`, `failed=true`.
+6. `file=NONE` → `REQUESTED`.
+7. `jellyfin=false` → `IMPORTING`, detail "Waiting for Jellyfin".
+8. Otherwise → `AVAILABLE`.
+
+### Chips
+
+Shown beside the bar; they never change the main stage.
+
+| Chip | Facet | Text |
+|---|---|---|
+| Subs | `subtitles=PENDING` | "Subs …" |
+| | `subtitles=SETTLED`, none missing | "Subs ✓ en, es" |
+| | `subtitles=SETTLED`, some missing | "Subs ✓ en · es missing" |
+| Transcode | `QUEUED` | "Transcode queued" |
+| | `RUNNING` | "Transcode 41%" (live % from ephemeral `JobProgressed`, never stored) |
+| | `DONE` | "Transcoded −62%" |
+| | `SKIPPED` | "Original kept" (reason on hover) |
+| | `FAILED` | "Transcode failed" (failed styling) |
+
+### Attention items
+
+| Opens on | Clears on | Kind |
+|---|---|---|
+| `requests.RequestCreated` | `RequestApproved` / `RequestDeclined` for that request | `REQUEST_PENDING` |
+| `requests.IssueReported` | `requests.IssueResolved` | `ISSUE_OPEN` |
+| pipeline row becomes `failed=true` | row no longer failed | `PIPELINE_FAILED` (one per title) |
+| `transcode.JobFailed{Final}` | a later `JobQueued` or `FileTranscoded` for the file | `TRANSCODE_FAILED` |
+| `transcode.AgentOffline` | `transcode.AgentOnline` | `AGENT_OFFLINE` |
+| `platform.ServiceHealthChanged{Healthy: false}` | same with `Healthy: true` | `SERVICE_DOWN` |
+
+### Notification kinds and recipients
+
+| Kind | From event | Recipients | Role scope |
+|---|---|---|---|
+| `REQUEST_PENDING` | `requests.RequestCreated` (only published when not auto-approved) | Admins | Admin |
+| `REQUEST_APPROVED` | `requests.RequestApproved` | Request's user | Requester |
+| `REQUEST_DECLINED` | `requests.RequestDeclined` | Request's user | Requester |
+| `REQUEST_AVAILABLE` | `requests.RequestAvailable` | Request's user | Requester |
+| `ISSUE_REPORTED` | `requests.IssueReported` | Admins | Admin |
+| `ISSUE_REPLY` / `ISSUE_RESOLVED` | `requests.IssueCommented` / `IssueResolved` | Reporter (and admins for replies by the reporter) | Requester |
+| `IMPORT_FAILED` | `library.ImportFailed` | Admins | Admin |
+| `DOWNLOAD_FAILED` | `acquisition.DownloadFailed` | Admins | Admin |
+| `TRANSCODE_FAILED` | `transcode.JobFailed` (transcode kind, `Final = true`) | Admins | Admin |
+| `SERVICE_UNREACHABLE` | `platform.ServiceHealthChanged{Healthy: false}` | Admins | Admin |
+| `AGENT_OFFLINE` | `transcode.AgentOffline` | Admins | Admin |
+| `GRABBED` | `acquisition.ReleaseGrabbed` | Opt-in only | Admin |
+| `IMPORTED` | `library.FileImported` | Opt-in only | Admin |
+| `TRANSCODED` | `library.FileTranscoded` | Opt-in only | Admin |
+| `BLOCKED_FILE_REJECTED` | `acquisition.ReleaseRejected` with `blockedFile` | Opt-in only | Admin |
+
+- **In-app:** created for every recipient of the non-opt-in kinds. Opt-in kinds go only to URLs that subscribe to them, never in-app.
+- **Admin scope for requester kinds:** admins may subscribe their URLs to requester-scoped kinds for *any* user.
+- **Requester limits:** requesters may subscribe only to requester-scoped kinds for their own requests. Saving any other kind returns `422`; at send time it's also skipped.
+- **Request lookups:** recipients and titles come from `requests.Reader` (request → user) and `catalog.Reader` (title name for message text).
+
+## External ports
+
+```go
+type NotificationSender interface {
+    // Validate parses a shoutrrr URL (discord://, telegram://, ntfy://, pushover://, smtp://, …).
+    // ErrInvalidURL for unknown schemes or malformed tokens. No network call.
+    Validate(url string) error
+    // Send delivers one message. Returns ErrRejected (4xx from the service) or ErrUnavailable (network/5xx).
+    Send(ctx context.Context, url string, m Message) error
+}
+
+type Message struct{ Title, Body, Link string }
+```
+
+Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shoutrrr (MIT).
+
+## HTTP surface
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /api/activity/timeline?title=` | signed in (requesters: own requested titles) | Title timeline |
+| `GET /api/activity/pipeline?title=` | same | Pipeline rows (stage + chips) for one title |
+| `GET /api/activity/pipeline?titles=` | signed in | Summary stage per title (library grids) |
+| `GET /api/activity/pipeline?active=true` | signed in (requesters: own titles) | Rows currently searching, downloading, importing or transcoding ("Live now") |
+| `GET /api/activity/history` | admin | Global feed |
+| `GET /api/activity/attention` | admin | Open attention items ("Needs you") |
+| `GET /api/activity/notifications` | signed in | Own in-app notifications |
+| `POST /api/activity/notifications/{id}/read`, `POST …/read-all` | signed in | Mark read |
+| `GET /api/activity/notification-kinds` | signed in | Kinds the caller's role may subscribe to |
+| `GET/POST /api/activity/notification-urls` | signed in | Own URLs (masked) / add |
+| `PATCH/DELETE /api/activity/notification-urls/{id}` | owner | Edit label/kinds, delete |
+| `POST /api/activity/notification-urls/{id}/test` | owner | Send a test message now |
+
+## Behaviour
+
+- **Retention:**
+  - Timeline rows live as long as their title and are deleted on `catalog.TitleRemoved`.
+  - History rows older than 90 days, and in-app notifications older than 90 days, are pruned daily.
+- **Severity:** `*Failed`, `ReleaseRejected`, `AgentOffline`, `SearchCompleted` with nothing accepted → `WARN` or `ERROR`. The rest are `INFO`.
+- **"Needs you"** (home screen) is the attention list Activity owns (table above). The UI reads `GET /api/activity/attention`, updates it from `AttentionChanged`, and calls the owning context's API for each action (approve → Requests, search again → Acquisition, view agent → Transcode).
+- **Limits:** at most 10 notification URLs per user. A URL is validated on save; invalid → `422`.
+- **Secrets:** URLs are never returned in full. Responses show scheme and host plus `…`, and only the owner can edit them.
+- **Settings owned:** `activity.historyRetentionDays` (90), `activity.notificationRetentionDays` (90).
+
+## Test seeds
+
+1. **Given** `catalog.TitleAdded` for a movie, **then** one pipeline row exists at `REQUESTED` and one timeline row is written.
+2. **Given** the same event is delivered twice, **then** exactly one timeline row, one history row and one pipeline update exist.
+3. **Given** a movie at `SEARCHING`, **when** `ReleaseGrabbed` then `DownloadCompleted` then `FileImported` arrive, **then** the stage moves `DOWNLOADING` → `IMPORTING` → `IMPORTING` ("Waiting for Jellyfin") and the Subs chip is "Subs …".
+4. **Given** a file imported, **when** `ItemAvailable` arrives, **then** the stage is `AVAILABLE` even while subtitles are still pending; after `CoverageSettled{Satisfied: [en]}` the Subs chip is "Subs ✓ en".
+5. **Given** an available file, **when** `JobQueued` then `JobStarted` then `FileTranscoded` arrive, **then** the stage stays `AVAILABLE` and the Transcode chip goes "Transcode queued" → RUNNING (with job ID) → "Transcoded −N%".
+6. **Given** an available file, **when** an upgrade `ReleaseGrabbed` arrives, **then** `DOWNLOADING` with detail "Upgrade".
+7. **Given** `SearchCompleted{Outcome: NOTHING_ACCEPTED}`, **then** `SEARCHING` with `failed=true`, and `TitleStages` returns that row for the title.
+8. **Given** events for one episode arrive out of order (older ULID after newer), **then** the older event doesn't change that row's facets.
+9. **Given** `catalog.TitleRemoved`, **then** the title's timeline and pipeline rows are deleted and history rows stay.
+10. **Given** `requests.RequestApproved` for user U, **then** U gets one in-app `REQUEST_APPROVED` notification and one `NotificationCreated` event; admins get nothing.
+11. **Given** `library.ImportFailed`, **then** every enabled admin gets an in-app `IMPORT_FAILED`, and each admin URL subscribed to it gets one `activity.send` job.
+12. **Given** a requester saves a URL subscribed to `IMPORT_FAILED`, **then** `422`.
+13. **Given** `ReleaseGrabbed` and no URL subscribed to `GRABBED`, **then** no in-app notification and no send job.
+14. **Given** `NotificationSender.Send` returns `ErrUnavailable` three times, **then** the job stops, `last_error` is set, and the in-app notification still exists.
+15. **Given** an invalid shoutrrr URL, **when** saved, **then** `422` and nothing is stored.
+16. **Given** a stored URL, **when** listed by its owner, **then** the token part is masked; another user gets `404`.
+17. **Given** history rows older than 90 days, **when** the prune job runs, **then** they're deleted and newer rows remain.
+18. **Given** `RequestCreated` for request R, **then** one `REQUEST_PENDING` attention item opens and `AttentionChanged{Open: true, Count: n+1}` is published; **when** `RequestApproved` for R arrives, **then** it clears with `AttentionChanged{Open: false}`; redelivery of either changes nothing.
+19. **Given** `AgentOffline` for agent A delivered twice, **then** one `AGENT_OFFLINE` item exists; `AgentOnline` clears it.
+20. **Given** `transcode.JobFailed{Final: false}`, **then** no notification and no attention item; with `Final: true`, both.
+21. **Contract (Reader fake vs real):**
+    - Ordering: newest first.
+    - Unknown title → empty slice, no error.
+    - `Page.Limit` is capped at 200.
+    - `Pipeline` orders episodes by season, then number.
