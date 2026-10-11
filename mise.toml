@@ -74,18 +74,20 @@ dir = "server"
 run = ["go vet ./...", "golangci-lint run ./..."]
 
 [tasks."lint:boundaries"]
-description = "Check that depguard rejects the cross-context import fixture"
+description = "Check that depguard rejects every import-boundary fixture"
 dir = "server"
 run = '''
-if output=$(golangci-lint run --build-tags lintfixture ./internal/lintfixture/... 2>&1); then
-  echo "lint fixture passed: the cross-context import rules are not enforced"
-  exit 1
-fi
-if ! echo "$output" | grep -q "depguard"; then
-  echo "$output"
-  exit 1
-fi
-echo "depguard rejects the cross-context fixture"
+for fixture in ./internal/lintfixture/*/; do
+  if output=$(golangci-lint run --build-tags lintfixture "${fixture}..." 2>&1); then
+    echo "lint fixture ${fixture} passed: its import rule is not enforced"
+    exit 1
+  fi
+  if ! echo "$output" | grep -q "depguard"; then
+    echo "$output"
+    exit 1
+  fi
+done
+echo "depguard rejects every boundary fixture"
 '''
 
 [tasks."lint:web"]

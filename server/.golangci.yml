@@ -25,63 +25,135 @@ linters:
             - $gostd
             - magpie/internal/domain
 
-        # Outside a context, only its api package may be imported. internal/app wires the modules.
+        # Outside a context, only its api package may be imported. internal/app wires the modules;
+        # adapters import a context's root only to implement the ports it declares in ports.go.
         identity-boundary:
           list-mode: lax
-          files: [$all, "!**/internal/identity/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          files: [$all, "!**/internal/identity/**", "!**/internal/app/**", "!**/internal/flows_test/**", "!**/internal/adapters/**"]
           allow: [magpie/internal/identity/api]
           deny:
             - pkg: magpie/internal/identity
               desc: other contexts may import only magpie/internal/identity/api
         catalog-boundary:
           list-mode: lax
-          files: [$all, "!**/internal/catalog/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          files: [$all, "!**/internal/catalog/**", "!**/internal/app/**", "!**/internal/flows_test/**", "!**/internal/adapters/**"]
           allow: [magpie/internal/catalog/api]
           deny:
             - pkg: magpie/internal/catalog
               desc: other contexts may import only magpie/internal/catalog/api
         requests-boundary:
           list-mode: lax
-          files: [$all, "!**/internal/requests/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          files: [$all, "!**/internal/requests/**", "!**/internal/app/**", "!**/internal/flows_test/**", "!**/internal/adapters/**"]
           allow: [magpie/internal/requests/api]
           deny:
             - pkg: magpie/internal/requests
               desc: other contexts may import only magpie/internal/requests/api
         library-boundary:
           list-mode: lax
-          files: [$all, "!**/internal/library/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          files: [$all, "!**/internal/library/**", "!**/internal/app/**", "!**/internal/flows_test/**", "!**/internal/adapters/**"]
           allow: [magpie/internal/library/api]
           deny:
             - pkg: magpie/internal/library
               desc: other contexts may import only magpie/internal/library/api
         acquisition-boundary:
           list-mode: lax
-          files: [$all, "!**/internal/acquisition/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          files: [$all, "!**/internal/acquisition/**", "!**/internal/app/**", "!**/internal/flows_test/**", "!**/internal/adapters/**"]
           allow: [magpie/internal/acquisition/api]
           deny:
             - pkg: magpie/internal/acquisition
               desc: other contexts may import only magpie/internal/acquisition/api
         subtitles-boundary:
           list-mode: lax
-          files: [$all, "!**/internal/subtitles/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          files: [$all, "!**/internal/subtitles/**", "!**/internal/app/**", "!**/internal/flows_test/**", "!**/internal/adapters/**"]
           allow: [magpie/internal/subtitles/api]
           deny:
             - pkg: magpie/internal/subtitles
               desc: other contexts may import only magpie/internal/subtitles/api
         transcode-boundary:
           list-mode: lax
-          files: [$all, "!**/internal/transcode/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          files: [$all, "!**/internal/transcode/**", "!**/internal/app/**", "!**/internal/flows_test/**", "!**/internal/adapters/**"]
           allow: [magpie/internal/transcode/api]
           deny:
             - pkg: magpie/internal/transcode
               desc: other contexts may import only magpie/internal/transcode/api
         activity-boundary:
           list-mode: lax
-          files: [$all, "!**/internal/activity/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          files: [$all, "!**/internal/activity/**", "!**/internal/app/**", "!**/internal/flows_test/**", "!**/internal/adapters/**"]
           allow: [magpie/internal/activity/api]
           deny:
             - pkg: magpie/internal/activity
               desc: other contexts may import only magpie/internal/activity/api
+
+        # A context imports another's api only for a Reader it depends on (00-context-map.md, query
+        # dependencies) or for the events and commands it consumes or sends. Activity consumes every
+        # context's events, so it has no rule. The Reader-level graph is checked by internal/app tests.
+        identity-dependencies:
+          list-mode: lax
+          files: ["**/internal/identity/**", "**/internal/lintfixture/identity/**"]
+          deny:
+            - { pkg: magpie/internal/catalog/api, desc: Identity depends on no other context }
+            - { pkg: magpie/internal/requests/api, desc: Identity depends on no other context }
+            - { pkg: magpie/internal/library/api, desc: Identity depends on no other context }
+            - { pkg: magpie/internal/acquisition/api, desc: Identity depends on no other context }
+            - { pkg: magpie/internal/subtitles/api, desc: Identity depends on no other context }
+            - { pkg: magpie/internal/transcode/api, desc: Identity depends on no other context }
+            - { pkg: magpie/internal/activity/api, desc: Identity depends on no other context }
+        catalog-dependencies:
+          list-mode: lax
+          files: ["**/internal/catalog/**", "**/internal/lintfixture/catalog/**"]
+          deny:
+            - { pkg: magpie/internal/identity/api, desc: Catalog reads no other context }
+            - { pkg: magpie/internal/acquisition/api, desc: Catalog reads no other context }
+            - { pkg: magpie/internal/subtitles/api, desc: Catalog reads no other context }
+            - { pkg: magpie/internal/transcode/api, desc: Catalog reads no other context }
+            - { pkg: magpie/internal/activity/api, desc: Catalog reads no other context }
+        requests-dependencies:
+          list-mode: lax
+          files: ["**/internal/requests/**", "**/internal/lintfixture/requests/**"]
+          deny:
+            - { pkg: magpie/internal/acquisition/api, desc: Requests reads only Catalog and Identity }
+            - { pkg: magpie/internal/transcode/api, desc: Requests reads only Catalog and Identity }
+            - { pkg: magpie/internal/activity/api, desc: Requests reads only Catalog and Identity }
+        library-dependencies:
+          list-mode: lax
+          files: ["**/internal/library/**", "**/internal/lintfixture/library/**"]
+          deny:
+            - { pkg: magpie/internal/identity/api, desc: Library reads only Catalog }
+            - { pkg: magpie/internal/requests/api, desc: Library reads only Catalog }
+            - { pkg: magpie/internal/subtitles/api, desc: Library reads only Catalog }
+            - { pkg: magpie/internal/activity/api, desc: Library reads only Catalog }
+        acquisition-dependencies:
+          list-mode: lax
+          files: ["**/internal/acquisition/**", "**/internal/lintfixture/acquisition/**"]
+          deny:
+            - { pkg: magpie/internal/identity/api, desc: Acquisition reads only Catalog and Library }
+            - { pkg: magpie/internal/subtitles/api, desc: Acquisition reads only Catalog and Library }
+            - { pkg: magpie/internal/transcode/api, desc: Acquisition reads only Catalog and Library }
+            - { pkg: magpie/internal/activity/api, desc: Acquisition reads only Catalog and Library }
+        subtitles-dependencies:
+          list-mode: lax
+          files: ["**/internal/subtitles/**", "**/internal/lintfixture/subtitles/**"]
+          deny:
+            - { pkg: magpie/internal/identity/api, desc: Subtitles reads only Catalog and Library }
+            - { pkg: magpie/internal/acquisition/api, desc: Subtitles reads only Catalog and Library }
+            - { pkg: magpie/internal/activity/api, desc: Subtitles reads only Catalog and Library }
+        transcode-dependencies:
+          list-mode: lax
+          files: ["**/internal/transcode/**", "**/internal/lintfixture/transcode/**"]
+          deny:
+            - { pkg: magpie/internal/identity/api, desc: Transcode reads only Catalog and Library }
+            - { pkg: magpie/internal/requests/api, desc: Transcode reads only Catalog and Library }
+            - { pkg: magpie/internal/subtitles/api, desc: Transcode never reads Subtitles }
+            - { pkg: magpie/internal/activity/api, desc: Transcode reads only Catalog and Library }
+        platform-dependencies:
+          list-mode: lax
+          files: ["**/internal/platform/**", "!**/internal/platform/migrate/**", "**/internal/lintfixture/platform/**"]
+          deny:
+            - { pkg: magpie/internal/catalog/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
+            - { pkg: magpie/internal/library/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
+            - { pkg: magpie/internal/subtitles/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
+            - { pkg: magpie/internal/transcode/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
+            - { pkg: magpie/internal/activity/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
 
 formatters:
   enable:
