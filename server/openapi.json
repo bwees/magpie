@@ -126,6 +126,57 @@
 				],
 				"type": "object"
 			},
+			"ChangePasswordRequest": {
+				"description": "ChangePasswordRequest schema",
+				"properties": {
+					"currentPassword": {
+						"type": "string"
+					},
+					"newPassword": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"currentPassword",
+					"newPassword"
+				],
+				"type": "object"
+			},
+			"ConnectionsResponse": {
+				"description": "ConnectionsResponse schema",
+				"properties": {
+					"health": {
+						"items": {
+							"$ref": "#/components/schemas/ServiceHealthResponse"
+						},
+						"type": "array"
+					},
+					"jellyfin": {
+						"$ref": "#/components/schemas/JellyfinConnection"
+					},
+					"openSubtitles": {
+						"$ref": "#/components/schemas/OpenSubtitlesConnection"
+					},
+					"prowlarr": {
+						"$ref": "#/components/schemas/ProwlarrConnection"
+					},
+					"qbittorrent": {
+						"$ref": "#/components/schemas/QBittorrentConnection"
+					},
+					"tmdb": {
+						"$ref": "#/components/schemas/TMDBConnection"
+					}
+				},
+				"required": [
+					"health",
+					"jellyfin",
+					"openSubtitles",
+					"prowlarr",
+					"qbittorrent",
+					"tmdb"
+				],
+				"type": "object"
+			},
 			"CoverageSettled": {
 				"description": "CoverageSettled schema",
 				"properties": {
@@ -159,6 +210,22 @@
 					"missing",
 					"satisfied",
 					"title"
+				],
+				"type": "object"
+			},
+			"CredentialsRequest": {
+				"description": "CredentialsRequest schema",
+				"properties": {
+					"password": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"password",
+					"username"
 				],
 				"type": "object"
 			},
@@ -1034,6 +1101,21 @@
 				],
 				"type": "object"
 			},
+			"JellyfinConnection": {
+				"properties": {
+					"apiKey": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"apiKey",
+					"url"
+				],
+				"type": "object"
+			},
 			"JobFailed": {
 				"description": "JobFailed schema",
 				"properties": {
@@ -1176,6 +1258,38 @@
 				],
 				"type": "object"
 			},
+			"MeResponse": {
+				"description": "MeResponse schema",
+				"properties": {
+					"displayName": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"localAdmin": {
+						"type": "boolean"
+					},
+					"permissions": {
+						"$ref": "#/components/schemas/Permissions"
+					},
+					"role": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"displayName",
+					"id",
+					"localAdmin",
+					"permissions",
+					"role",
+					"username"
+				],
+				"type": "object"
+			},
 			"MediaInfo": {
 				"properties": {
 					"bitrateKbps": {
@@ -1288,6 +1402,21 @@
 				],
 				"type": "object"
 			},
+			"OpenSubtitlesConnection": {
+				"properties": {
+					"password": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"password",
+					"username"
+				],
+				"type": "object"
+			},
 			"ParkedEventResponse": {
 				"description": "ParkedEventResponse schema",
 				"properties": {
@@ -1322,6 +1451,41 @@
 					"handler",
 					"lastError",
 					"parkedAt"
+				],
+				"type": "object"
+			},
+			"PasswordChangedResponse": {
+				"description": "PasswordChangedResponse schema",
+				"properties": {
+					"changed": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"changed"
+				],
+				"type": "object"
+			},
+			"Permissions": {
+				"properties": {
+					"autoApproveMovies": {
+						"type": "boolean"
+					},
+					"autoApproveTv": {
+						"type": "boolean"
+					},
+					"reportIssues": {
+						"type": "boolean"
+					},
+					"viewOthersRequests": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"autoApproveMovies",
+					"autoApproveTv",
+					"reportIssues",
+					"viewOthersRequests"
 				],
 				"type": "object"
 			},
@@ -1404,6 +1568,40 @@
 				"required": [
 					"projection",
 					"title"
+				],
+				"type": "object"
+			},
+			"ProwlarrConnection": {
+				"properties": {
+					"apiKey": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"apiKey",
+					"url"
+				],
+				"type": "object"
+			},
+			"QBittorrentConnection": {
+				"properties": {
+					"apiKey": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"apiKey",
+					"category",
+					"url"
 				],
 				"type": "object"
 			},
@@ -1957,6 +2155,37 @@
 				],
 				"type": "object"
 			},
+			"ServiceHealthResponse": {
+				"properties": {
+					"checkedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"detail": {
+						"type": "string"
+					},
+					"error": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"version": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"detail",
+					"error",
+					"service",
+					"status",
+					"version"
+				],
+				"type": "object"
+			},
 			"Sidecar": {
 				"properties": {
 					"forced": {
@@ -1977,6 +2206,18 @@
 					"language",
 					"path",
 					"sdh"
+				],
+				"type": "object"
+			},
+			"SignedOutResponse": {
+				"description": "SignedOutResponse schema",
+				"properties": {
+					"signedOut": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"signedOut"
 				],
 				"type": "object"
 			},
@@ -2109,6 +2350,17 @@
 					"language",
 					"mediaFile",
 					"reason"
+				],
+				"type": "object"
+			},
+			"TMDBConnection": {
+				"properties": {
+					"apiKey": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"apiKey"
 				],
 				"type": "object"
 			},
@@ -2411,6 +2663,27 @@
 				],
 				"type": "object"
 			},
+			"UpdateConnectionsRequest": {
+				"description": "UpdateConnectionsRequest schema",
+				"properties": {
+					"jellyfin": {
+						"$ref": "#/components/schemas/JellyfinConnection"
+					},
+					"openSubtitles": {
+						"$ref": "#/components/schemas/OpenSubtitlesConnection"
+					},
+					"prowlarr": {
+						"$ref": "#/components/schemas/ProwlarrConnection"
+					},
+					"qbittorrent": {
+						"$ref": "#/components/schemas/QBittorrentConnection"
+					},
+					"tmdb": {
+						"$ref": "#/components/schemas/TMDBConnection"
+					}
+				},
+				"type": "object"
+			},
 			"UpdateIndexerRequest": {
 				"description": "UpdateIndexerRequest schema",
 				"properties": {
@@ -2537,7 +2810,7 @@
 	"paths": {
 		"/api/acquisition/indexer-options": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).indexerOptions`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).indexerOptions`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getIndexerOptions",
 				"parameters": [
 					{
@@ -2597,7 +2870,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).setIndexerOptions`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).setIndexerOptions`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "setIndexerOptions",
 				"parameters": [
 					{
@@ -2670,7 +2943,7 @@
 		},
 		"/api/acquisition/indexers": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).listIndexers`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).listIndexers`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listIndexers",
 				"parameters": [
 					{
@@ -2732,7 +3005,7 @@
 		},
 		"/api/acquisition/indexers/sync": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).syncIndexers`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).syncIndexers`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "syncIndexers",
 				"parameters": [
 					{
@@ -2794,7 +3067,7 @@
 		},
 		"/api/acquisition/indexers/{id}": {
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).updateIndexer`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).updateIndexer`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateIndexer",
 				"parameters": [
 					{
@@ -2876,7 +3149,7 @@
 		},
 		"/api/activity/attention": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).attention`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).attention`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getAttention",
 				"parameters": [
 					{
@@ -2941,7 +3214,7 @@
 		},
 		"/api/activity/history": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).history`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).history`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getHistory",
 				"parameters": [
 					{
@@ -3030,7 +3303,7 @@
 		},
 		"/api/activity/pipeline": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).pipeline`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).pipeline`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getPipeline",
 				"parameters": [
 					{
@@ -3122,7 +3395,7 @@
 		},
 		"/api/activity/timeline": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).timeline`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).timeline`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getTimeline",
 				"parameters": [
 					{
@@ -3212,7 +3485,7 @@
 		},
 		"/api/health": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/httpserver.(*HealthController).Register.func1`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/httpserver.(*HealthController).Register.func1`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getHealth",
 				"parameters": [
 					{
@@ -3272,9 +3545,352 @@
 				]
 			}
 		},
+		"/api/identity/local-admin/password": {
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).changeLocalPassword`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "changeLocalAdminPassword",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ChangePasswordRequest"
+							}
+						}
+					},
+					"description": "Request body for identity.ChangePasswordRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PasswordChangedResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change the local admin's password (local admin)",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/login/local": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInLocal`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "signInLocal",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CredentialsRequest"
+							}
+						}
+					},
+					"description": "Request body for identity.CredentialsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MeResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Sign in as the local admin",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/logout": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signOut`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "signOut",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SignedOutResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Delete the current session",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/me": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).me`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getMe",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MeResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "The signed-in user and their permissions",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/setup/admin": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setupAdmin`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setupAdmin",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CredentialsRequest"
+							}
+						}
+					},
+					"description": "Request body for identity.CredentialsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MeResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Create the local admin while no admin exists, and sign them in",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
 		"/api/platform/backups": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).list`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).list`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listBackups",
 				"parameters": [
 					{
@@ -3335,11 +3951,71 @@
 					"api",
 					"platform"
 				]
+			},
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).create`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "createBackup",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BackupResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Back up the database now (admin)",
+				"tags": [
+					"api",
+					"platform"
+				]
 			}
 		},
 		"/api/platform/backups/{name}/restore": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).restore`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).restore`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "restoreBackup",
 				"parameters": [
 					{
@@ -3408,9 +4084,213 @@
 				]
 			}
 		},
+		"/api/platform/connections": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).get`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getConnections",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ConnectionsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "External service connections with masked secrets and health (admin)",
+				"tags": [
+					"api",
+					"platform"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).save`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateConnections",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateConnectionsRequest"
+							}
+						}
+					},
+					"description": "Request body for connections.UpdateConnectionsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ConnectionsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change the connections named in the body and re-check them (admin)",
+				"tags": [
+					"api",
+					"platform"
+				]
+			}
+		},
+		"/api/platform/connections/{service}/test": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).test`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "testConnection",
+				"parameters": [
+					{
+						"description": "tmdb, qbittorrent, prowlarr, jellyfin or opensubtitles",
+						"in": "path",
+						"name": "service",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ServiceHealthResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Probe one stored connection now (admin)",
+				"tags": [
+					"api",
+					"platform"
+				]
+			}
+		},
 		"/api/platform/parked-events": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).listParked`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).listParked`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listParkedEvents",
 				"parameters": [
 					{
@@ -3475,7 +4355,7 @@
 		},
 		"/api/platform/parked-events/retry": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).retryParked`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).retryParked`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "retryParkedEvent",
 				"parameters": [
 					{
@@ -3559,6 +4439,9 @@
 		},
 		{
 			"name": "api"
+		},
+		{
+			"name": "identity"
 		},
 		{
 			"name": "platform"

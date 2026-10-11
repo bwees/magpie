@@ -136,6 +136,34 @@ export type TimelineEntryResponse = {
 export type HealthResponse = {
     status: string;
 };
+export type ChangePasswordRequest = {
+    currentPassword: string;
+    newPassword: string;
+};
+export type PasswordChangedResponse = {
+    changed: boolean;
+};
+export type CredentialsRequest = {
+    password: string;
+    username: string;
+};
+export type Permissions = {
+    autoApproveMovies: boolean;
+    autoApproveTv: boolean;
+    reportIssues: boolean;
+    viewOthersRequests: boolean;
+};
+export type MeResponse = {
+    displayName: string;
+    id: string;
+    localAdmin: boolean;
+    permissions: Permissions;
+    role: string;
+    username: string;
+};
+export type SignedOutResponse = {
+    signedOut: boolean;
+};
 export type BackupResponse = {
     createdAt: string;
     kind: string;
@@ -144,6 +172,49 @@ export type BackupResponse = {
 };
 export type RestoreResponse = {
     restarting: boolean;
+};
+export type ServiceHealthResponse = {
+    checkedAt?: string;
+    detail: string;
+    error: string;
+    service: string;
+    status: string;
+    version: string;
+};
+export type JellyfinConnection = {
+    apiKey: string;
+    url: string;
+};
+export type OpenSubtitlesConnection = {
+    password: string;
+    username: string;
+};
+export type ProwlarrConnection = {
+    apiKey: string;
+    url: string;
+};
+export type QBittorrentConnection = {
+    apiKey: string;
+    category: string;
+    url: string;
+};
+export type TmdbConnection = {
+    apiKey: string;
+};
+export type ConnectionsResponse = {
+    health: ServiceHealthResponse[];
+    jellyfin: JellyfinConnection;
+    openSubtitles: OpenSubtitlesConnection;
+    prowlarr: ProwlarrConnection;
+    qbittorrent: QBittorrentConnection;
+    tmdb: TmdbConnection;
+};
+export type UpdateConnectionsRequest = {
+    jellyfin?: JellyfinConnection;
+    openSubtitles?: OpenSubtitlesConnection;
+    prowlarr?: ProwlarrConnection;
+    qbittorrent?: QBittorrentConnection;
+    tmdb?: TmdbConnection;
 };
 export type ParkedEventResponse = {
     aggregateId: string;
@@ -842,6 +913,123 @@ export function getHealth({ accept }: {
     }));
 }
 /**
+ * Change the local admin's password (local admin)
+ */
+export function changeLocalAdminPassword(changePasswordRequest: ChangePasswordRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: PasswordChangedResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/local-admin/password", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: changePasswordRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Sign in as the local admin
+ */
+export function signInLocal(credentialsRequest: CredentialsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MeResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/login/local", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: credentialsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Delete the current session
+ */
+export function signOut({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SignedOutResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/logout", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * The signed-in user and their permissions
+ */
+export function getMe({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MeResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/me", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Create the local admin while no admin exists, and sign them in
+ */
+export function setupAdmin(credentialsRequest: CredentialsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MeResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/setup/admin", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: credentialsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
  * List database backups, newest first (admin)
  */
 export function listBackups({ accept }: {
@@ -864,6 +1052,29 @@ export function listBackups({ accept }: {
     }));
 }
 /**
+ * Back up the database now (admin)
+ */
+export function createBackup({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BackupResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/backups", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
  * Restore a backup and restart the server (admin)
  */
 export function restoreBackup(name: string, { accept }: {
@@ -879,6 +1090,75 @@ export function restoreBackup(name: string, { accept }: {
         status: 500;
         data: HttpError;
     }>(`/api/platform/backups/${encodeURIComponent(name)}/restore`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * External service connections with masked secrets and health (admin)
+ */
+export function getConnections({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ConnectionsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/connections", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change the connections named in the body and re-check them (admin)
+ */
+export function updateConnections(updateConnectionsRequest: UpdateConnectionsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ConnectionsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/connections", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: updateConnectionsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Probe one stored connection now (admin)
+ */
+export function testConnection(service: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ServiceHealthResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/platform/connections/${encodeURIComponent(service)}/test`, {
         ...opts,
         method: "POST",
         headers: oazapfts.mergeHeaders(opts?.headers, {
