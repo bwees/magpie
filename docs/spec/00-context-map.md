@@ -27,13 +27,16 @@ Cross-cutting packages that are not contexts:
 
 ## Package rules
 
-- `internal/<ctx>/` contains `api/` (public contract), `service.go`, `repository.go`, `controller.go` (HTTP), `handlers.go` (event/command handlers), and `ports.go` (adapter interfaces it needs).
+- `internal/<ctx>/` contains `api/` (public contract), `service.go`, `repository.go`, `controller.go` (HTTP), `handlers.go` (event/command handlers), `ports.go` (adapter interfaces it needs, their data types and error sentinels), and `fakes/` (an in-memory fake per port).
 - Another context may import only `internal/<ctx>/api`. An import lint (depguard) fails the build on any other cross-context import.
+  - A context imports another's `api` only for a `Reader` along the query graph below, or for the events and commands it consumes or sends. depguard enforces the imports; a test in `internal/app` enforces that `Reader`s are used only along the graph and `Importer`s only by the migration job.
+  - Adapters (`internal/adapters/<system>`) may import a context's root package, only to implement the ports in its `ports.go`. `internal/app` wires them.
 - `api/` holds:
   - `Reader`, the read-only query port, implemented by the context's repository. It never mutates and never calls out to external systems.
   - The event structs the context publishes.
   - The command structs the context accepts.
   - Optionally `Importer`, the migration entrypoint (see below).
+  - `Messages()`, the list of its events and commands; `internal/app` checks it against the event catalog below.
 - Services never call other services, including other contexts' services. HTTP controllers call only their own context's service.
 - A handler may call its own service, read other contexts' `Reader`s, and enqueue backlite jobs. It never writes another context's tables.
 - **The one sanctioned exception to "no cross-context writes":** the platform migration job (`internal/platform/migrate`) calls each context's `api.Importer` (Catalog, Acquisition, Library, Activity). Importers are idempotent on a source key and run inside the owning context's own transactions ([11-migration.md](11-migration.md)). Nothing else calls an `Importer`.
@@ -55,6 +58,7 @@ Platform    → Identity, Requests   (live gateway role filter only)
 - Library never reads Acquisition: everything it needs about a download comes in the `DownloadCompleted` payload.
 - Transcode never reads Subtitles or Acquisition: wanted languages come from Catalog, and cutoff arrives as `CutoffMet`.
 - `acquisition.Reader` exists for Acquisition's own HTTP layer only. No context depends on it; the UI reads profiles from `GET /api/acquisition/profiles`.
+- Importing an `api` for its event structs or command is not a query dependency. For example, Library imports `acquisition/api` for `DownloadCompleted` but never uses `acquisition.Reader`, and the live gateway imports `acquisition/api` only for the search event-type constants.
 
 Reader contents other contexts rely on:
 - `catalog.Reader`:
@@ -88,6 +92,16 @@ type Origin string
 
 // Principal is the signed-in user, set by Identity's middleware, read by every controller.
 type Principal struct { User UserID; Admin bool; Permissions struct{ AutoApproveMovies, AutoApproveTV, ViewOthersRequests, ReportIssues bool } }
+
+// SourceKey identifies a migrated record in its source app: "sonarr:12" | "radarr:40". Importers are idempotent on it.
+type SourceKey string
+
+// Message is implemented by every event and command struct in an api package.
+type Message interface {
+    Type() string        // "<ctx>.<Name>", e.g. "catalog.TitleAdded"
+    AggregateID() string // ordering key
+    Durable() bool       // false for ephemeral events
+}
 ```
 
 ## Messaging contract
@@ -101,6 +115,8 @@ type Event struct {
     Payload     any       // one of the structs in <ctx>/api
 }
 ```
+
+- `bus.EventOf(m domain.Message)` builds the envelope from the message's own `Type()` and `AggregateID()`.
 
 - **Durable events:** written to the `outbox` table in the same SQLite transaction as the state change, and dispatched after commit.
 - **Per-handler subscriptions:**
@@ -168,7 +184,7 @@ type Event struct {
 
 | Command | Sender | Owner → behaviour |
 |---|---|---|
-| `transcode.RunAgentJob{Kind: WHISPER, MediaFile, Language, Model}` | Subtitles | Transcode → queue a Whisper job; reply with `WhisperCompleted` or `JobFailed` |
+| `transcode.RunAgentJob{Kind: WHISPER, MediaFile, Language, Model}` | Subtitles | Transcode → queue a Whisper job; reply with `WhisperCompleted` or `JobFailed`. Struct: [transcode › Command accepted](contexts/transcode.md#command-accepted); durable, keyed by media file |
 
 ## Key flows
 
@@ -182,7 +198,8 @@ type Event struct {
 
 ## How contracts become tests
 
-- Each `api.Reader` has a **contract test suite** in `internal/<ctx>/api/contracttest`. It runs against the real repository (SQLite in a temp dir) and against the in-memory fake that other contexts use. Fake and real can't drift.
+- Each `api.Reader` has a **contract test suite** in `internal/<ctx>/api/contracttest`, exported as `Run(t, factory)`, where the factory builds a Reader holding a `Fixture`. It runs against the real repository (SQLite in a temp dir) and against the in-memory `contracttest.Fake` that other contexts use. Fake and real can't drift.
+- Each port has an in-memory fake in `internal/<ctx>/fakes`. Every fake, Reader or port, embeds `scripted.Script` (`internal/platform/scripted`) so tests can inject errors and latency per method.
 - Each `api.Importer` has a contract suite proving idempotency on source keys and resumability.
 - Each handler gets **event-in → effect-out tests**: given these Reader fakes and this event, assert own state changes and published events, including redelivery (idempotency).
 - Each context spec ends with **test seeds** in given/when/then form. Each seed is one test.

@@ -24,7 +24,7 @@ Base template: [bwees/stack](https://github.com/bwees/stack). One change to it: 
 server/
   main.go                      fx.New(app.Module)
   internal/
-    app/                       app.Module = platform.Module + every context's Module (main and flow tests)
+    app/                       app.Module = platform.Module + every context's Module + port fakes (main and flow tests); Messages(), the event catalog in code
     domain/                    shared IDs and value types
     platform/
       db/                      writer + reader pools, goose runner, backups
@@ -35,31 +35,36 @@ server/
       settings/                settings store, platform.connections.*
       backup/                  daily backup job, list/restore endpoints
       owner/                   names of the platform and contexts (migration order, setting prefixes)
+      api/                     events the platform publishes (ServiceHealthChanged)
+      scripted/                error and latency injection embedded in every fake
     flows_test/                flow tests: all modules, fake adapters, temp SQLite
     adapters/
-      tmdb/ qbittorrent/ prowlarr/ jellyfin/ opensubtitles/
+      tmdb/ qbittorrent/ prowlarr/ trash/ jellyfin/ opensubtitles/ shoutrrr/ subsync/
     identity/ catalog/ requests/ acquisition/ library/ subtitles/ transcode/ activity/
       api/                     Reader, events, commands  (only importable part)
-      api/contracttest/        Reader contract suite + in-memory fake
+      api/contracttest/        Reader contract suite (Run) + in-memory Fake
+      fakes/                   in-memory fake per port
       service.go repository.go controller.go handlers.go ports.go module.go
   agent/                       transcode agent binary (separate image)
 web/                           SvelteKit SPA
 ```
 
 - Each context exports one `fx.Module` that provides its service, repository (also bound as `api.Reader`), controller and handlers, and registers handlers on the bus.
-- Adapters are provided `fx.As` the port interfaces each context declares in `ports.go`.
+- Adapters are provided `fx.As` the port interfaces each context declares in `ports.go`. `internal/app` provides them, since an adapter imports the context it serves. Until a slice adds the real adapter, `internal/app` provides the port's in-memory fake from `<ctx>/fakes`.
 - Import lint (golangci-lint `depguard`):
-  - `internal/<ctx>/**` may import `internal/<other>/api` only.
+  - `internal/<ctx>/**` may import `internal/<other>/api` only, and only for the contexts it reads or whose messages it consumes or sends (one `<ctx>-dependencies` rule per context).
   - `api/` packages import only `internal/domain` and the standard library.
-  - Lint fails on any other cross-context import. Only `internal/app` (module wiring) and `internal/flows_test` may import a context's root package.
-  - `api/contracttest` may import its own context, since it runs against the real repository.
-  - `mise run lint:boundaries` proves the rule by linting a fixture that must fail (`internal/lintfixture`, build tag `lintfixture`).
-- Agent and server share the protocol types in `internal/transcode/api/agentproto`.
+  - Lint fails on any other cross-context import. Only `internal/app` (module wiring), `internal/flows_test` and `internal/adapters` (to implement ports) may import a context's root package.
+  - `api/contracttest` may import its own context, but doesn't need to: the real repository's test calls `contracttest.Run`.
+  - `mise run lint:boundaries` proves the rules by linting fixtures that must each fail (`internal/lintfixture/*`, build tag `lintfixture`).
+  - depguard can't tell a `Reader` from an event struct, so `internal/app` has a test that parses the query graph in 00-context-map.md and fails on any `Reader` use outside it, and on any `Importer` use outside `platform/migrate`.
+- Agent and server share the protocol types in `internal/transcode/api/agentproto`. It falls under the `api/` rule (standard library and `internal/domain` only), so it repeats the few enums it shares with `transcode/api`, such as the job kind.
 
 ## HTTP
 
 - All routes live under `/api/<context>/…`. Each context's controller registers its own routes. Every route has a stable `OptionOperationID`, which becomes the client function name.
 - `mise run openapi` regenerates `server/openapi.json` and `web/src/lib/sdk/client.ts`. CI fails on drift.
+- Every event and command struct (`app.Messages()`) is also an OpenAPI component schema, so the web client gets a TypeScript type for each live-event payload. A test in `internal/app` fails when a struct changed without regenerating.
 - Auth: session cookie (HttpOnly, SameSite=Lax), issued by Identity. Middleware resolves the user and role and puts them on the request context. Admin-only routes are marked per route.
 - Errors: RFC 9457 problem JSON with a stable `type` per domain error.
 
@@ -156,7 +161,9 @@ type LiveClientMessage struct {
 - **Topics:** search results (`acquisition.SearchResultsReceived`, `SearchCompleted`) only go to sockets subscribed to `search:<SearchID>`. Everything else is broadcast, then filtered.
 - **Role filter:**
   - Requesters receive only events about their own requests and those requests' titles, plus their own notifications.
-  - Admins receive everything.
+  - Requesters with `ViewOthersRequests` also receive every request's events and every requested title's events, but never other users' notifications.
+  - Admins receive everything. Disabled users receive nothing.
+  - The role and toggles come from `identity.Reader`, not the session's principal, so a change applies to open sockets.
   - The filter reads `requests.Reader` and `identity.Reader`.
 - **Heartbeat:** server sends `live.Heartbeat` every 20 s; client replies `pong`. Missing two pongs closes the socket. The client reconnects with jittered backoff (1 s → 30 s).
 - **Actions are never sent over the socket.** All mutations are REST calls.
@@ -176,7 +183,7 @@ type LiveClientMessage struct {
 Adapters live in `internal/adapters/<system>`. They are the only code that speaks these protocols. Contract tests for each adapter run against recorded fixtures.
 
 - **Connection config is platform-owned:** TMDB key, qBittorrent URL/key, Prowlarr URL/key, Jellyfin URL/key and OpenSubtitles login live under `platform.connections.*` in `platform_settings`. Adapters read them; contexts never store credentials. One Jellyfin connection serves both Identity and Library.
-- **Health:** `platform/health` probes each connection every minute and on settings change. It publishes `platform.ServiceHealthChanged{Service, Healthy, Error}` when the state flips.
+- **Health:** `platform/health` probes each connection every minute and on settings change. It publishes `platform.ServiceHealthChanged{Service, Healthy, Error}` when the state flips. The struct lives in `internal/platform/api`, so Activity can import it without depending on the prober.
 
 ## Packaging and deployment
 

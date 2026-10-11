@@ -22,12 +22,17 @@ Out of scope:
 
 ## Import entrypoints (contract)
 
-Each context exposes an `api.Importer` that the migration job calls. Entrypoints are idempotent on a source key (`"sonarr:{id}"`, `"radarr:{id}"`), so a resumed run doesn't duplicate.
+Each context exposes an `api.Importer` that the migration job calls. Entrypoints are idempotent on a source key (`domain.SourceKey`: `"sonarr:{id}"`, `"radarr:{id}"`), so a resumed run doesn't duplicate. `SourceKey` below means `domain.SourceKey`.
 
 ```go
 // internal/catalog/api
 type Importer interface {
-    ImportTitles(ctx context.Context, in []ImportTitle) (map[SourceKey]domain.TitleID, error)
+    ImportTitles(ctx context.Context, in []ImportTitle) (ImportedTitles, error)
+}
+// ImportedTitles maps source keys to Magpie IDs: titles by their Source, episodes by theirs.
+type ImportedTitles struct {
+    Titles   map[SourceKey]domain.TitleID
+    Episodes map[SourceKey]domain.EpisodeID
 }
 type ImportTitle struct {
     Source        SourceKey          // "sonarr:12" | "radarr:40"
@@ -43,7 +48,6 @@ type ImportTitle struct {
     AddedAt       time.Time
 }
 type ImportEpisode struct { Source SourceKey; Season, Number int; Monitored bool }
-// Returns Magpie IDs for titles and episodes (episodes keyed by their Source).
 
 // internal/acquisition/api
 type Importer interface {
@@ -52,12 +56,15 @@ type Importer interface {
     ImportDelayProfiles(ctx context.Context, in []ImportDelayProfile) error
     ImportBlocklist(ctx context.Context, in []ImportBlockedRelease) error
 }
+// Input types (CustomFormatID, ImportCustomFormat, FormatSpec, ImportProfileItem, ImportQualityProfile,
+// ImportDelayProfile, ImportBlockedRelease) are spelled out in server/internal/acquisition/api/importer.go.
 
 // internal/library/api
 type Importer interface {
     ImportRootFolders(ctx context.Context, in []ImportRootFolder) error
     ImportMediaFiles(ctx context.Context, in []ImportMediaFile) (map[SourceKey]domain.MediaFileID, error)
 }
+type ImportRootFolder struct { Source SourceKey; Kind domain.MediaKind; Path string } // Path after rewrite
 type ImportMediaFile struct {
     Source      SourceKey
     Title       domain.TitleID
@@ -74,6 +81,16 @@ type ImportMediaFile struct {
 // internal/activity/api
 type Importer interface {
     ImportTimeline(ctx context.Context, in []ImportTimelineEvent) error // history rows → timeline/history
+}
+type ImportKind string // GRABBED | IMPORTED | DOWNLOAD_FAILED | FILE_DELETED (history table below)
+type ImportTimelineEvent struct {
+    Source      SourceKey          // "sonarr:history:812"
+    Title       domain.TitleID
+    Episodes    []domain.EpisodeID // empty for movies
+    Kind        ImportKind
+    ReleaseName string
+    Reason      string             // failure or deletion reason, when the row has one
+    At          time.Time          // original timestamp
 }
 ```
 
