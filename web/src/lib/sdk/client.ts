@@ -12,10 +12,21 @@ export const defaults: Oazapfts.Defaults<Oazapfts.CustomHeaders> = {
 };
 const oazapfts = Oazapfts.runtime(defaults);
 export const servers = {};
-export type IndexerOptionsResponse = {
-    resultCacheMinutes: number;
-    searchTimeoutSeconds: number;
-    syncIntervalMinutes: number;
+export type FormatSpecDto = {
+    kind: string;
+    max: number;
+    min: number;
+    name: string;
+    negate: boolean;
+    required: boolean;
+    value: string;
+};
+export type CustomFormatResponse = {
+    id: string;
+    includeWhenRenaming: boolean;
+    name: string;
+    specs: FormatSpecDto[];
+    trashId?: string;
 };
 export type ErrorItem = {
     /** Additional information about the error */
@@ -40,6 +51,20 @@ export type HttpError = {
     title?: string;
     /** URL of the error type. Can be used to lookup the error in a documentation */
     "type"?: string;
+};
+export type CustomFormatRequest = {
+    includeWhenRenaming: boolean;
+    name: string;
+    specs: FormatSpecDto[];
+};
+export type BlockTermRequest = {
+    term: string;
+};
+export type UnknownInterface = any;
+export type IndexerOptionsResponse = {
+    resultCacheMinutes: number;
+    searchTimeoutSeconds: number;
+    syncIntervalMinutes: number;
 };
 export type IndexerOptionsRequest = {
     resultCacheMinutes: number;
@@ -81,6 +106,106 @@ export type UpdateIndexerRequest = {
     seedDays?: number;
     seedRatio?: number;
     seedingOverride: string;
+};
+export type ProfileSummaryResponse = {
+    id: string;
+    name: string;
+    preset?: string;
+    trashProfileId?: string;
+    upgradeAllowed: boolean;
+};
+export type FormatScoreRequest = {
+    formatId: string;
+    score: number;
+};
+export type ProfileItemRequest = {
+    allowed: boolean;
+    groupName?: string;
+    maxMbPerMin: number;
+    minMbPerMin: number;
+    preferredMbPerMin: number;
+    qualityIds: number[];
+};
+export type ProfileRequest = {
+    cutoff: number;
+    cutoffFormatScore: number;
+    formatScores: FormatScoreRequest[];
+    items: ProfileItemRequest[];
+    minFormatScore: number;
+    minUpgradeFormatScore: number;
+    name: string;
+    propersMode: string;
+    upgradeAllowed: boolean;
+};
+export type FormatScoreResponse = {
+    formatId: string;
+    name: string;
+    score: number;
+    userOverride: boolean;
+};
+export type QualityGroupResponse = {
+    id: number;
+    name: string;
+};
+export type QualityResponse = {
+    id: number;
+    name: string;
+    resolution: number;
+    source: string;
+};
+export type ProfileItemResponse = {
+    allowed: boolean;
+    group?: QualityGroupResponse;
+    maxMbPerMin: number;
+    minMbPerMin: number;
+    preferredMbPerMin: number;
+    qualities: QualityResponse[];
+};
+export type ProfileResponse = {
+    cutoff: number;
+    cutoffFormatScore: number;
+    formatScores: FormatScoreResponse[];
+    id: string;
+    items: ProfileItemResponse[];
+    minFormatScore: number;
+    minUpgradeFormatScore: number;
+    name: string;
+    preset?: string;
+    propersMode: string;
+    trashProfileId?: string;
+    trashScoreSet?: string;
+    upgradeAllowed: boolean;
+};
+export type FromPresetRequest = {
+    preset: string;
+};
+export type AcquisitionSettingsResponse = {
+    defaultDelayMinutes: number;
+    defaultProfileId: string;
+    settleWindowSeconds: number;
+    trashSyncEnabled: boolean;
+};
+export type AcquisitionSettingsRequest = {
+    defaultDelayMinutes: number;
+    defaultProfileId: string;
+    settleWindowSeconds: number;
+    trashSyncEnabled: boolean;
+};
+export type TrashProfileResponse = {
+    app: string;
+    cutoff: string;
+    formatCount: number;
+    name: string;
+    qualities: string[];
+    scoreSet: string;
+    syncedAt: string;
+    trashId: string;
+};
+export type TrashStatusResponse = {
+    enabled: boolean;
+    lastAttemptAt?: string;
+    lastError?: string;
+    lastSyncedAt?: string;
 };
 export type AttentionItemResponse = {
     action: string;
@@ -810,7 +935,123 @@ export type WhisperCompleted = {
     mediaFile: string;
     stagedPath: string;
 };
-export type UnknownInterface = any;
+/**
+ * Custom formats ordered by name (admin)
+ */
+export function listCustomFormats({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CustomFormatResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/custom-formats", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Create a custom format (admin)
+ */
+export function createCustomFormat(customFormatRequest: CustomFormatRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: CustomFormatResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/custom-formats", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: customFormatRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Create a format for a release-name term scored -10000 in every profile (admin)
+ */
+export function blockTerm(blockTermRequest: BlockTermRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: CustomFormatResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/custom-formats/block-term", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: blockTermRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Delete a custom format and its scores (admin)
+ */
+export function deleteCustomFormat(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/custom-formats/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Replace a custom format's name and specs (admin)
+ */
+export function updateCustomFormat(id: string, customFormatRequest: CustomFormatRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CustomFormatResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/custom-formats/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: customFormatRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
 /**
  * Sync interval, search timeout and result cache for all indexers (admin)
  */
@@ -925,6 +1166,280 @@ export function updateIndexer(id: number, updateIndexerRequest: UpdateIndexerReq
             Accept: accept
         })
     })));
+}
+/**
+ * Quality profiles ordered by name, for profile pickers
+ */
+export function listProfiles({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ProfileSummaryResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/profiles", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Create a quality profile (admin)
+ */
+export function createProfile(profileRequest: ProfileRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: ProfileResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/profiles", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: profileRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Create a 720P, 1080P or 2160P resolution preset (admin)
+ */
+export function createProfileFromPreset(fromPresetRequest: FromPresetRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: ProfileResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/profiles/from-preset", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: fromPresetRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Delete a quality profile other than the default (admin)
+ */
+export function deleteProfile(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/profiles/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * A profile with items, groups, sizes and format scores (admin)
+ */
+export function getProfile(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ProfileResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/profiles/${encodeURIComponent(id)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Replace a quality profile (admin)
+ */
+export function updateProfile(id: string, profileRequest: ProfileRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ProfileResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/profiles/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: profileRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Radarr's 30 qualities, used for movies and TV
+ */
+export function listQualities({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: QualityResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/qualities", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Default profile, delay, settle window and TRaSH sync (admin)
+ */
+export function getAcquisitionSettings({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AcquisitionSettingsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/settings", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change the default profile, delay, settle window and TRaSH sync (admin)
+ */
+export function updateAcquisitionSettings(acquisitionSettingsRequest: AcquisitionSettingsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AcquisitionSettingsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/settings", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: acquisitionSettingsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * TRaSH guide profiles as of the last sync (admin)
+ */
+export function listTrashProfiles({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TrashProfileResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/trash/profiles", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * TRaSH sync setting and last attempt (admin)
+ */
+export function getTrashStatus({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TrashStatusResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/trash/status", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Queue a TRaSH Guides sync now (admin)
+ */
+export function syncTrash({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: TrashStatusResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/trash/sync", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
 }
 /**
  * Open attention items, oldest first (admin)

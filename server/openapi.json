@@ -1,6 +1,54 @@
 {
 	"components": {
 		"schemas": {
+			"AcquisitionSettingsRequest": {
+				"description": "AcquisitionSettingsRequest schema",
+				"properties": {
+					"defaultDelayMinutes": {
+						"type": "integer"
+					},
+					"defaultProfileId": {
+						"type": "string"
+					},
+					"settleWindowSeconds": {
+						"type": "integer"
+					},
+					"trashSyncEnabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"defaultDelayMinutes",
+					"defaultProfileId",
+					"settleWindowSeconds",
+					"trashSyncEnabled"
+				],
+				"type": "object"
+			},
+			"AcquisitionSettingsResponse": {
+				"description": "AcquisitionSettingsResponse schema",
+				"properties": {
+					"defaultDelayMinutes": {
+						"type": "integer"
+					},
+					"defaultProfileId": {
+						"type": "string"
+					},
+					"settleWindowSeconds": {
+						"type": "integer"
+					},
+					"trashSyncEnabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"defaultDelayMinutes",
+					"defaultProfileId",
+					"settleWindowSeconds",
+					"trashSyncEnabled"
+				],
+				"type": "object"
+			},
 			"AgentCapabilityResponse": {
 				"properties": {
 					"capability": {
@@ -300,6 +348,18 @@
 				],
 				"type": "object"
 			},
+			"BlockTermRequest": {
+				"description": "BlockTermRequest schema",
+				"properties": {
+					"term": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"term"
+				],
+				"type": "object"
+			},
 			"CatalogSettingsResponse": {
 				"description": "CatalogSettingsResponse schema",
 				"properties": {
@@ -416,6 +476,59 @@
 				"required": [
 					"password",
 					"username"
+				],
+				"type": "object"
+			},
+			"CustomFormatRequest": {
+				"description": "CustomFormatRequest schema",
+				"properties": {
+					"includeWhenRenaming": {
+						"type": "boolean"
+					},
+					"name": {
+						"type": "string"
+					},
+					"specs": {
+						"items": {
+							"$ref": "#/components/schemas/FormatSpecDTO"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"includeWhenRenaming",
+					"name",
+					"specs"
+				],
+				"type": "object"
+			},
+			"CustomFormatResponse": {
+				"description": "CustomFormatResponse schema",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"includeWhenRenaming": {
+						"type": "boolean"
+					},
+					"name": {
+						"type": "string"
+					},
+					"specs": {
+						"items": {
+							"$ref": "#/components/schemas/FormatSpecDTO"
+						},
+						"type": "array"
+					},
+					"trashId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"includeWhenRenaming",
+					"name",
+					"specs"
 				],
 				"type": "object"
 			},
@@ -997,6 +1110,93 @@
 					"path",
 					"tmdbHint",
 					"year"
+				],
+				"type": "object"
+			},
+			"FormatScoreRequest": {
+				"properties": {
+					"formatId": {
+						"type": "string"
+					},
+					"score": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"formatId",
+					"score"
+				],
+				"type": "object"
+			},
+			"FormatScoreResponse": {
+				"properties": {
+					"formatId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"score": {
+						"type": "integer"
+					},
+					"userOverride": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"formatId",
+					"name",
+					"score",
+					"userOverride"
+				],
+				"type": "object"
+			},
+			"FormatSpecDTO": {
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"max": {
+						"format": "double",
+						"type": "number"
+					},
+					"min": {
+						"format": "double",
+						"type": "number"
+					},
+					"name": {
+						"type": "string"
+					},
+					"negate": {
+						"type": "boolean"
+					},
+					"required": {
+						"type": "boolean"
+					},
+					"value": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kind",
+					"max",
+					"min",
+					"name",
+					"negate",
+					"required",
+					"value"
+				],
+				"type": "object"
+			},
+			"FromPresetRequest": {
+				"description": "FromPresetRequest schema",
+				"properties": {
+					"preset": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"preset"
 				],
 				"type": "object"
 			},
@@ -1854,6 +2054,217 @@
 				],
 				"type": "object"
 			},
+			"ProfileItemRequest": {
+				"properties": {
+					"allowed": {
+						"type": "boolean"
+					},
+					"groupName": {
+						"type": "string"
+					},
+					"maxMbPerMin": {
+						"format": "double",
+						"type": "number"
+					},
+					"minMbPerMin": {
+						"format": "double",
+						"type": "number"
+					},
+					"preferredMbPerMin": {
+						"format": "double",
+						"type": "number"
+					},
+					"qualityIds": {
+						"items": {
+							"type": "integer"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"allowed",
+					"maxMbPerMin",
+					"minMbPerMin",
+					"preferredMbPerMin",
+					"qualityIds"
+				],
+				"type": "object"
+			},
+			"ProfileItemResponse": {
+				"properties": {
+					"allowed": {
+						"type": "boolean"
+					},
+					"group": {
+						"$ref": "#/components/schemas/QualityGroupResponse"
+					},
+					"maxMbPerMin": {
+						"format": "double",
+						"type": "number"
+					},
+					"minMbPerMin": {
+						"format": "double",
+						"type": "number"
+					},
+					"preferredMbPerMin": {
+						"format": "double",
+						"type": "number"
+					},
+					"qualities": {
+						"items": {
+							"$ref": "#/components/schemas/QualityResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"allowed",
+					"maxMbPerMin",
+					"minMbPerMin",
+					"preferredMbPerMin",
+					"qualities"
+				],
+				"type": "object"
+			},
+			"ProfileRequest": {
+				"description": "ProfileRequest schema",
+				"properties": {
+					"cutoff": {
+						"type": "integer"
+					},
+					"cutoffFormatScore": {
+						"type": "integer"
+					},
+					"formatScores": {
+						"items": {
+							"$ref": "#/components/schemas/FormatScoreRequest"
+						},
+						"type": "array"
+					},
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/ProfileItemRequest"
+						},
+						"type": "array"
+					},
+					"minFormatScore": {
+						"type": "integer"
+					},
+					"minUpgradeFormatScore": {
+						"type": "integer"
+					},
+					"name": {
+						"type": "string"
+					},
+					"propersMode": {
+						"type": "string"
+					},
+					"upgradeAllowed": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"cutoff",
+					"cutoffFormatScore",
+					"formatScores",
+					"items",
+					"minFormatScore",
+					"minUpgradeFormatScore",
+					"name",
+					"propersMode",
+					"upgradeAllowed"
+				],
+				"type": "object"
+			},
+			"ProfileResponse": {
+				"description": "ProfileResponse schema",
+				"properties": {
+					"cutoff": {
+						"type": "integer"
+					},
+					"cutoffFormatScore": {
+						"type": "integer"
+					},
+					"formatScores": {
+						"items": {
+							"$ref": "#/components/schemas/FormatScoreResponse"
+						},
+						"type": "array"
+					},
+					"id": {
+						"type": "string"
+					},
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/ProfileItemResponse"
+						},
+						"type": "array"
+					},
+					"minFormatScore": {
+						"type": "integer"
+					},
+					"minUpgradeFormatScore": {
+						"type": "integer"
+					},
+					"name": {
+						"type": "string"
+					},
+					"preset": {
+						"type": "string"
+					},
+					"propersMode": {
+						"type": "string"
+					},
+					"trashProfileId": {
+						"type": "string"
+					},
+					"trashScoreSet": {
+						"type": "string"
+					},
+					"upgradeAllowed": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"cutoff",
+					"cutoffFormatScore",
+					"formatScores",
+					"id",
+					"items",
+					"minFormatScore",
+					"minUpgradeFormatScore",
+					"name",
+					"propersMode",
+					"upgradeAllowed"
+				],
+				"type": "object"
+			},
+			"ProfileSummaryResponse": {
+				"description": "ProfileSummaryResponse schema",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"preset": {
+						"type": "string"
+					},
+					"trashProfileId": {
+						"type": "string"
+					},
+					"upgradeAllowed": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"upgradeAllowed"
+				],
+				"type": "object"
+			},
 			"ProjectionUpdated": {
 				"description": "ProjectionUpdated schema",
 				"properties": {
@@ -1928,6 +2339,44 @@
 					"name",
 					"resolution",
 					"revision",
+					"source"
+				],
+				"type": "object"
+			},
+			"QualityGroupResponse": {
+				"properties": {
+					"id": {
+						"type": "integer"
+					},
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name"
+				],
+				"type": "object"
+			},
+			"QualityResponse": {
+				"properties": {
+					"id": {
+						"type": "integer"
+					},
+					"name": {
+						"type": "string"
+					},
+					"resolution": {
+						"type": "integer"
+					},
+					"source": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"resolution",
 					"source"
 				],
 				"type": "object"
@@ -3198,6 +3647,73 @@
 				],
 				"type": "object"
 			},
+			"TrashProfileResponse": {
+				"description": "TrashProfileResponse schema",
+				"properties": {
+					"app": {
+						"type": "string"
+					},
+					"cutoff": {
+						"type": "string"
+					},
+					"formatCount": {
+						"type": "integer"
+					},
+					"name": {
+						"type": "string"
+					},
+					"qualities": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"scoreSet": {
+						"type": "string"
+					},
+					"syncedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"trashId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"app",
+					"cutoff",
+					"formatCount",
+					"name",
+					"qualities",
+					"scoreSet",
+					"syncedAt",
+					"trashId"
+				],
+				"type": "object"
+			},
+			"TrashStatusResponse": {
+				"description": "TrashStatusResponse schema",
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"lastAttemptAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"lastError": {
+						"type": "string"
+					},
+					"lastSyncedAt": {
+						"format": "date-time",
+						"type": "string"
+					}
+				},
+				"required": [
+					"enabled"
+				],
+				"type": "object"
+			},
 			"UpdateAgentRequest": {
 				"description": "UpdateAgentRequest schema",
 				"properties": {
@@ -3419,6 +3935,366 @@
 	},
 	"openapi": "3.1.0",
 	"paths": {
+		"/api/acquisition/custom-formats": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).listFormats`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listCustomFormats",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/CustomFormatResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Custom formats ordered by name (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createFormat`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "createCustomFormat",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CustomFormatRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.CustomFormatRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CustomFormatResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Create a custom format (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/custom-formats/block-term": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).blockTerm`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "blockTerm",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BlockTermRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.BlockTermRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CustomFormatResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Create a format for a release-name term scored -10000 in every profile (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/custom-formats/{id}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).deleteFormat`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "deleteCustomFormat",
+				"parameters": [
+					{
+						"description": "Custom format ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Delete a custom format and its scores (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateFormat`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateCustomFormat",
+				"parameters": [
+					{
+						"description": "Custom format ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CustomFormatRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.CustomFormatRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CustomFormatResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Replace a custom format's name and specs (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
 		"/api/acquisition/indexer-options": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).indexerOptions`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -3752,6 +4628,822 @@
 					}
 				},
 				"summary": "Replace Magpie's settings for one indexer (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/profiles": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).listProfiles`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listProfiles",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ProfileSummaryResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Quality profiles ordered by name, for profile pickers",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createProfile`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "createProfile",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ProfileRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.ProfileRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProfileResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Create a quality profile (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/profiles/from-preset": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createFromPreset`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "createProfileFromPreset",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/FromPresetRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.FromPresetRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProfileResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Create a 720P, 1080P or 2160P resolution preset (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/profiles/{id}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).deleteProfile`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "deleteProfile",
+				"parameters": [
+					{
+						"description": "Profile ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Delete a quality profile other than the default (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).getProfile`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getProfile",
+				"parameters": [
+					{
+						"description": "Profile ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProfileResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "A profile with items, groups, sizes and format scores (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateProfile`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateProfile",
+				"parameters": [
+					{
+						"description": "Profile ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ProfileRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.ProfileRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProfileResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Replace a quality profile (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/qualities": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).qualities`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listQualities",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/QualityResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Radarr's 30 qualities, used for movies and TV",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/settings": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).settings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getAcquisitionSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AcquisitionSettingsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Default profile, delay, settle window and TRaSH sync (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateAcquisitionSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AcquisitionSettingsRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.AcquisitionSettingsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AcquisitionSettingsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change the default profile, delay, settle window and TRaSH sync (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/trash/profiles": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).trashProfiles`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listTrashProfiles",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/TrashProfileResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "TRaSH guide profiles as of the last sync (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/trash/status": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).trashStatus`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getTrashStatus",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TrashStatusResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "TRaSH sync setting and last attempt (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/trash/sync": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).syncTrash`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "syncTrash",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TrashStatusResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Queue a TRaSH Guides sync now (admin)",
 				"tags": [
 					"api",
 					"acquisition"
