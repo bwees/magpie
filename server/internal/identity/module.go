@@ -13,7 +13,7 @@ var Module = fx.Module(string(owner.Identity),
 	db.ProvideMigrations(owner.Identity, Migrations().FS),
 	fx.Provide(
 		fx.Annotate(NewRepository, fx.As(fx.Self()), fx.As(new(api.Reader))),
-		fx.Annotate(NewService, fx.ParamTags("", "", "", httpserver.SelfAuthenticatedTag)),
+		fx.Annotate(NewService, fx.ParamTags("", "", "", "", "", httpserver.SelfAuthenticatedTag)),
 		httpserver.AsController(NewController),
 		httpserver.AsMiddleware(func(s *Service) httpserver.Middleware { return s.Middleware }),
 	),

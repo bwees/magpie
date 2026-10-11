@@ -21,6 +21,7 @@ import (
 	"magpie/internal/platform/db/dbtest"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/problem"
+	"magpie/internal/platform/settings"
 
 	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
@@ -77,7 +78,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	d := dbtest.Open(t, Migrations())
 	repo := NewRepository(d)
 	env := &testEnv{t: t, db: d, repo: repo, clock: startOfTest}
-	env.service = NewService(d, bus.New(), repo, nil)
+	env.service = NewService(d, bus.New(), repo, nil, settings.NewStore(d), nil)
 	env.service.now = func() time.Time { return env.clock }
 	env.service.limiter.now = env.service.now
 	controllers := []httpserver.Controller{httpserver.NewHealthController(), NewController(env.service), adminOnlyController{}}

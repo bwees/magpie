@@ -32,6 +32,7 @@ type jellyfinAccount struct {
 }
 
 type quickConnectSession struct {
+	code      string
 	expiresAt time.Time
 	approved  *identity.JellyfinUser
 }
@@ -90,6 +91,18 @@ func (f *JellyfinAuth) ApproveQuickConnect(secret, username string) error {
 	return nil
 }
 
+// SecretForCode finds the secret behind the code a user would type into Jellyfin, or "" if none matches.
+func (f *JellyfinAuth) SecretForCode(code string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for secret, session := range f.quickConnect {
+		if session.code == code {
+			return secret
+		}
+	}
+	return ""
+}
+
 // ExpireQuickConnect makes Jellyfin forget secret.
 func (f *JellyfinAuth) ExpireQuickConnect(secret string) {
 	f.mu.Lock()
@@ -130,7 +143,7 @@ func (f *JellyfinAuth) QuickConnectInitiate(ctx context.Context) (identity.Quick
 		Secret:    string(domain.NewID[quickConnectSecret]()),
 		ExpiresAt: f.now().Add(quickConnectLifetime),
 	}
-	f.quickConnect[qc.Secret] = &quickConnectSession{expiresAt: qc.ExpiresAt}
+	f.quickConnect[qc.Secret] = &quickConnectSession{code: qc.Code, expiresAt: qc.ExpiresAt}
 	return qc, nil
 }
 

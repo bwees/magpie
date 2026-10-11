@@ -353,6 +353,12 @@ export type RefreshTitleResponse = {
 export type HealthResponse = {
     status: string;
 };
+export type Permissions = {
+    autoApproveMovies: boolean;
+    autoApproveTv: boolean;
+    reportIssues: boolean;
+    viewOthersRequests: boolean;
+};
 export type ChangePasswordRequest = {
     currentPassword: string;
     newPassword: string;
@@ -364,12 +370,6 @@ export type CredentialsRequest = {
     password: string;
     username: string;
 };
-export type Permissions = {
-    autoApproveMovies: boolean;
-    autoApproveTv: boolean;
-    reportIssues: boolean;
-    viewOthersRequests: boolean;
-};
 export type MeResponse = {
     displayName: string;
     id: string;
@@ -378,8 +378,45 @@ export type MeResponse = {
     role: string;
     username: string;
 };
+export type SignInMethodsResponse = {
+    jellyfin: boolean;
+    jellyfinReachable: boolean;
+    quickConnect: boolean;
+};
+export type QuickConnectStartResponse = {
+    code: string;
+    expiresAt: string;
+    handle: string;
+};
+export type QuickConnectPollResponse = {
+    status: string;
+    user?: MeResponse;
+};
 export type SignedOutResponse = {
     signedOut: boolean;
+};
+export type SignInSettings = {
+    allowJellyfin: boolean;
+};
+export type UserResponse = {
+    createdAt: string;
+    disabled: boolean;
+    displayName: string;
+    id: string;
+    lastLoginAt?: string;
+    localAdmin: boolean;
+    permissions: Permissions;
+    role: string;
+    source: string;
+    username: string;
+};
+export type UpdateUserRequest = {
+    autoApproveMovies?: boolean;
+    autoApproveTv?: boolean;
+    disabled?: boolean;
+    reportIssues?: boolean;
+    role?: string;
+    viewOthersRequests?: boolean;
 };
 export type BackupResponse = {
     createdAt: string;
@@ -1814,6 +1851,52 @@ export function getHealth({ accept }: {
     }));
 }
 /**
+ * Permissions new Jellyfin users start with (admin)
+ */
+export function getUserDefaults({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: Permissions;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/defaults", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Set the permissions new Jellyfin users start with (admin)
+ */
+export function setUserDefaults(permissions: Permissions, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: Permissions;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/defaults", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: permissions,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
  * Change the local admin's password (local admin)
  */
 export function changeLocalAdminPassword(changePasswordRequest: ChangePasswordRequest, { accept }: {
@@ -1832,6 +1915,30 @@ export function changeLocalAdminPassword(changePasswordRequest: ChangePasswordRe
         ...opts,
         method: "PUT",
         body: changePasswordRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Sign in with a Jellyfin username and password
+ */
+export function signInJellyfin(credentialsRequest: CredentialsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MeResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/login/jellyfin", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: credentialsRequest,
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept
         })
@@ -1860,6 +1967,76 @@ export function signInLocal(credentialsRequest: CredentialsRequest, { accept }: 
             Accept: accept
         })
     })));
+}
+/**
+ * What the sign-in page offers besides the local admin
+ */
+export function getSignInMethods({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SignInMethodsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/login/methods", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Start a Jellyfin Quick Connect sign-in; returns the code to approve and a handle to poll
+ */
+export function startQuickConnect({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: QuickConnectStartResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/login/quick-connect", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Poll a Quick Connect sign-in: 202 while pending, a session once approved, 410 once expired
+ */
+export function pollQuickConnect(handle: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: QuickConnectPollResponse;
+    } | {
+        status: 202;
+        data: QuickConnectPollResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/identity/login/quick-connect/${encodeURIComponent(handle)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
 }
 /**
  * Delete the current session
@@ -1925,6 +2102,98 @@ export function setupAdmin(credentialsRequest: CredentialsRequest, { accept }: {
         ...opts,
         method: "POST",
         body: credentialsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Whether Jellyfin users may sign in (admin)
+ */
+export function getSignInSettings({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SignInSettings;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/sign-in-settings", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Allow or stop Jellyfin sign-in; the local admin always stays available (admin)
+ */
+export function setSignInSettings(signInSettings: SignInSettings, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SignInSettings;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/sign-in-settings", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: signInSettings,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Every user ordered by username (admin)
+ */
+export function listUsers({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: UserResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/identity/users", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change a user's role, permissions or disabled flag (admin)
+ */
+export function updateUser(id: string, updateUserRequest: UpdateUserRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: UserResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/identity/users/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: updateUserRequest,
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept
         })

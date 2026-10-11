@@ -1759,7 +1759,6 @@
 				"type": "object"
 			},
 			"MeResponse": {
-				"description": "MeResponse schema",
 				"properties": {
 					"displayName": {
 						"type": "string"
@@ -2378,6 +2377,42 @@
 					"name",
 					"resolution",
 					"source"
+				],
+				"type": "object"
+			},
+			"QuickConnectPollResponse": {
+				"description": "QuickConnectPollResponse schema",
+				"properties": {
+					"status": {
+						"type": "string"
+					},
+					"user": {
+						"$ref": "#/components/schemas/MeResponse"
+					}
+				},
+				"required": [
+					"status"
+				],
+				"type": "object"
+			},
+			"QuickConnectStartResponse": {
+				"description": "QuickConnectStartResponse schema",
+				"properties": {
+					"code": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"handle": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"code",
+					"expiresAt",
+					"handle"
 				],
 				"type": "object"
 			},
@@ -3042,6 +3077,38 @@
 					"language",
 					"path",
 					"sdh"
+				],
+				"type": "object"
+			},
+			"SignInMethodsResponse": {
+				"description": "SignInMethodsResponse schema",
+				"properties": {
+					"jellyfin": {
+						"type": "boolean"
+					},
+					"jellyfinReachable": {
+						"type": "boolean"
+					},
+					"quickConnect": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"jellyfin",
+					"jellyfinReachable",
+					"quickConnect"
+				],
+				"type": "object"
+			},
+			"SignInSettings": {
+				"description": "SignInSettings schema",
+				"properties": {
+					"allowJellyfin": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"allowJellyfin"
 				],
 				"type": "object"
 			},
@@ -3834,6 +3901,30 @@
 				],
 				"type": "object"
 			},
+			"UpdateUserRequest": {
+				"description": "UpdateUserRequest schema",
+				"properties": {
+					"autoApproveMovies": {
+						"type": "boolean"
+					},
+					"autoApproveTv": {
+						"type": "boolean"
+					},
+					"disabled": {
+						"type": "boolean"
+					},
+					"reportIssues": {
+						"type": "boolean"
+					},
+					"role": {
+						"type": "string"
+					},
+					"viewOthersRequests": {
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
 			"UserCreated": {
 				"description": "UserCreated schema",
 				"properties": {
@@ -3851,6 +3942,55 @@
 					"role",
 					"source",
 					"user"
+				],
+				"type": "object"
+			},
+			"UserResponse": {
+				"description": "UserResponse schema",
+				"properties": {
+					"createdAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"disabled": {
+						"type": "boolean"
+					},
+					"displayName": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"lastLoginAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"localAdmin": {
+						"type": "boolean"
+					},
+					"permissions": {
+						"$ref": "#/components/schemas/Permissions"
+					},
+					"role": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"createdAt",
+					"disabled",
+					"displayName",
+					"id",
+					"localAdmin",
+					"permissions",
+					"role",
+					"source",
+					"username"
 				],
 				"type": "object"
 			},
@@ -6603,6 +6743,139 @@
 				]
 			}
 		},
+		"/api/identity/defaults": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).defaults`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getUserDefaults",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Permissions"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Permissions new Jellyfin users start with (admin)",
+				"tags": [
+					"api",
+					"identity"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setDefaults`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setUserDefaults",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/Permissions"
+							}
+						}
+					},
+					"description": "Request body for domain.Permissions",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Permissions"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Set the permissions new Jellyfin users start with (admin)",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
 		"/api/identity/local-admin/password": {
 			"put": {
 				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).changeLocalPassword`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -6676,6 +6949,79 @@
 				]
 			}
 		},
+		"/api/identity/login/jellyfin": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInJellyfin`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "signInJellyfin",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CredentialsRequest"
+							}
+						}
+					},
+					"description": "Request body for identity.CredentialsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MeResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Sign in with a Jellyfin username and password",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
 		"/api/identity/login/local": {
 			"post": {
 				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInLocal`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -6743,6 +7089,216 @@
 					}
 				},
 				"summary": "Sign in as the local admin",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/login/methods": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInMethods`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getSignInMethods",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SignInMethodsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "What the sign-in page offers besides the local admin",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/login/quick-connect": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).startQuickConnect`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "startQuickConnect",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QuickConnectStartResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Start a Jellyfin Quick Connect sign-in; returns the code to approve and a handle to poll",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/login/quick-connect/{handle}": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).pollQuickConnect`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "pollQuickConnect",
+				"parameters": [
+					{
+						"description": "Handle from startQuickConnect",
+						"in": "path",
+						"name": "handle",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QuickConnectPollResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QuickConnectPollResponse"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/QuickConnectPollResponse"
+								}
+							}
+						},
+						"description": "Waiting for approval in Jellyfin"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Poll a Quick Connect sign-in: 202 while pending, a session once approved, 410 once expired",
 				"tags": [
 					"api",
 					"identity"
@@ -6940,6 +7496,286 @@
 					}
 				},
 				"summary": "Create the local admin while no admin exists, and sign them in",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/sign-in-settings": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getSignInSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SignInSettings"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Whether Jellyfin users may sign in (admin)",
+				"tags": [
+					"api",
+					"identity"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setSignInSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setSignInSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SignInSettings"
+							}
+						}
+					},
+					"description": "Request body for identity.SignInSettings",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SignInSettings"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Allow or stop Jellyfin sign-in; the local admin always stays available (admin)",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/users": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).listUsers`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listUsers",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/UserResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Every user ordered by username (admin)",
+				"tags": [
+					"api",
+					"identity"
+				]
+			}
+		},
+		"/api/identity/users/{id}": {
+			"patch": {
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).updateUser`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateUser",
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateUserRequest"
+							}
+						}
+					},
+					"description": "Request body for identity.UpdateUserRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/UserResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change a user's role, permissions or disabled flag (admin)",
 				"tags": [
 					"api",
 					"identity"
