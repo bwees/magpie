@@ -1,6 +1,7 @@
 import { createContext } from 'svelte';
 import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 import { SIDEBAR_COOKIE_NAME } from '$lib/components/ui/sidebar/constants';
+import { TitleSearch } from '$lib/catalog/title-search.svelte';
 import { BadgeSource, NavAction, navItemFor, type NavItem } from '$lib/navigation/nav';
 
 export enum ToastPosition {
@@ -35,13 +36,13 @@ export class ShellState {
 		return this.isMobile ? ToastPosition.PHONE : ToastPosition.DESKTOP;
 	}
 
-	/** The phone search overlay; the Search tab opens it. */
-	searchOpen = $state(false);
+	/** The top-bar search, shared so the requester's Search tab can open it. */
+	readonly search = new TitleSearch();
 
 	run(action: NavAction): void {
 		switch (action) {
 			case NavAction.SEARCH:
-				this.searchOpen = true;
+				this.search.show();
 				break;
 		}
 	}

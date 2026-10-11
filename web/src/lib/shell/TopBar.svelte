@@ -5,7 +5,6 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import SearchOverlay from '$lib/catalog/SearchOverlay.svelte';
 	import TopSearch from '$lib/catalog/TopSearch.svelte';
-	import { TitleSearch } from '$lib/catalog/title-search.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { getLive, LiveStatus } from '$lib/live/live-client.svelte';
 	import AvatarMenu from './AvatarMenu.svelte';
@@ -14,7 +13,7 @@
 	const shell = getShell();
 	const live = getLive();
 	const current = $derived(shell.pageFor(page.url.pathname));
-	const search = new TitleSearch();
+	const search = shell.search;
 </script>
 
 <header class="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
