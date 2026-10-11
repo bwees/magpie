@@ -52,8 +52,6 @@ func TestRoleFilter(t *testing.T) {
 		payload any
 		want    bool
 	}{
-		{"own notification", notificationCreated{User: requester.User}, true},
-		{"someone else's notification about my title", notificationCreated{User: stranger, Title: &f.myTitle}, false},
 		{"own request", requestEvent{Request: f.myRequest, Title: f.otherTitle}, true},
 		{"someone else's request", requestEvent{Request: f.otherRequest, Title: f.myTitle}, false},
 		{"my request's title", fileImported{Title: f.myTitle}, true},
@@ -68,6 +66,28 @@ func TestRoleFilter(t *testing.T) {
 			}
 			if !f.filter.Allows(context.Background(), admin, s) {
 				t.Error("admin was filtered")
+			}
+		})
+	}
+}
+
+func TestPersonalMessagesReachOnlyTheirRecipient(t *testing.T) {
+	f := newRoleFixture()
+	cases := []struct {
+		name      string
+		payload   any
+		viewer    domain.Principal
+		wantAllow bool
+	}{
+		{"own notification", notificationCreated{User: requester.User}, requester, true},
+		{"someone else's notification about my title", notificationCreated{User: stranger, Title: &f.myTitle}, requester, false},
+		{"admin's own notification", notificationCreated{User: admin.User}, admin, true},
+		{"a requester's notification seen by an admin", notificationCreated{User: requester.User}, admin, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := f.filter.Allows(context.Background(), tc.viewer, scopeOf(tc.payload)); got != tc.wantAllow {
+				t.Errorf("allowed = %v, want %v", got, tc.wantAllow)
 			}
 		})
 	}

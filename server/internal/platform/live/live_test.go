@@ -37,6 +37,8 @@ type notificationCreated struct {
 	Text  string          `json:"text"`
 }
 
+func (n notificationCreated) Recipient() domain.UserID { return n.User }
+
 type searchResults struct {
 	Search  domain.SearchID `json:"search"`
 	Indexer string          `json:"indexer"`

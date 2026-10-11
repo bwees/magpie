@@ -77,6 +77,9 @@ func (NotificationCreated) Type() string          { return TypeNotificationCreat
 func (e NotificationCreated) AggregateID() string { return string(e.User) }
 func (NotificationCreated) Durable() bool         { return true }
 
+// Recipient makes NotificationCreated personal: the live gateway pushes it to User only.
+func (e NotificationCreated) Recipient() domain.UserID { return e.User }
+
 func (AttentionChanged) Type() string          { return TypeAttentionChanged }
 func (e AttentionChanged) AggregateID() string { return e.Item }
 func (AttentionChanged) Durable() bool         { return true }

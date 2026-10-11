@@ -10,6 +10,11 @@ type Message interface {
 	Durable() bool
 }
 
+// Personal messages reach only their recipient on the live gateway, whatever the viewer's role.
+type Personal interface {
+	Recipient() UserID
+}
+
 // SourceKey identifies a record in the app a migration reads from, e.g. "sonarr:12" or "radarr:40".
 // Importers are idempotent on it.
 type SourceKey string

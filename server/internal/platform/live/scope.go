@@ -9,10 +9,12 @@ import (
 
 // scope is what an event is about, found from the domain ID fields of its payload.
 type scope struct {
-	users    []domain.UserID
-	requests []domain.RequestID
-	titles   []domain.TitleID
-	searches []domain.SearchID
+	// recipient is set for a domain.Personal payload, which only that user may see.
+	recipient domain.UserID
+	users     []domain.UserID
+	requests  []domain.RequestID
+	titles    []domain.TitleID
+	searches  []domain.SearchID
 }
 
 // Payloads are flat api structs; the limit only guards against unexpected self-references.
@@ -27,6 +29,9 @@ var (
 
 func scopeOf(payload any) scope {
 	var s scope
+	if personal, ok := payload.(domain.Personal); ok {
+		s.recipient = personal.Recipient()
+	}
 	s.collect(reflect.ValueOf(payload), 0)
 	return s
 }

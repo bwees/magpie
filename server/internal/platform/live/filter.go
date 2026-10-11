@@ -10,7 +10,8 @@ import (
 	requestsapi "magpie/internal/requests/api"
 )
 
-// RoleFilter passes everything to admins and nothing to disabled users. A requester gets events naming
+// RoleFilter passes nothing to disabled users, a personal message only to its recipient, and everything
+// else to admins. A requester gets events naming
 // them or one of their requests; an event that names no user or request reaches them only when it is
 // about a title they requested. With ViewOthersRequests, every request's events and every requested
 // title's events reach them too, but other users' notifications still don't. Lookup errors deny.
@@ -35,6 +36,8 @@ func (f RoleFilter) Allows(ctx context.Context, viewer domain.Principal, s scope
 	switch {
 	case access.disabled:
 		return false
+	case s.recipient != "":
+		return s.recipient == viewer.User
 	case access.admin:
 		return true
 	case len(s.requests) > 0 && access.viewOthersRequests:
