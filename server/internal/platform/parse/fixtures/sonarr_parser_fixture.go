@@ -1,0 +1,60 @@
+// Code generated from Sonarr's parser test fixtures. DO NOT EDIT.
+//
+// Source: https://github.com/Sonarr/Sonarr/blob/9d0920b470b033106ca2913572970324244e8fb0/src/NzbDrone.Core.Test/ParserTests/ParserFixture.cs
+// Copyright (C) Sonarr contributors. Licensed under GPL-3.0-or-later.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package fixtures
+
+var SonarrParserFixture = File{
+	Source: "Sonarr/src/NzbDrone.Core.Test/ParserTests/ParserFixture.cs",
+	Cases: []Case{
+		{Line: 13, Method: "should_parse_series_name", Args: Args{"Series Title - 4x05 - Title", "seriestitle"}},
+		{Line: 14, Method: "should_parse_series_name", Args: Args{"Series & Title - 4x05 - Title", "seriestitle"}},
+		{Line: 15, Method: "should_parse_series_name", Args: Args{"Bad Format", "badformat"}},
+		{Line: 16, Method: "should_parse_series_name", Args: Args{"Mad Series - Season 1 [Bluray720p]", "madseries"}},
+		{Line: 17, Method: "should_parse_series_name", Args: Args{"Mad Series - Season 1 [Bluray1080p]", "madseries"}},
+		{Line: 18, Method: "should_parse_series_name", Args: Args{"The Daily Series -", "thedailyseries"}},
+		{Line: 19, Method: "should_parse_series_name", Args: Args{"The Series Bros. (2006)", "theseriesbros2006"}},
+		{Line: 20, Method: "should_parse_series_name", Args: Args{"Series (2011)", "series2011"}},
+		{Line: 21, Method: "should_parse_series_name", Args: Args{"Series Time S02 720p HDTV x264 CRON", "seriestime"}},
+		{Line: 22, Method: "should_parse_series_name", Args: Args{"Series Title 0", "seriestitle0"}},
+		{Line: 23, Method: "should_parse_series_name", Args: Args{"Series of the Day", "seriesday"}},
+		{Line: 24, Method: "should_parse_series_name", Args: Args{"Series of the Day 2", "seriesday2"}},
+		{Line: 25, Method: "should_parse_series_name", Args: Args{"[ www.Torrenting.com ] - Series.S03E14.720p.HDTV.X264-DIMENSION", "series"}},
+		{Line: 26, Method: "should_parse_series_name", Args: Args{"www.Torrenting.com - Series.S03E14.720p.HDTV.X264-DIMENSION", "series"}},
+		{Line: 27, Method: "should_parse_series_name", Args: Args{"Series S02E09 HDTV x264-2HD [eztv]-[rarbg.com]", "series"}},
+		{Line: 28, Method: "should_parse_series_name", Args: Args{"Series.911.S01.DVDRip.DD2.0.x264-DEEP", "series 911"}},
+		{Line: 29, Method: "should_parse_series_name", Args: Args{"www.Torrenting.org - Series.S03E14.720p.HDTV.X264-DIMENSION", "series"}},
+		{Line: 36, Method: "should_parse_series_title_info", Args: Args{"Series S03E14 720p HDTV X264-DIMENSION", "Series"}},
+		{Line: 37, Method: "should_parse_series_title_info", Args: Args{"Series.S03E14.720p.HDTV.X264-DIMENSION", "Series"}},
+		{Line: 38, Method: "should_parse_series_title_info", Args: Args{"Series-S03E14-720p-HDTV-X264-DIMENSION", "Series"}},
+		{Line: 39, Method: "should_parse_series_title_info", Args: Args{"Series_S03E14_720p_HDTV_X264-DIMENSION", "Series"}},
+		{Line: 40, Method: "should_parse_series_title_info", Args: Args{"Series 2022 S03E14 720p HDTV X264-DIMENSION", "Series", 2022}},
+		{Line: 41, Method: "should_parse_series_title_info", Args: Args{"Series (2022) S03E14 720p HDTV X264-DIMENSION", "Series", 2022}},
+		{Line: 42, Method: "should_parse_series_title_info", Args: Args{"Series.2022.S03E14.720p.HDTV.X264-DIMENSION", "Series", 2022}},
+		{Line: 43, Method: "should_parse_series_title_info", Args: Args{"Series-2022-S03E14-720p-HDTV-X264-DIMENSION", "Series", 2022}},
+		{Line: 44, Method: "should_parse_series_title_info", Args: Args{"Series_2022_S03E14_720p_HDTV_X264-DIMENSION", "Series", 2022}},
+		{Line: 45, Method: "should_parse_series_title_info", Args: Args{"1234 S03E14 720p HDTV X264-DIMENSION", "1234"}},
+		{Line: 46, Method: "should_parse_series_title_info", Args: Args{"1234.S03E14.720p.HDTV.X264-DIMENSION", "1234"}},
+		{Line: 47, Method: "should_parse_series_title_info", Args: Args{"1234-S03E14-720p-HDTV-X264-DIMENSION", "1234"}},
+		{Line: 48, Method: "should_parse_series_title_info", Args: Args{"1234_S03E14_720p_HDTV_X264-DIMENSION", "1234"}},
+		{Line: 49, Method: "should_parse_series_title_info", Args: Args{"1234 2022 S03E14 720p HDTV X264-DIMENSION", "1234", 2022}},
+		{Line: 50, Method: "should_parse_series_title_info", Args: Args{"1234 (2022) S03E14 720p HDTV X264-DIMENSION", "1234", 2022}},
+		{Line: 51, Method: "should_parse_series_title_info", Args: Args{"1234.2022.S03E14.720p.HDTV.X264-DIMENSION", "1234", 2022}},
+		{Line: 52, Method: "should_parse_series_title_info", Args: Args{"1234-2022-S03E14-720p-HDTV-X264-DIMENSION", "1234", 2022}},
+		{Line: 53, Method: "should_parse_series_title_info", Args: Args{"1234_2022_S03E14_720p_HDTV_X264-DIMENSION", "1234", 2022}},
+		{Line: 69, Method: "should_clean_up_invalid_path_characters", Args: Args{"Sonar TV - Series Title : 02 Road From Code [S04].mp4"}},
+		{Line: 75, Method: "should_remove_request_info_from_title", Args: Args{"[scnzbefnet][509103] 2.Developers.Series.S03E18.720p.HDTV.X264-DIMENSION", "2 Developers Series"}},
+		{Line: 81, Method: "should_parse_quality_from_extension", Args: Args{"Series.S01E02.Chained.Title.mkv"}},
+		{Line: 82, Method: "should_parse_quality_from_extension", Args: Args{"Show - S01E01 - Title.avi"}},
+		{Line: 90, Method: "should_parse_releasetitle", Args: Args{"Series.S01E02.Chained.Title.mkv", "Series.S01E02.Chained.Title"}},
+		{Line: 97, Method: "should_parse_multiple_series_titles", Args: Args{"Босх: Спадок (S2E1) / Series: Legacy (S2E1) (2023) WEB-DL 1080p Ukr/Eng | sub Eng", "Босх: Спадок", "Series: Legacy"}},
+		{Line: 98, Method: "should_parse_multiple_series_titles", Args: Args{"Босх: Спадок / Series: Legacy / S2E1-4 of 10 (2023) WEB-DL 1080p Ukr/Eng | sub Eng", "Босх: Спадок", "Series: Legacy"}},
+		{Line: 99, Method: "should_parse_multiple_series_titles", Args: Args{"Босх: Спадок AKA Series: Legacy S02 1080p NF WEB-DL Dual- Audio DD+ 5.1 Atmos H.264-APEX", "Босх: Спадок", "Series: Legacy"}},
+		{Line: 100, Method: "should_parse_multiple_series_titles", Args: Args{"Босх.Спадок.AKA.Series.Legacy.S02.1080p.NF.WEB-DL.DUAL.DDP5.1.Atmos.H.264-APEX", "Босх Спадок", "Series Legacy"}},
+		{Line: 101, Method: "should_parse_multiple_series_titles", Args: Args{"[Judas] Series E (Series J) (Season 04) [1080p][HEVC x265 10bit][Dual-Audio][Multi-Subs] (Batch)", "Series E", "Series J"}},
+		{Line: 102, Method: "should_parse_multiple_series_titles", Args: Args{"Serie / Series [S01E02] [MULTI] [1080p] [HMAX] [WEB-DL] [H.264] [DDP5.1.Atmos-K83] [Lektor i Napisy PL]", "Serie", "Series"}},
+		{Line: 109, Method: "should_parse_language_after_parsing_title", Args: Args{"[Reza] Series in Russian - S01E08 [WEBRip 1080p HEVC AAC] (Dual Audio) (Tokidoki Bosotto Russiago de Dereru Tonari no Alya-san)", "Unknown"}},
+	},
+}

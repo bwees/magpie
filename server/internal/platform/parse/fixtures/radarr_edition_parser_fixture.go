@@ -1,0 +1,62 @@
+// Code generated from Radarr's parser test fixtures. DO NOT EDIT.
+//
+// Source: https://github.com/Radarr/Radarr/blob/f5ccd1ca7888b70d43fc22d0108154aa753deba8/src/NzbDrone.Core.Test/ParserTests/EditionParserFixture.cs
+// Copyright (C) Radarr contributors. Licensed under GPL-3.0-or-later.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package fixtures
+
+var RadarrEditionParserFixture = File{
+	Source: "Radarr/src/NzbDrone.Core.Test/ParserTests/EditionParserFixture.cs",
+	Cases: []Case{
+		{Line: 10, Method: "should_parse_edition", Args: Args{"Movie Title 2012 Directors Cut", "Directors Cut"}},
+		{Line: 11, Method: "should_parse_edition", Args: Args{"Movie Title 1999 (Despecialized).mkv", "Despecialized"}},
+		{Line: 12, Method: "should_parse_edition", Args: Args{"Movie Title.2012.(Special.Edition.Remastered).[Bluray-1080p].mkv", "Special Edition Remastered"}},
+		{Line: 13, Method: "should_parse_edition", Args: Args{"Movie Title 2012 Extended", "Extended"}},
+		{Line: 14, Method: "should_parse_edition", Args: Args{"Movie Title 2012 Extended Directors Cut Fan Edit", "Extended Directors Cut Fan Edit"}},
+		{Line: 15, Method: "should_parse_edition", Args: Args{"Movie Title 2012 Director's Cut", "Director's Cut"}},
+		{Line: 16, Method: "should_parse_edition", Args: Args{"Movie Title 2012 Directors Cut", "Directors Cut"}},
+		{Line: 17, Method: "should_parse_edition", Args: Args{"Movie Title.2012.(Extended.Theatrical.Version.IMAX).BluRay.1080p.2012.asdf", "Extended Theatrical Version IMAX"}},
+		{Line: 18, Method: "should_parse_edition", Args: Args{"2021 A Movie (1968) Director's Cut .mkv", "Director's Cut"}},
+		{Line: 19, Method: "should_parse_edition", Args: Args{"2021 A Movie 1968 (Extended Directors Cut FanEdit)", "Extended Directors Cut FanEdit"}},
+		{Line: 20, Method: "should_parse_edition", Args: Args{"A Fake Movie 2035 2012 Directors.mkv", "Directors"}},
+		{Line: 21, Method: "should_parse_edition", Args: Args{"Movie 2049 Director's Cut.mkv", "Director's Cut"}},
+		{Line: 22, Method: "should_parse_edition", Args: Args{"Movie Title 2012 50th Anniversary Edition.mkv", "50th Anniversary Edition"}},
+		{Line: 23, Method: "should_parse_edition", Args: Args{"Movie 2012 2in1.mkv", "2in1"}},
+		{Line: 24, Method: "should_parse_edition", Args: Args{"Movie 2012 IMAX.mkv", "IMAX"}},
+		{Line: 25, Method: "should_parse_edition", Args: Args{"Movie 2012 Restored.mkv", "Restored"}},
+		{Line: 26, Method: "should_parse_edition", Args: Args{"Movie Title.Special.Edition.Fan Edit.2012..BRRip.x264.AAC-m2g", "Special Edition Fan Edit"}},
+		{Line: 27, Method: "should_parse_edition", Args: Args{"Movie Title (Despecialized) 1999.mkv", "Despecialized"}},
+		{Line: 28, Method: "should_parse_edition", Args: Args{"Movie Title.(Special.Edition.Remastered).2012.[Bluray-1080p].mkv", "Special Edition Remastered"}},
+		{Line: 29, Method: "should_parse_edition", Args: Args{"Movie Title Extended 2012", "Extended"}},
+		{Line: 30, Method: "should_parse_edition", Args: Args{"Movie Title Extended Directors Cut Fan Edit 2012", "Extended Directors Cut Fan Edit"}},
+		{Line: 31, Method: "should_parse_edition", Args: Args{"Movie Title Director's Cut 2012", "Director's Cut"}},
+		{Line: 32, Method: "should_parse_edition", Args: Args{"Movie Title Directors Cut 2012", "Directors Cut"}},
+		{Line: 33, Method: "should_parse_edition", Args: Args{"Movie Title.(Extended.Theatrical.Version.IMAX).2012.BluRay.1080p.asdf", "Extended Theatrical Version IMAX"}},
+		{Line: 34, Method: "should_parse_edition", Args: Args{"Movie Director's Cut (1968).mkv", "Director's Cut"}},
+		{Line: 35, Method: "should_parse_edition", Args: Args{"2021 A Movie (Extended Directors Cut FanEdit) 1968 Bluray 1080p", "Extended Directors Cut FanEdit"}},
+		{Line: 36, Method: "should_parse_edition", Args: Args{"A Fake Movie 2035 Directors 2012.mkv", "Directors"}},
+		{Line: 37, Method: "should_parse_edition", Args: Args{"Movie Director's Cut 2049.mkv", "Director's Cut"}},
+		{Line: 38, Method: "should_parse_edition", Args: Args{"Movie Title 50th Anniversary Edition 2012.mkv", "50th Anniversary Edition"}},
+		{Line: 39, Method: "should_parse_edition", Args: Args{"Movie 2in1 2012.mkv", "2in1"}},
+		{Line: 40, Method: "should_parse_edition", Args: Args{"Movie IMAX 2012.mkv", "IMAX"}},
+		{Line: 41, Method: "should_parse_edition", Args: Args{"Fake Movie Final Cut 2016", "Final Cut"}},
+		{Line: 42, Method: "should_parse_edition", Args: Args{"Fake Movie 2016 Final Cut ", "Final Cut"}},
+		{Line: 43, Method: "should_parse_edition", Args: Args{"My Movie GERMAN Extended Cut 2016", "Extended Cut"}},
+		{Line: 44, Method: "should_parse_edition", Args: Args{"My.Movie.GERMAN.Extended.Cut.2016", "Extended Cut"}},
+		{Line: 45, Method: "should_parse_edition", Args: Args{"My.Movie.GERMAN.Extended.Cut", "Extended Cut"}},
+		{Line: 46, Method: "should_parse_edition", Args: Args{"My.Movie.Assembly.Cut.1992.REPACK.1080p.BluRay.DD5.1.x264-Group", "Assembly Cut"}},
+		{Line: 47, Method: "should_parse_edition", Args: Args{"Movie.1987.Ultimate.Hunter.Edition.DTS-HD.DTS.MULTISUBS.1080p.BluRay.x264.HQ-TUSAHD", "Ultimate Hunter Edition"}},
+		{Line: 48, Method: "should_parse_edition", Args: Args{"Movie.1950.Diamond.Edition.1080p.BluRay.x264-nikt0", "Diamond Edition"}},
+		{Line: 49, Method: "should_parse_edition", Args: Args{"Movie.Title.1990.Ultimate.Rekall.Edition.NORDiC.REMUX.1080p.BluRay.AVC.DTS-HD.MA5.1-TWA", "Ultimate Rekall Edition"}},
+		{Line: 50, Method: "should_parse_edition", Args: Args{"Movie.Title.1971.Signature.Edition.1080p.BluRay.FLAC.2.0.x264-TDD", "Signature Edition"}},
+		{Line: 51, Method: "should_parse_edition", Args: Args{"Movie.1979.The.Imperial.Edition.BluRay.720p.DTS.x264-CtrlHD", "Imperial Edition"}},
+		{Line: 52, Method: "should_parse_edition", Args: Args{"Movie.1997.Open.Matte.1080p.BluRay.x264.DTS-FGT", "Open Matte"}},
+		{Line: 59, Method: "should_not_parse_edition", Args: Args{"Movie.Holiday.Special.1978.DVD.REMUX.DD.2.0-ViETNAM"}},
+		{Line: 60, Method: "should_not_parse_edition", Args: Args{"Directors.Cut.German.2006.COMPLETE.PAL.DVDR-LoD"}},
+		{Line: 61, Method: "should_not_parse_edition", Args: Args{"Movie Impossible: Rogue Movie 2012 Bluray"}},
+		{Line: 62, Method: "should_not_parse_edition", Args: Args{"Loving.Movie.2018.TS.FRENCH.MD.x264-DROGUERiE"}},
+		{Line: 63, Method: "should_not_parse_edition", Args: Args{"Uncut.Movie.2019.720p.BluRay.x264-YOL0W"}},
+		{Line: 64, Method: "should_not_parse_edition", Args: Args{"The.Christmas.Edition.1941.720p.HDTV.x264-CRiMSON"}},
+	},
+}
