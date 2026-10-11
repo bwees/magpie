@@ -65,8 +65,8 @@ type Reader interface {
     Request(ctx context.Context, id domain.RequestID) (Request, error)
     // RequestsForTitle returns all requests linked to a Title, newest first. Empty slice if none.
     RequestsForTitle(ctx context.Context, title domain.TitleID) ([]Request, error)
-    // Requesters returns the distinct users with a non-declined request for the Title.
-    // Activity uses it to route "available" notifications.
+    // Requesters returns the distinct users with a non-declined request for the Title, in no particular
+    // order. Empty slice if none. Activity uses it to route "available" notifications.
     Requesters(ctx context.Context, title domain.TitleID) ([]domain.UserID, error)
     // OpenIssues returns OPEN and ACTION_PENDING issues, newest first. A nil title means all Titles.
     OpenIssues(ctx context.Context, title *domain.TitleID) ([]Issue, error)
