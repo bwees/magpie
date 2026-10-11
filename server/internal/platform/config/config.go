@@ -18,6 +18,9 @@ const (
 	EnvBaseURL = "MAGPIE_BASE_URL"
 	EnvWebDir  = "MAGPIE_WEB_DIR"
 
+	EnvAgentSecret       = "MAGPIE_AGENT_SECRET"
+	MinAgentSecretLength = 32
+
 	DefaultPort    = 3000
 	DefaultDataDir = "/data"
 
@@ -32,6 +35,7 @@ var (
 	ErrDataDirNotWritable = errors.New("data dir is not a writable directory")
 	ErrInvalidBaseURL     = errors.New("base URL must be an absolute http(s) URL")
 	ErrNetworkFilesystem  = errors.New("data dir is on a network filesystem; SQLite needs local disk")
+	ErrAgentSecretShort   = fmt.Errorf("agent secret must be at least %d characters", MinAgentSecretLength)
 )
 
 var baseURLSchemes = map[string]bool{"http": true, "https": true}
@@ -44,6 +48,8 @@ type Env struct {
 	BaseURL *url.URL
 	// WebDir is the built SPA to serve. Empty in development, where Vite serves it.
 	WebDir string
+	// AgentSecret is the shared secret transcode agents present. Empty refuses every agent.
+	AgentSecret string
 }
 
 var Module = fx.Module("config", fx.Provide(Load))
@@ -58,17 +64,26 @@ func Parse(getenv func(string) string) (Env, error) {
 	port, portErr := parsePort(getenv(EnvPort))
 	dataDir, dataDirErr := prepareDataDir(getenv(EnvDataDir))
 	baseURL, baseURLErr := parseBaseURL(getenv(EnvBaseURL))
+	agentSecret, agentSecretErr := parseAgentSecret(getenv(EnvAgentSecret))
 
-	if err := errors.Join(portErr, dataDirErr, baseURLErr); err != nil {
+	if err := errors.Join(portErr, dataDirErr, baseURLErr, agentSecretErr); err != nil {
 		return Env{}, err
 	}
 
 	return Env{
-		Port:    port,
-		DataDir: dataDir,
-		BaseURL: baseURL,
-		WebDir:  getenv(EnvWebDir),
+		Port:        port,
+		DataDir:     dataDir,
+		BaseURL:     baseURL,
+		WebDir:      getenv(EnvWebDir),
+		AgentSecret: agentSecret,
 	}, nil
+}
+
+func parseAgentSecret(raw string) (string, error) {
+	if raw != "" && len(raw) < MinAgentSecretLength {
+		return "", fmt.Errorf("%s: %w", EnvAgentSecret, ErrAgentSecretShort)
+	}
+	return raw, nil
 }
 
 func parsePort(raw string) (int, error) {

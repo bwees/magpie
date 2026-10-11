@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +56,19 @@ func TestParseCreatesMissingDataDir(t *testing.T) {
 	}
 	if env.DataDir != dataDir {
 		t.Errorf("data dir = %q, want %q", env.DataDir, dataDir)
+	}
+}
+
+func TestParseAgentSecret(t *testing.T) {
+	long := strings.Repeat("s", MinAgentSecretLength)
+	env, err := Parse(envOf(map[string]string{EnvAgentSecret: long, EnvDataDir: t.TempDir()}))
+	if err != nil || env.AgentSecret != long {
+		t.Fatalf("env = %+v, err = %v; want the secret", env, err)
+	}
+
+	_, err = Parse(envOf(map[string]string{EnvAgentSecret: long[1:], EnvDataDir: t.TempDir()}))
+	if !errors.Is(err, ErrAgentSecretShort) {
+		t.Fatalf("err = %v, want ErrAgentSecretShort", err)
 	}
 }
 
