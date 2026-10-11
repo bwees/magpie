@@ -18,6 +18,7 @@ export enum WizardStep {
 export enum StepKind {
 	ACCOUNT = 'ACCOUNT',
 	CONNECTION = 'CONNECTION',
+	QUALITY_PRESET = 'QUALITY_PRESET',
 	/** Owned by a later slice, which replaces the placeholder. */
 	COMING_SOON = 'COMING_SOON'
 }
@@ -81,7 +82,7 @@ export const WIZARD_STEPS: StepSpec[] = [
 		step: WizardStep.QUALITY_PRESET,
 		label: 'Quality preset',
 		description: 'The default quality for new requests: 720p, 1080p or 2160p.',
-		kind: StepKind.COMING_SOON
+		kind: StepKind.QUALITY_PRESET
 	},
 	{
 		step: WizardStep.WANTED_LANGUAGES,

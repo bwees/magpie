@@ -11,6 +11,7 @@
 	import { LoadStatus } from '$lib/load-status';
 	import AuthFrame from '$lib/session/AuthFrame.svelte';
 	import { getSession } from '$lib/session/session.svelte';
+	import QualityPresetStep from '$lib/settings/quality/QualityPresetStep.svelte';
 	import { SetupWizard } from '$lib/setup/setup-wizard.svelte';
 	import StepList from '$lib/setup/StepList.svelte';
 	import { StepKind, WIZARD_STEPS } from '$lib/setup/steps';
@@ -129,6 +130,12 @@
 						{wizard.isLast ? 'Finish' : 'Continue'}
 					</Button>
 				</Card.Footer>
+			{:else if step.kind === StepKind.QUALITY_PRESET}
+				<QualityPresetStep
+					isLast={wizard.isLast}
+					onDone={() => wizard.complete()}
+					onSkip={() => wizard.skip()}
+				/>
 			{:else}
 				<Card.Content>
 					<div
