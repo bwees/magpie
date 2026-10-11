@@ -2,6 +2,8 @@ package httpserver
 
 import (
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/go-fuego/fuego"
 	"go.uber.org/fx"
@@ -32,6 +34,30 @@ type Middleware func(http.Handler) http.Handler
 // AsMiddleware provides constructor's Middleware to the server.
 func AsMiddleware(constructor any) any {
 	return fx.Annotate(constructor, fx.ResultTags(middlewaresGroup))
+}
+
+const selfAuthenticatedGroup = "self_authenticated_paths"
+
+// SelfAuthenticatedTag injects every path declared with AsSelfAuthenticated.
+const SelfAuthenticatedTag = `group:"` + selfAuthenticatedGroup + `"`
+
+// SelfAuthenticated is a path whose routes check their own credentials, such as the transcode agent
+// socket. The session gate lets it, and everything under it, through untouched.
+type SelfAuthenticated string
+
+// AsSelfAuthenticated declares that path and everything under it check their own credentials.
+func AsSelfAuthenticated(path string) fx.Option {
+	return fx.Supply(fx.Annotated{Group: selfAuthenticatedGroup, Target: SelfAuthenticated(path)})
+}
+
+// Covers reports whether path is p or under it.
+func (p SelfAuthenticated) Covers(path string) bool {
+	return path == string(p) || strings.HasPrefix(path, string(p)+"/")
+}
+
+// AnyCovers reports whether any of paths covers path.
+func AnyCovers(paths []SelfAuthenticated, path string) bool {
+	return slices.ContainsFunc(paths, func(p SelfAuthenticated) bool { return p.Covers(path) })
 }
 
 const schemasGroupName = "openapi_schemas"

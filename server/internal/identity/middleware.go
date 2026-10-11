@@ -25,11 +25,13 @@ const (
 )
 
 // Middleware gates the API on setup, resolves the session cookie into the request's principal and
-// answers 401 for routes that need a session. Paths outside /api pass through untouched.
+// answers 401 for routes that need a session. Paths outside /api, health and self-authenticated paths
+// pass through untouched.
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if !strings.HasPrefix(path, apiPathPrefix) || path == httpserver.HealthPath {
+		if !strings.HasPrefix(path, apiPathPrefix) || path == httpserver.HealthPath ||
+			httpserver.AnyCovers(s.selfAuthenticated, path) {
 			next.ServeHTTP(w, r)
 			return
 		}

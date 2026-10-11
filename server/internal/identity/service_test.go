@@ -77,7 +77,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	d := dbtest.Open(t, Migrations())
 	repo := NewRepository(d)
 	env := &testEnv{t: t, db: d, repo: repo, clock: startOfTest}
-	env.service = NewService(d, bus.New(), repo)
+	env.service = NewService(d, bus.New(), repo, nil)
 	env.service.now = func() time.Time { return env.clock }
 	env.service.limiter.now = env.service.now
 	controllers := []httpserver.Controller{httpserver.NewHealthController(), NewController(env.service), adminOnlyController{}}

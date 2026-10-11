@@ -15,6 +15,7 @@ import (
 	"magpie/internal/identity/api"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
+	"magpie/internal/platform/httpserver"
 
 	"gorm.io/gorm"
 )
@@ -61,10 +62,12 @@ type Service struct {
 	now     func() time.Time
 	// adminExists only ever turns true: the last admin can't be removed.
 	adminExists atomic.Bool
+	// selfAuthenticated paths check their own credentials, so the middleware leaves them alone.
+	selfAuthenticated []httpserver.SelfAuthenticated
 }
 
-func NewService(d *db.DB, b *bus.Bus, repo *Repository) *Service {
-	return &Service{db: d, bus: b, repo: repo, limiter: newSignInLimiter(), now: time.Now}
+func NewService(d *db.DB, b *bus.Bus, repo *Repository, selfAuthenticated []httpserver.SelfAuthenticated) *Service {
+	return &Service{db: d, bus: b, repo: repo, limiter: newSignInLimiter(), now: time.Now, selfAuthenticated: selfAuthenticated}
 }
 
 // SetupRequired reports whether no admin exists yet, in which case only setup may run.
