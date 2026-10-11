@@ -28,6 +28,7 @@ const (
 
 	typeNotificationCreated = "activity.NotificationCreated"
 	typeSearchResults       = "acquisition.SearchResultsReceived"
+	typeSearchCompleted     = "acquisition.SearchCompleted"
 	typeFileImported        = "library.FileImported"
 )
 
@@ -42,6 +43,12 @@ func (n notificationCreated) Recipient() domain.UserID { return n.User }
 type searchResults struct {
 	Search  domain.SearchID `json:"search"`
 	Indexer string          `json:"indexer"`
+}
+
+// searchCompleted names the title searched, which a requester of that title would otherwise see.
+type searchCompleted struct {
+	Search domain.SearchID `json:"search"`
+	Title  domain.TitleID  `json:"title"`
 }
 
 type fileImported struct {
@@ -270,6 +277,51 @@ func TestSearchEventsOnlyReachSubscribers(t *testing.T) {
 	time.Sleep(quietPeriod)
 	publish(h, typeSearchResults, string(search), searchResults{Search: search})
 	subscribed.expectQuiet()
+}
+
+func TestSearchEventsReachOnlySubscribedAdmins(t *testing.T) {
+	roles := newRoleFixture()
+	h := newHub(testConfig(), roles.filter)
+	url := serve(t, h)
+	search := domain.NewID[domain.SearchID]()
+	topic := SearchTopicPrefix + string(search)
+
+	nosy := dial(t, url, requester)
+	nosy.send(LiveClientMessage{Op: OpSubscribe, Topics: []string{topic}})
+	nosy.attach()
+	watching := dial(t, url, admin)
+	watching.send(LiveClientMessage{Op: OpSubscribe, Topics: []string{topic}})
+	watching.attach()
+
+	publish(h, typeSearchCompleted, string(roles.myTitle), searchCompleted{Search: search, Title: roles.myTitle})
+
+	if got := watching.next(); got.Type != typeSearchCompleted || got.Topic != topic {
+		t.Fatalf("admin got %+v, want the completed search on its topic", got)
+	}
+	nosy.expectQuiet()
+}
+
+func TestResumeReplaysSearchEventsAfterReconnect(t *testing.T) {
+	h := newHub(testConfig(), RoleFilter{})
+	url := serve(t, h)
+	search := domain.NewID[domain.SearchID]()
+	topic := SearchTopicPrefix + string(search)
+
+	first := dial(t, url, admin)
+	first.send(LiveClientMessage{Op: OpSubscribe, Topics: []string{topic}})
+	first.attach()
+	publish(h, typeSearchResults, string(search), searchResults{Search: search, Indexer: "nyaa"})
+	seen := first.next()
+	_ = first.conn.CloseNow()
+	publish(h, typeSearchResults, string(search), searchResults{Search: search, Indexer: "beyond"})
+
+	again := dial(t, url, admin)
+	again.send(LiveClientMessage{Op: OpSubscribe, Topics: []string{topic}})
+	again.send(LiveClientMessage{Op: OpResume, Epoch: seen.Epoch, Seq: seen.Seq})
+	missed := again.next()
+	if missed.Topic != topic || decode[searchResults](t, missed).Indexer != "beyond" {
+		t.Fatalf("replayed %+v, want the answer missed while disconnected", missed)
+	}
 }
 
 func TestHeartbeatClosesAfterTwoMissedPongs(t *testing.T) {

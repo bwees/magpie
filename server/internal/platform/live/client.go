@@ -146,8 +146,8 @@ func (c *client) allows(ctx context.Context, e entry) bool {
 	if e.control {
 		return true
 	}
-	if e.msg.Topic != "" && !c.subscribed(e.msg.Topic) {
-		return false
+	if e.msg.Topic != "" {
+		return c.subscribed(e.msg.Topic) && c.hub.filter.AllowsTopic(ctx, c.principal)
 	}
 	return c.hub.filter.Allows(ctx, c.principal, e.scope)
 }
