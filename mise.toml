@@ -1,0 +1,110 @@
+[tools]
+go = "1.27.2"
+node = "24.21.0"
+pnpm = "11.27.1"
+air = "1.67.2"
+golangci-lint = "2.14.0"
+goreleaser = "2.18.3"
+
+[env]
+MAGPIE_DATA_DIR = "{{config_root}}/server/tmp/data"
+
+[tasks."install:web"]
+description = "Install web dependencies"
+dir = "web"
+run = "pnpm install"
+
+[tasks."dev:server"]
+description = "Run the Go server with live reload"
+dir = "server"
+run = "air"
+
+[tasks."dev:web"]
+description = "Run the SvelteKit dev server"
+dir = "web"
+run = "pnpm dev"
+
+[tasks.dev]
+description = "Run the server and web dev servers together"
+depends = ["dev:server", "dev:web"]
+
+[tasks."openapi:export"]
+description = "Generate the OpenAPI spec from the Go server"
+dir = "server"
+run = "go run . -open-api"
+
+[tasks.openapi]
+description = "Export the OpenAPI spec and regenerate the web SDK client"
+depends = ["openapi:export"]
+dir = "web"
+run = "pnpm openapi:generate"
+
+[tasks."build:web"]
+description = "Build the SvelteKit frontend"
+dir = "web"
+run = "pnpm build"
+
+[tasks."build:server"]
+description = "Build the Go server binary without cgo"
+dir = "server"
+env = { CGO_ENABLED = "0" }
+run = "go build -o tmp/magpie ."
+
+[tasks.build]
+description = "Build the frontend and server"
+depends = ["build:web", "build:server"]
+
+[tasks."format:server"]
+description = "Format the Go server codebase"
+dir = "server"
+run = "gofmt -w ."
+
+[tasks."format:web"]
+description = "Format the web codebase"
+dir = "web"
+run = "pnpm format"
+
+[tasks.format]
+description = "Format the server and web codebases"
+depends = ["format:server", "format:web"]
+
+[tasks."lint:server"]
+description = "Vet and lint the Go server codebase"
+dir = "server"
+run = ["go vet ./...", "golangci-lint run ./..."]
+
+[tasks."lint:web"]
+description = "Lint the web codebase (prettier + eslint)"
+dir = "web"
+run = "pnpm lint"
+
+[tasks.lint]
+description = "Lint the server and web codebases"
+depends = ["lint:server", "lint:web"]
+
+[tasks.check]
+description = "Type-check the web codebase"
+dir = "web"
+run = "pnpm check"
+
+[tasks."test:server"]
+description = "Run the Go server tests"
+dir = "server"
+run = "go test ./..."
+
+[tasks."test:web"]
+description = "Run the web unit tests"
+dir = "web"
+run = "pnpm test"
+
+[tasks.test]
+description = "Run all tests"
+depends = ["test:server", "test:web"]
+
+[tasks.release]
+description = "Build and publish binaries and the server image with goreleaser"
+run = "goreleaser release --clean"
+
+[tasks."release:snapshot"]
+description = "Build release binaries locally without publishing (pass --skip=docker without a Docker daemon)"
+run = "goreleaser release --snapshot --clean"

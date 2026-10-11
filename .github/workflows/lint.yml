@@ -1,0 +1,47 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: mise run format
+
+      - name: Fail if formatting changed files
+        run: git diff --exit-code
+
+      - name: Lint (go vet, golangci-lint, prettier, eslint)
+        run: mise run lint
+
+      - name: Type-check
+        run: mise run check
+
+  openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerate the OpenAPI spec and SDK client
+        run: mise run openapi
+
+      - name: Fail if the spec or client are out of date
+        run: git diff --exit-code -- server/openapi.json web/src/lib/sdk/client.ts
