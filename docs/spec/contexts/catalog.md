@@ -4,7 +4,7 @@ Knows what exists (from TMDB) and what is wanted: Titles, seasons, episodes, the
 
 - **Depends on (Readers):** none.
 - **Publishes:** `TitleAdded`, `TitleAddFailed`, `MonitoringChanged`, `ProfileChanged`, `LanguagesChanged`, `ScanFolderMatched`, `EpisodesAnnounced`, `WantedReleased`, `EpisodeGroupChanged`, `TitleRemoved`.
-- **Consumes:** `requests.RequestApproved`, `library.FolderFound`.
+- **Consumes:** `requests.RequestApproved`, `library.FolderFound`, `platform.ServiceHealthChanged` (TMDB healthy → resume refresh).
 - **Importer entrypoint:** `api.Importer` (migration job only, see [11-migration.md](../11-migration.md)).
 
 ## Owns / Must not
@@ -26,14 +26,16 @@ Knows what exists (from TMDB) and what is wanted: Titles, seasons, episodes, the
 
 | Table | Key columns |
 |---|---|
-| `catalog_titles` | `id`, `kind`, `tmdbId` (unique per kind), `tvdbId?`, `imdbId?`, `externalIdSource` (`TMDB` \| `IMPORT`), `name`, `originalName`, `aliases` JSON, `year`, `overview`, `originalLanguage`, `runtimeMinutes?`, `seriesStatus?` (`CONTINUING` \| `ENDED`), `profileId`, `monitored`, `monitorFutureSeasons`, `episodeGroupId?`, `languagesOverride?` JSON, `origin`, `requestedBy?`, `addedAt`, `metadataRefreshedAt`, `releaseDigitalAt?`, `releasePhysicalAt?`, `releaseTheatricalAt?`, `releasedAt?` |
+| `catalog_titles` | `id`, `kind`, `tmdbId` (unique per kind), `tvdbId?`, `imdbId?`, `externalIdSource` (`TMDB` \| `IMPORT`), `name`, `originalName`, `aliases` JSON, `year`, `overview`, `originalLanguage`, `runtimeMinutes?`, `seriesStatus?` (`CONTINUING` \| `ENDED`), `profileId`, `monitored`, `monitorFutureSeasons`, `episodeGroupId?`, `languagesOverride?` JSON, `origin`, `requestedBy?`, `requestId?` (the request that created it; a redelivered request is a no-op), `addedAt`, `metadataRefreshedAt`, `releaseDigitalAt?`, `releasePhysicalAt?`, `releaseTheatricalAt?`, `released`, `releasedAt?` |
 | `catalog_seasons` | `id`, `titleId`, `number` (in the current numbering), `monitored` |
-| `catalog_episodes` | `id`, `titleId`, `tmdbEpisodeId` (unique), `seasonNumber`, `episodeNumber` (current numbering), `airedSeason`, `airedNumber` (TMDB aired order), `name`, `airDate?`, `runtimeMinutes?`, `monitored`, `releasedAt?` |
+| `catalog_episodes` | `id`, `titleId`, `tmdbEpisodeId` (unique), `seasonNumber`, `episodeNumber` (current numbering), `airedSeason`, `airedNumber` (TMDB aired order), `name`, `airDate?`, `runtimeMinutes?`, `monitored`, `released`, `releasedAt?` |
 | `catalog_images` | `titleId`, `kind` (`POSTER` \| `BACKDROP` \| `LOGO`), `tmdbPath`, `localPath`, `fetchedAt` |
 | `catalog_languages` | `position`, `language`, `forced`, `hearingImpaired` (global wanted languages, ordered) |
 | `catalog_scan_review` | `id`, `folderPath`, `parsedTitle`, `parsedYear?`, `tmdbHint?`, `candidates` JSON, `state` (`PENDING` \| `MATCHED` \| `IGNORED`), `createdAt` |
-| `catalog_settings` | `language`, `releaseRegion` |
 
+- Columns are snake_case in SQL (`tmdb_id`), like the platform tables.
+- Settings live in the platform settings store, not a table: `catalog.metadata` (`language`, default `en-US`; `releaseRegion`, default `US`), `catalog.schedule.movieRefresh` (`168h`), `catalog.schedule.releaseClock` (`1h`) and `catalog.refresh.paused` (set by a `401`).
+- Cached images are files under `<data dir>/images/<titleId>/`, with resized variants beside them.
 - `EpisodeID` is stable across episode-group changes: it is tied to `tmdbEpisodeId`, not to season/number.
 - `seasonNumber` and `episodeNumber` always reflect the selected episode group, or aired order when none is selected.
 
@@ -227,7 +229,7 @@ type TitleRemoved struct {
 
 | Message | From | Reaction | Idempotency | Failure |
 |---|---|---|---|---|
-| `requests.RequestApproved` | Requests | Title not tracked: fetch from TMDB, create it with the request's profile, and monitor the scope: the movie, all seasons plus future seasons, or only the chosen seasons. Then publish `TitleAdded{RequestID, Origin: REQUEST}`. Title tracked: monitor the requested seasons (or the movie) and publish `MonitoringChanged{RequestID}`; the existing profile is kept. | Event ID in `processed_events`; natural key `(kind, tmdbId)` prevents duplicate Titles | TMDB error → retry 3× with backoff (backlite), then `TitleAddFailed` |
+| `requests.RequestApproved` | Requests | Title not tracked: fetch from TMDB, create it with the request's profile, and monitor the scope: the movie, all seasons plus future seasons, or only the chosen seasons. Then publish `TitleAdded{RequestID, Origin: REQUEST}`. Title tracked: monitor the requested seasons (or the movie) and publish `MonitoringChanged{RequestID}`; the existing profile is kept. | Event ID in `processed_events`; natural key `(kind, tmdbId)` prevents duplicate Titles; `requestId` on the Title makes a repeated request a no-op | The handler queues a backlite job for the TMDB fetch (handlers can't do network I/O). TMDB error → retry 3× after 30 s, 2 min, 10 min, then `TitleAddFailed`; a `404` fails at once |
 | `library.FolderFound` | Library (scan) | Match the folder to TMDB: a `[tmdbid-N]` tag (or `TmdbHint`) is exact; otherwise search TMDB by parsed title + year. One candidate with score ≥ 0.9 → match. Anything else → a `catalog_scan_review` row; the admin picks a candidate or ignores the folder. On a match: create the Title if new (default profile, monitored) and publish `TitleAdded{Origin: LIBRARY_SCAN, ScanFolder}`; then, new or existing, publish `ScanFolderMatched{Folder, Title}`. | Event ID; `(kind, tmdbId)`; review rows unique per `folderPath` | TMDB unavailable → retry with backoff; stays queued |
 
 Migration writes go through `api.Importer.ImportTitles` (not an event). It applies the same creation rules with `Origin: MIGRATION` and publishes `TitleAdded{Origin: MIGRATION}`. TVDB/IMDb IDs it supplies are stored only when TMDB has none (`externalIdSource = IMPORT`).
@@ -266,7 +268,7 @@ var (
 
 Routes under `/api/catalog`. Schemas come from fuego's OpenAPI.
 
-- `GET /titles` list Titles (filters: `q`, kind, monitored, released, status; `sort`: name, added, activity).
+- `GET /titles` list Titles (filters: `q` on name, original name and aliases, `kind`, `monitored`, `released`; `sort`: `NAME` (default) or `ADDED`). Sorting by activity needs Activity's projection and is left to the Home slice.
 - `GET /titles/{id}` one Title with seasons and episodes.
 - `PATCH /titles/{id}` set `profileId`, `monitored`, `monitorFutureSeasons` (admin).
 - `PATCH /titles/{id}/seasons/{n}` set season monitoring (admin).
@@ -275,8 +277,8 @@ Routes under `/api/catalog`. Schemas come from fuego's OpenAPI.
 - `PUT /titles/{id}/episode-group` select a group, or `""` for aired order (admin).
 - `POST /titles/{id}/refresh` refresh metadata now (admin).
 - `DELETE /titles/{id}?deleteFiles=bool` remove a Title (admin).
-- `GET /images/{titleId}/{kind}?w=` serve a cached image, resized.
-- `GET /discover?q=` TMDB search, each item marked `inLibrary`; an empty `q` returns TMDB trending this week.
+- `GET /images/{titleId}/{kind}?w=` serve a cached image, resized. `w` rounds up to 92, 154, 185, 342, 500, 780 or 1280; no `w`, or one wider than the image, serves the cached file.
+- `GET /discover?q=` TMDB search, each item marked `inLibrary` (with its `titleId`); an empty `q` returns TMDB trending this week (`trending: true`). TMDB failures answer `503` with problem type `tmdb-unavailable`.
 - `GET /settings`, `PUT /settings` metadata language, release region (admin). The TMDB key is platform connection config (`/api/platform/connections`).
 - `GET /languages`, `PUT /languages` global wanted languages, ordered (admin). Shown in Settings → Subtitles.
 - `PUT /titles/{id}/languages` set or clear a Title's override (admin).
@@ -313,7 +315,7 @@ Adding a Title from the top-bar search goes through Requests (`POST /api/request
 **Released rule** ([ticket 31](../../../.scratch/v1-spec/issues/31-import-wizard-and-model-gaps.md))
 - A movie is released when today ≥ the earliest TMDB Digital (type 4) or Physical (type 5) release date in `releaseRegion`.
   - If the region has neither, the earliest Digital/Physical date in any region counts.
-  - With no Digital/Physical date anywhere, the movie counts as released at its earliest Theatrical date + 90 days.
+  - With no Digital/Physical date anywhere, the movie counts as released at its earliest Theatrical date + 90 days. Theatrical means TMDB types 2 (limited) and 3, from the region if it has one, else any region.
   - With no date at all, it stays unreleased. A manual search is still allowed.
 - An episode is released when its `airDate` (a date, read in the server's time zone) is today or earlier.
 - An hourly release-clock job finds monitored items that just crossed their release point, sets `releasedAt`, and publishes one `WantedReleased` per Title.
@@ -321,7 +323,7 @@ Adding a Title from the top-bar search goes through Requests (`POST /api/request
 
 **Metadata refresh** ([ticket 24](../../../.scratch/v1-spec/issues/24-scheduling.md))
 - Continuing series: daily. Ended series and movies: weekly.
-- Each run first calls TMDB `/changes` (past 24 h) and skips unchanged Titles. Every Title is still fully refreshed at least once every 30 days.
+- Each run first calls TMDB `/changes` for the span since the previous run (its interval, at most TMDB's 14 days) and skips unchanged Titles. Every Title is still fully refreshed at least once every 30 days. Unchanged Titles only re-fetch stale images.
 - New episodes produce `EpisodesAnnounced`. Changed air dates feed the release clock.
 
 **Image cache** ([ticket 09](../../../.scratch/v1-spec/issues/09-choose-metadata-source.md))

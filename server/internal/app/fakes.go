@@ -6,10 +6,8 @@ import (
 	"magpie/internal/activity"
 	activityfakes "magpie/internal/activity/fakes"
 	"magpie/internal/adapters/prowlarr"
+	"magpie/internal/adapters/tmdb"
 	"magpie/internal/catalog"
-	catalogapi "magpie/internal/catalog/api"
-	catalogtest "magpie/internal/catalog/api/contracttest"
-	catalogfakes "magpie/internal/catalog/fakes"
 	"magpie/internal/identity"
 	identityfakes "magpie/internal/identity/fakes"
 	"magpie/internal/library"
@@ -28,7 +26,7 @@ import (
 // A slice that adds a real adapter replaces that port's line here with the adapter.
 var PortFakes = fx.Provide(
 	fx.Annotate(identityfakes.NewJellyfinAuth, fx.As(new(identity.JellyfinAuth))),
-	fx.Annotate(catalogfakes.NewTMDB, fx.As(new(catalog.TMDB))),
+	fx.Annotate(tmdb.New, fx.As(new(catalog.TMDB))),
 	fx.Annotate(prowlarr.NewFromSettings, fx.As(new(acquisition.Prowlarr))),
 	fx.Annotate(acquisitionfakes.NewQBittorrent, fx.As(new(acquisition.QBittorrent))),
 	fx.Annotate(acquisitionfakes.NewTrashGuides, fx.As(new(acquisition.TrashGuides))),
@@ -45,6 +43,5 @@ var PortFakes = fx.Provide(
 // ReaderFakes provides the in-memory Reader of each context whose repository isn't built yet.
 // A slice that implements a context's Reader removes that context's line here.
 var ReaderFakes = fx.Provide(
-	fx.Annotate(func() *catalogtest.Fake { return catalogtest.NewFake(catalogtest.Fixture{}) }, fx.As(new(catalogapi.Reader))),
 	fx.Annotate(func() *requeststest.Fake { return requeststest.NewFake(requeststest.Fixture{}) }, fx.As(new(requestsapi.Reader))),
 )

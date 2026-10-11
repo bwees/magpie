@@ -181,7 +181,7 @@ type Event struct {
 | `activity.NotificationCreated` | Activity | notification, user, kind, title, link | live gateway (to that user only) |
 | `activity.AttentionChanged` | Activity | item, kind, ref, open, count | live gateway (admins) |
 | `activity.ProjectionUpdated` *(ephemeral)* | Activity | projection `TIMELINE` \| `HISTORY` \| `PIPELINE`, title? | live gateway → views refetch the timeline, history or stage bar |
-| `platform.ServiceHealthChanged` | Platform | service, healthy, error | Activity → notify + attention |
+| `platform.ServiceHealthChanged` | Platform | service, healthy, error | Activity → notify + attention; Catalog → resume TMDB refresh paused by a `401` |
 
 | Command | Sender | Owner → behaviour |
 |---|---|---|

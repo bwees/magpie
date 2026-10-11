@@ -1,0 +1,496 @@
+package catalog
+
+import (
+	_ "embed"
+	"encoding/base64"
+	"errors"
+	"net/http"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"magpie/internal/catalog/api"
+	"magpie/internal/domain"
+	"magpie/internal/platform/httpserver"
+	"magpie/internal/platform/jobs"
+	"magpie/internal/platform/problem"
+
+	"github.com/go-fuego/fuego"
+)
+
+const (
+	tagCatalog = "catalog"
+
+	pathTitleID   = "id"
+	pathImageID   = "titleId"
+	pathImageKind = "kind"
+
+	queryQ           = "q"
+	queryKind        = "kind"
+	queryMonitored   = "monitored"
+	queryReleased    = "released"
+	querySort        = "sort"
+	queryDeleteFiles = "deleteFiles"
+	queryWidth       = "w"
+
+	imagesRoute       = httpserver.APIPrefix + "/catalog/images/"
+	headerCache       = "Cache-Control"
+	imageCacheControl = "public, max-age=86400"
+	contentTypeJPEG   = "image/jpeg"
+	contentTypePNG    = "image/png"
+
+	attributionNotice = "This product uses the TMDB API but is not endorsed or certified by TMDB."
+	attributionLink   = "https://www.themoviedb.org"
+	svgDataURIPrefix  = "data:image/svg+xml;base64,"
+
+	TypeTitleNotFound   problem.Type = "urn:magpie:problem:title-not-found"
+	TypeImageNotFound   problem.Type = "urn:magpie:problem:image-not-found"
+	TypeTmdbUnavailable problem.Type = "urn:magpie:problem:tmdb-unavailable"
+	TypeInvalidSettings problem.Type = "urn:magpie:problem:invalid-catalog-settings"
+	TypeSeriesPending   problem.Type = "urn:magpie:problem:series-unsupported"
+)
+
+//go:embed tmdb-logo.svg
+var tmdbLogo []byte
+
+var (
+	mediaKinds = []domain.MediaKind{domain.MediaKindMovie, domain.MediaKindSeries}
+	titleSorts = []TitleSort{TitleSortName, TitleSortAdded}
+)
+
+type ReleaseDatesResponse struct {
+	Theatrical *time.Time `json:"theatrical"`
+	Digital    *time.Time `json:"digital"`
+	Physical   *time.Time `json:"physical"`
+}
+
+// TitleImagesResponse holds image URLs for cached images; add ?w= for a resized copy.
+type TitleImagesResponse struct {
+	Poster   *string `json:"poster"`
+	Backdrop *string `json:"backdrop"`
+	Logo     *string `json:"logo"`
+}
+
+type EpisodeResponse struct {
+	ID             domain.EpisodeID `json:"id" validate:"required"`
+	Season         int              `json:"season" validate:"required"`
+	Number         int              `json:"number" validate:"required"`
+	AiredSeason    int              `json:"airedSeason" validate:"required"`
+	AiredNumber    int              `json:"airedNumber" validate:"required"`
+	Name           string           `json:"name" validate:"required"`
+	AirDate        *time.Time       `json:"airDate"`
+	RuntimeMinutes int              `json:"runtimeMinutes" validate:"required"`
+	Monitored      bool             `json:"monitored" validate:"required"`
+	Released       bool             `json:"released" validate:"required"`
+}
+
+type SeasonResponse struct {
+	Number    int               `json:"number" validate:"required"`
+	Monitored bool              `json:"monitored" validate:"required"`
+	Episodes  []EpisodeResponse `json:"episodes" validate:"required"`
+}
+
+type TitleResponse struct {
+	ID                   domain.TitleID       `json:"id" validate:"required"`
+	Kind                 domain.MediaKind     `json:"kind" validate:"required"`
+	TmdbID               domain.TmdbID        `json:"tmdbId" validate:"required"`
+	TvdbID               *string              `json:"tvdbId"`
+	ImdbID               *string              `json:"imdbId"`
+	Name                 string               `json:"name" validate:"required"`
+	OriginalName         string               `json:"originalName" validate:"required"`
+	Overview             string               `json:"overview" validate:"required"`
+	Year                 int                  `json:"year" validate:"required"`
+	RuntimeMinutes       int                  `json:"runtimeMinutes" validate:"required"`
+	OriginalLanguage     domain.Language      `json:"originalLanguage" validate:"required"`
+	SeriesStatus         string               `json:"seriesStatus" validate:"required"`
+	ProfileID            domain.ProfileID     `json:"profileId" validate:"required"`
+	Monitored            bool                 `json:"monitored" validate:"required"`
+	MonitorFutureSeasons bool                 `json:"monitorFutureSeasons" validate:"required"`
+	Released             bool                 `json:"released" validate:"required"`
+	ReleasedAt           *time.Time           `json:"releasedAt"`
+	ReleaseDates         ReleaseDatesResponse `json:"releaseDates" validate:"required"`
+	Origin               domain.Origin        `json:"origin" validate:"required"`
+	RequestedBy          *domain.UserID       `json:"requestedBy"`
+	AddedAt              time.Time            `json:"addedAt" validate:"required"`
+	Images               TitleImagesResponse  `json:"images" validate:"required"`
+	// Seasons is empty for movies and in lists.
+	Seasons []SeasonResponse `json:"seasons" validate:"required"`
+}
+
+type UpdateTitleRequest struct {
+	ProfileID            *domain.ProfileID `json:"profileId,omitempty"`
+	Monitored            *bool             `json:"monitored,omitempty"`
+	MonitorFutureSeasons *bool             `json:"monitorFutureSeasons,omitempty"`
+}
+
+type RefreshTitleResponse struct {
+	Queued bool `json:"queued" validate:"required"`
+}
+
+type RemoveTitleResponse struct {
+	ID          domain.TitleID `json:"id" validate:"required"`
+	DeleteFiles bool           `json:"deleteFiles" validate:"required"`
+}
+
+type DiscoverItemResponse struct {
+	TmdbID    domain.TmdbID    `json:"tmdbId" validate:"required"`
+	Kind      domain.MediaKind `json:"kind" validate:"required"`
+	Name      string           `json:"name" validate:"required"`
+	Year      int              `json:"year" validate:"required"`
+	Overview  string           `json:"overview" validate:"required"`
+	PosterURL *string          `json:"posterUrl"`
+	InLibrary bool             `json:"inLibrary" validate:"required"`
+	// TitleID is set when InLibrary.
+	TitleID *domain.TitleID `json:"titleId"`
+}
+
+type DiscoverResponse struct {
+	// Trending is true when the query was empty and the items are TMDB's trending titles this week.
+	Trending bool                   `json:"trending" validate:"required"`
+	Items    []DiscoverItemResponse `json:"items" validate:"required"`
+}
+
+type CatalogSettingsResponse struct {
+	Language      string `json:"language" validate:"required"`
+	ReleaseRegion string `json:"releaseRegion" validate:"required"`
+}
+
+type UpdateCatalogSettingsRequest struct {
+	Language      string `json:"language" validate:"required"`
+	ReleaseRegion string `json:"releaseRegion" validate:"required"`
+}
+
+type AttributionResponse struct {
+	Notice string `json:"notice" validate:"required"`
+	// LogoURL is a data URI of TMDB's logo.
+	LogoURL string `json:"logoUrl" validate:"required"`
+	Link    string `json:"link" validate:"required"`
+}
+
+type Controller struct {
+	service *Service
+	repo    *Repository
+	queue   jobs.Enqueuer
+}
+
+func NewController(s *Service, repo *Repository, queue jobs.Enqueuer) *Controller {
+	return &Controller{service: s, repo: repo, queue: queue}
+}
+
+func (c *Controller) Register(server *fuego.Server) {
+	api := fuego.Group(server, "/catalog")
+	fuego.Get(api, "/titles", c.listTitles,
+		fuego.OptionOperationID("listTitles"),
+		fuego.OptionSummary("List Titles in the library"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionQuery(queryQ, "Match the name, original name or an alias"),
+		fuego.OptionQuery(queryKind, "MOVIE or SERIES"),
+		fuego.OptionQueryBool(queryMonitored, "Only monitored (true) or unmonitored (false) Titles"),
+		fuego.OptionQueryBool(queryReleased, "Only released (true) or unreleased (false) Titles"),
+		fuego.OptionQuery(querySort, "NAME (default) or ADDED, newest first"),
+	)
+	fuego.Get(api, "/titles/{id}", c.getTitle,
+		fuego.OptionOperationID("getTitle"),
+		fuego.OptionSummary("Get one Title with its seasons and episodes"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+	)
+	fuego.Patch(api, "/titles/{id}", c.updateTitle,
+		fuego.OptionOperationID("updateTitle"),
+		fuego.OptionSummary("Change a Title's profile or monitoring (admin)"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+	)
+	fuego.Post(api, "/titles/{id}/refresh", c.refreshTitle,
+		fuego.OptionOperationID("refreshTitle"),
+		fuego.OptionSummary("Refresh a Title's metadata and images from TMDB now (admin)"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+		fuego.OptionDefaultStatusCode(http.StatusAccepted),
+	)
+	fuego.Delete(api, "/titles/{id}", c.removeTitle,
+		fuego.OptionOperationID("removeTitle"),
+		fuego.OptionSummary("Remove a Title from Magpie (admin)"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+		fuego.OptionQueryBool(queryDeleteFiles, "Also delete its files from disk"),
+	)
+	fuego.GetStd(api, "/images/{titleId}/{kind}", c.serveImage,
+		fuego.OptionOperationID("getTitleImage"),
+		fuego.OptionSummary("Serve a cached poster, backdrop or logo, resized to the width asked for"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathImageID, "Title ID"),
+		fuego.OptionPath(pathImageKind, "POSTER, BACKDROP or LOGO"),
+		fuego.OptionQueryInt(queryWidth, "Width in pixels; rounds up to a cached size"),
+		fuego.OptionAddResponse(http.StatusOK, "The image", fuego.Response{Type: "", ContentTypes: []string{contentTypeJPEG, contentTypePNG}}),
+	)
+	fuego.Get(api, "/discover", c.discover,
+		fuego.OptionOperationID("discoverTitles"),
+		fuego.OptionSummary("Search TMDB, or list this week's trending titles for an empty query"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionQuery(queryQ, "Search text; empty for trending"),
+	)
+	fuego.Get(api, "/settings", c.getSettings,
+		fuego.OptionOperationID("getCatalogSettings"),
+		fuego.OptionSummary("Get the metadata language and release region"),
+		fuego.OptionTags(tagCatalog),
+	)
+	fuego.Put(api, "/settings", c.updateSettings,
+		fuego.OptionOperationID("updateCatalogSettings"),
+		fuego.OptionSummary("Set the metadata language and release region (admin)"),
+		fuego.OptionTags(tagCatalog),
+	)
+	fuego.Get(api, "/attribution", c.attribution,
+		fuego.OptionOperationID("getAttribution"),
+		fuego.OptionSummary("TMDB logo and notice for the About page"),
+		fuego.OptionTags(tagCatalog),
+	)
+}
+
+func (c *Controller) listTitles(ctx fuego.ContextNoBody) ([]TitleResponse, error) {
+	query, err := titleQuery(ctx)
+	if err != nil {
+		return nil, err
+	}
+	views, err := c.service.Titles(ctx.Context(), query)
+	if err != nil {
+		return nil, err
+	}
+	response := make([]TitleResponse, 0, len(views))
+	for _, v := range views {
+		response = append(response, titleResponse(v))
+	}
+	return response, nil
+}
+
+func titleQuery(ctx fuego.ContextNoBody) (TitleQuery, error) {
+	q := TitleQuery{Search: ctx.QueryParam(queryQ), Sort: TitleSortName}
+	if raw := ctx.QueryParam(queryKind); raw != "" {
+		kind := domain.MediaKind(raw)
+		if !slices.Contains(mediaKinds, kind) {
+			return q, badRequest("kind must be MOVIE or SERIES")
+		}
+		q.Filter.Kind = &kind
+	}
+	for name, target := range map[string]**bool{queryMonitored: &q.Filter.Monitored, queryReleased: &q.Filter.Released} {
+		if ctx.QueryParam(name) == "" {
+			continue
+		}
+		value, err := ctx.QueryParamBoolErr(name)
+		if err != nil {
+			return q, badRequest(name + " must be true or false")
+		}
+		*target = &value
+	}
+	if raw := ctx.QueryParam(querySort); raw != "" {
+		q.Sort = TitleSort(raw)
+		if !slices.Contains(titleSorts, q.Sort) {
+			return q, badRequest("sort must be NAME or ADDED")
+		}
+	}
+	return q, nil
+}
+
+func (c *Controller) getTitle(ctx fuego.ContextNoBody) (TitleResponse, error) {
+	view, err := c.service.Title(ctx.Context(), domain.TitleID(ctx.PathParam(pathTitleID)))
+	if err != nil {
+		return TitleResponse{}, titleError(err)
+	}
+	return titleResponse(view), nil
+}
+
+func (c *Controller) updateTitle(ctx fuego.ContextWithBody[UpdateTitleRequest]) (TitleResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return TitleResponse{}, err
+	}
+	body, err := ctx.Body()
+	if err != nil {
+		return TitleResponse{}, err
+	}
+	update := TitleUpdate{Profile: body.ProfileID, Monitored: body.Monitored, MonitorFutureSeasons: body.MonitorFutureSeasons}
+	view, err := c.service.UpdateTitle(ctx.Context(), domain.TitleID(ctx.PathParam(pathTitleID)), update)
+	if err != nil {
+		return TitleResponse{}, titleError(err)
+	}
+	return titleResponse(view), nil
+}
+
+func (c *Controller) refreshTitle(ctx fuego.ContextNoBody) (RefreshTitleResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return RefreshTitleResponse{}, err
+	}
+	view, err := c.service.Title(ctx.Context(), domain.TitleID(ctx.PathParam(pathTitleID)))
+	if err != nil {
+		return RefreshTitleResponse{}, titleError(err)
+	}
+	if view.Kind != domain.MediaKindMovie {
+		return RefreshTitleResponse{}, problem.New(TypeSeriesPending, http.StatusConflict, "refreshing series is not supported yet")
+	}
+	if err := c.queue.Enqueue(ctx.Context(), refreshTitleTask{Title: view.ID}); err != nil {
+		return RefreshTitleResponse{}, err
+	}
+	return RefreshTitleResponse{Queued: true}, nil
+}
+
+func (c *Controller) removeTitle(ctx fuego.ContextNoBody) (RemoveTitleResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return RemoveTitleResponse{}, err
+	}
+	deleteFiles := false
+	if ctx.QueryParam(queryDeleteFiles) != "" {
+		value, err := ctx.QueryParamBoolErr(queryDeleteFiles)
+		if err != nil {
+			return RemoveTitleResponse{}, badRequest("deleteFiles must be true or false")
+		}
+		deleteFiles = value
+	}
+	id := domain.TitleID(ctx.PathParam(pathTitleID))
+	if err := c.service.RemoveTitle(ctx.Context(), id, deleteFiles); err != nil {
+		return RemoveTitleResponse{}, titleError(err)
+	}
+	return RemoveTitleResponse{ID: id, DeleteFiles: deleteFiles}, nil
+}
+
+func (c *Controller) serveImage(w http.ResponseWriter, r *http.Request) {
+	title, kind := domain.TitleID(r.PathValue(pathImageID)), r.PathValue(pathImageKind)
+	path, err := c.repo.ImagePath(r.Context(), title, kind)
+	if errors.Is(err, api.ErrNotFound) {
+		problem.Write(w, r, problem.New(TypeImageNotFound, http.StatusNotFound, "no cached "+kind+" for title "+string(title)))
+		return
+	}
+	if err != nil {
+		problem.Write(w, r, err)
+		return
+	}
+	width := 0
+	if raw := r.URL.Query().Get(queryWidth); raw != "" {
+		if width, err = strconv.Atoi(raw); err != nil || width <= 0 {
+			problem.Write(w, r, badRequest("w must be a positive width in pixels"))
+			return
+		}
+	}
+	served, err := Variant(path, width)
+	if err != nil {
+		problem.Write(w, r, err)
+		return
+	}
+	w.Header().Set(headerCache, imageCacheControl)
+	http.ServeFile(w, r, served)
+}
+
+func (c *Controller) discover(ctx fuego.ContextNoBody) (DiscoverResponse, error) {
+	query := ctx.QueryParam(queryQ)
+	items, err := c.service.Discover(ctx.Context(), query)
+	if err != nil {
+		if isTmdbError(err) {
+			return DiscoverResponse{}, problem.New(TypeTmdbUnavailable, http.StatusServiceUnavailable, "TMDB is unavailable: "+err.Error())
+		}
+		return DiscoverResponse{}, err
+	}
+	response := DiscoverResponse{Trending: strings.TrimSpace(query) == "", Items: make([]DiscoverItemResponse, 0, len(items))}
+	for _, item := range items {
+		entry := DiscoverItemResponse{
+			TmdbID:    item.Item.ID,
+			Kind:      item.Item.Kind,
+			Name:      item.Item.Name,
+			Year:      item.Item.Year,
+			Overview:  item.Item.Overview,
+			InLibrary: item.Title != nil,
+			TitleID:   item.Title,
+		}
+		if item.PosterURL != "" {
+			entry.PosterURL = &item.PosterURL
+		}
+		response.Items = append(response.Items, entry)
+	}
+	return response, nil
+}
+
+func (c *Controller) getSettings(ctx fuego.ContextNoBody) (CatalogSettingsResponse, error) {
+	m, err := c.service.Settings(ctx.Context())
+	return CatalogSettingsResponse(m), err
+}
+
+func (c *Controller) updateSettings(ctx fuego.ContextWithBody[UpdateCatalogSettingsRequest]) (CatalogSettingsResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return CatalogSettingsResponse{}, err
+	}
+	body, err := ctx.Body()
+	if err != nil {
+		return CatalogSettingsResponse{}, err
+	}
+	m, err := c.service.UpdateSettings(ctx.Context(), MetadataSettings(body))
+	if errors.Is(err, ErrInvalidSettings) {
+		return CatalogSettingsResponse{}, problem.New(TypeInvalidSettings, http.StatusBadRequest, err.Error())
+	}
+	return CatalogSettingsResponse(m), err
+}
+
+func (c *Controller) attribution(fuego.ContextNoBody) (AttributionResponse, error) {
+	return AttributionResponse{
+		Notice:  attributionNotice,
+		LogoURL: svgDataURIPrefix + base64.StdEncoding.EncodeToString(tmdbLogo),
+		Link:    attributionLink,
+	}, nil
+}
+
+func titleResponse(v TitleView) TitleResponse {
+	r := TitleResponse{
+		ID:                   v.ID,
+		Kind:                 v.Kind,
+		TmdbID:               v.External.Tmdb,
+		TvdbID:               v.External.Tvdb,
+		ImdbID:               v.External.Imdb,
+		Name:                 v.Name,
+		OriginalName:         v.OriginalName,
+		Overview:             v.Overview,
+		Year:                 v.Year,
+		RuntimeMinutes:       v.RuntimeMinutes,
+		OriginalLanguage:     v.OriginalLanguage,
+		SeriesStatus:         v.SeriesStatus,
+		ProfileID:            v.Profile,
+		Monitored:            v.Monitored,
+		MonitorFutureSeasons: v.MonitorFutureSeasons,
+		Released:             v.Released,
+		ReleasedAt:           v.ReleasedAt,
+		ReleaseDates:         ReleaseDatesResponse(v.Dates),
+		Origin:               v.Origin,
+		RequestedBy:          v.RequestedBy,
+		AddedAt:              v.AddedAt,
+		Seasons:              make([]SeasonResponse, 0, len(v.Seasons)),
+	}
+	for _, kind := range v.Images {
+		url := imagesRoute + string(v.ID) + "/" + kind
+		switch kind {
+		case api.ImageKindPoster:
+			r.Images.Poster = &url
+		case api.ImageKindBackdrop:
+			r.Images.Backdrop = &url
+		case api.ImageKindLogo:
+			r.Images.Logo = &url
+		}
+	}
+	for _, s := range v.Seasons {
+		season := SeasonResponse{Number: s.Number, Monitored: s.Monitored, Episodes: make([]EpisodeResponse, 0, len(s.Episodes))}
+		for _, e := range s.Episodes {
+			season.Episodes = append(season.Episodes, EpisodeResponse{
+				ID: e.ID, Season: e.Season, Number: e.Number, AiredSeason: e.AiredSeason, AiredNumber: e.AiredNumber,
+				Name: e.Name, AirDate: e.AirDate, RuntimeMinutes: e.RuntimeMinutes, Monitored: e.Monitored, Released: e.Released,
+			})
+		}
+		r.Seasons = append(r.Seasons, season)
+	}
+	return r
+}
+
+func titleError(err error) error {
+	if errors.Is(err, api.ErrNotFound) {
+		return problem.New(TypeTitleNotFound, http.StatusNotFound, "no such title")
+	}
+	return err
+}
+
+func badRequest(detail string) error {
+	return problem.New(problem.TypeBadRequest, http.StatusBadRequest, detail)
+}
