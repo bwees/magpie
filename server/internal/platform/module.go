@@ -5,7 +5,9 @@ import (
 	"magpie/internal/platform/backup"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/config"
+	"magpie/internal/platform/connections"
 	"magpie/internal/platform/db"
+	"magpie/internal/platform/health"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/live"
@@ -24,5 +26,7 @@ var Module = fx.Module("platform",
 	live.Module,
 	restart.Module,
 	backup.Module,
+	health.Module,
+	connections.Module,
 	httpserver.Module,
 )
