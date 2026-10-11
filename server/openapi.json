@@ -1,6 +1,32 @@
 {
 	"components": {
 		"schemas": {
+			"BackupResponse": {
+				"description": "BackupResponse schema",
+				"properties": {
+					"createdAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"size": {
+						"format": "int64",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"createdAt",
+					"kind",
+					"name",
+					"size"
+				],
+				"type": "object"
+			},
 			"ErrorItem": {
 				"properties": {
 					"more": {
@@ -75,6 +101,71 @@
 				],
 				"type": "object"
 			},
+			"ParkedEventResponse": {
+				"description": "ParkedEventResponse schema",
+				"properties": {
+					"aggregateId": {
+						"type": "string"
+					},
+					"attempts": {
+						"type": "integer"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"eventType": {
+						"type": "string"
+					},
+					"handler": {
+						"type": "string"
+					},
+					"lastError": {
+						"type": "string"
+					},
+					"parkedAt": {
+						"format": "date-time",
+						"type": "string"
+					}
+				},
+				"required": [
+					"aggregateId",
+					"attempts",
+					"eventId",
+					"eventType",
+					"handler",
+					"lastError",
+					"parkedAt"
+				],
+				"type": "object"
+			},
+			"RestoreResponse": {
+				"description": "RestoreResponse schema",
+				"properties": {
+					"restarting": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"restarting"
+				],
+				"type": "object"
+			},
+			"RetryParkedEventRequest": {
+				"description": "RetryParkedEventRequest schema",
+				"properties": {
+					"eventId": {
+						"type": "string"
+					},
+					"handler": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"eventId",
+					"handler"
+				],
+				"type": "object"
+			},
 			"unknown-interface": {
 				"description": "unknown-interface schema"
 			}
@@ -143,6 +234,283 @@
 					}
 				},
 				"summary": "Report that the server is up",
+				"tags": [
+					"api",
+					"platform"
+				]
+			}
+		},
+		"/api/platform/backups": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).list`\n\n---\n\n",
+				"operationId": "listBackups",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/BackupResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "List database backups, newest first (admin)",
+				"tags": [
+					"api",
+					"platform"
+				]
+			}
+		},
+		"/api/platform/backups/{name}/restore": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).restore`\n\n---\n\n",
+				"operationId": "restoreBackup",
+				"parameters": [
+					{
+						"description": "Backup file name from listBackups",
+						"in": "path",
+						"name": "name",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RestoreResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Restore a backup and restart the server (admin)",
+				"tags": [
+					"api",
+					"platform"
+				]
+			}
+		},
+		"/api/platform/parked-events": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).listParked`\n\n---\n\n",
+				"operationId": "listParkedEvents",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ParkedEventResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "List events a handler gave up on (admin)",
+				"tags": [
+					"api",
+					"platform"
+				]
+			}
+		},
+		"/api/platform/parked-events/retry": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).retryParked`\n\n---\n\n",
+				"operationId": "retryParkedEvent",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RetryParkedEventRequest"
+							}
+						}
+					},
+					"description": "Request body for bus.RetryParkedEventRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ParkedEventResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Re-queue a parked event for its handler (admin)",
 				"tags": [
 					"api",
 					"platform"
