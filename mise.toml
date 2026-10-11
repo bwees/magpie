@@ -71,14 +71,14 @@ depends = ["format:server", "format:web"]
 [tasks."lint:server"]
 description = "Vet and lint the Go server codebase"
 dir = "server"
-run = ["go vet ./...", "golangci-lint run ./..."]
+run = ["go vet ./...", "golangci-lint run --allow-parallel-runners ./..."]
 
 [tasks."lint:boundaries"]
 description = "Check that depguard rejects every import-boundary fixture"
 dir = "server"
 run = '''
 for fixture in ./internal/lintfixture/*/; do
-  if output=$(golangci-lint run --build-tags lintfixture "${fixture}..." 2>&1); then
+  if output=$(golangci-lint run --allow-parallel-runners --build-tags lintfixture "${fixture}..." 2>&1); then
     echo "lint fixture ${fixture} passed: its import rule is not enforced"
     exit 1
   fi
