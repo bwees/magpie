@@ -4,7 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { getLive } from '$lib/live/live-client.svelte';
-	import { SETTINGS_SECTIONS } from '$lib/navigation/sections';
+	import { SettingsSection, settingsPath } from '$lib/settings/sections';
 	import AgentCard from './AgentCard.svelte';
 	import { AgentsManager, LoadState } from './agents-manager.svelte';
 	import { dockerRunCommand } from './docker-run';
@@ -19,10 +19,6 @@
 		return manager.watch(live);
 	});
 </script>
-
-<svelte:head>
-	<title>Agents · Activity · Magpie</title>
-</svelte:head>
 
 {#if manager.loadState === LoadState.LOADING}
 	<div class="grid gap-4 xl:grid-cols-2" aria-busy="true" aria-label="Loading agents">
@@ -47,7 +43,7 @@
 			is in
 			<a
 				class="text-primary underline-offset-4 hover:underline"
-				href={SETTINGS_SECTIONS.AGENTS.href}
+				href={settingsPath(SettingsSection.AGENTS)}
 			>
 				Settings → Agents</a
 			>.

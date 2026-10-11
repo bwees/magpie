@@ -22,13 +22,7 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Agents · Settings · Magpie</title>
-</svelte:head>
-
-<div class="flex max-w-3xl flex-col gap-4">
-	<h2 class="text-lg font-semibold">Agents</h2>
-
+<div class="flex flex-col gap-4">
 	{#if manager.loadState === LoadState.LOADING}
 		<Skeleton class="h-40 rounded-xl" />
 		<Skeleton class="h-48 rounded-xl" />

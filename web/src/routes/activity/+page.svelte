@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Tabs from '$lib/components/ui/tabs';
 	import HistoryTab from '$lib/activity/HistoryTab.svelte';
+	import AgentsTab from '$lib/transcode/AgentsTab.svelte';
 	import { ACTIVITY_TABS, ActivityTab, TAB_LABELS } from '$lib/activity/activity-tabs';
 	import { NAV_ITEMS } from '$lib/navigation/nav';
 
@@ -23,6 +24,8 @@
 		<Tabs.Content {value}>
 			{#if value === ActivityTab.HISTORY}
 				<HistoryTab />
+			{:else if value === ActivityTab.AGENTS}
+				<AgentsTab />
 			{:else}
 				<p class="py-8 text-center text-sm text-muted-foreground">Nothing here yet.</p>
 			{/if}
