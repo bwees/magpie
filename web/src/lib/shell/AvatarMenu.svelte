@@ -1,9 +1,10 @@
 <script lang="ts">
 	import User from '@lucide/svelte/icons/user';
 	import LogOut from '@lucide/svelte/icons/log-out';
+	import Info from '@lucide/svelte/icons/info';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { NAV_ITEMS } from '$lib/navigation/nav';
+	import { NAV_ITEMS, Route } from '$lib/navigation/nav';
 	import { getSession } from '$lib/session/session.svelte';
 	import { getShell } from './shell-state.svelte';
 
@@ -36,6 +37,15 @@
 			<DropdownMenu.Label class="truncate">{session.user.displayName}</DropdownMenu.Label>
 			<DropdownMenu.Separator />
 		{/if}
+		<DropdownMenu.Item>
+			{#snippet child({ props })}
+				<a href={Route.ABOUT} {...props}>
+					<Info />
+					About
+				</a>
+			{/snippet}
+		</DropdownMenu.Item>
+		<DropdownMenu.Separator />
 		<DropdownMenu.Item onclick={() => session.signOut()}>
 			<LogOut />
 			Sign out

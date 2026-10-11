@@ -3,9 +3,10 @@
 	import Bell from '@lucide/svelte/icons/bell';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-	import Search from '@lucide/svelte/icons/search';
+	import SearchOverlay from '$lib/catalog/SearchOverlay.svelte';
+	import TopSearch from '$lib/catalog/TopSearch.svelte';
+	import { TitleSearch } from '$lib/catalog/title-search.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { getLive, LiveStatus } from '$lib/live/live-client.svelte';
 	import AvatarMenu from './AvatarMenu.svelte';
 	import { getShell } from './shell-state.svelte';
@@ -13,6 +14,7 @@
 	const shell = getShell();
 	const live = getLive();
 	const current = $derived(shell.pageFor(page.url.pathname));
+	const search = new TitleSearch();
 </script>
 
 <header class="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
@@ -42,22 +44,9 @@
 				</span>
 			{/if}
 			{#if shell.isMobile}
-				<Button variant="ghost" size="icon" class="rounded-full" aria-label="Search" disabled>
-					<Search class="size-5" />
-				</Button>
+				<SearchOverlay {search} />
 			{:else}
-				<div class="relative w-56 lg:w-80">
-					<Search
-						class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-					/>
-					<Input
-						type="search"
-						class="pl-8"
-						placeholder="Search titles"
-						aria-label="Search titles"
-						disabled
-					/>
-				</div>
+				<TopSearch {search} />
 			{/if}
 
 			<Button variant="ghost" size="icon" class="relative rounded-full" aria-label="Notifications">

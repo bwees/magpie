@@ -12,7 +12,8 @@ export enum Route {
 	MOVIES = '/movies',
 	TV = '/tv',
 	ACTIVITY = '/activity',
-	SETTINGS = '/settings'
+	SETTINGS = '/settings',
+	ABOUT = '/about'
 }
 
 export enum BadgeSource {
