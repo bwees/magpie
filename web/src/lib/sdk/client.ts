@@ -554,6 +554,49 @@ export type RetryParkedEventRequest = {
     eventId: string;
     handler: string;
 };
+export type StatusCountResponse = {
+    count: number;
+    status: string;
+};
+export type RequesterResponse = {
+    displayName: string;
+    id: string;
+};
+export type RequestResponse = {
+    availableItems: number;
+    createdAt: string;
+    decidedAt: string | null;
+    decidedBy: string | null;
+    declineReason: string;
+    failureReason: string;
+    id: string;
+    kind: string;
+    profileId: string;
+    requester: RequesterResponse;
+    scope: string;
+    seasons: number[];
+    status: string;
+    titleId: string | null;
+    tmdbId: number;
+    totalItems: number;
+};
+export type RequestListResponse = {
+    counts: StatusCountResponse[];
+    items: RequestResponse[];
+    total: number;
+};
+export type CreateRequestRequest = {
+    kind: string;
+    scope: string;
+    seasons?: number[] | null;
+    tmdbId: number;
+};
+export type ApproveRequestRequest = {
+    profileId?: string;
+};
+export type DeclineRequestRequest = {
+    reason?: string;
+};
 export type AgentCapabilityResponse = {
     capability: string;
     error: string;
@@ -2833,6 +2876,177 @@ export function retryParkedEvent(retryParkedEventRequest: RetryParkedEventReques
             Accept: accept
         })
     })));
+}
+/**
+ * Requests the viewer may see, newest first: their own unless they may view others'
+ */
+export function listRequests({ status, userId, titleId, count, accept }: {
+    status?: string[];
+    userId?: string;
+    titleId?: string;
+    count?: boolean;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RequestListResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests${QS.query(QS.explode({
+        status,
+        userId,
+        titleId,
+        count
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Request a movie, a whole series or chosen seasons; admins and auto-approved users are approved at once
+ */
+export function createRequest(createRequestRequest: CreateRequestRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: RequestResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/requests", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: createRequestRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Cancel your own pending request
+ */
+export function cancelRequest(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * One request with its item progress
+ */
+export function getRequest(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RequestResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/${encodeURIComponent(id)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Approve a pending request, optionally with another profile (admin)
+ */
+export function approveRequest(id: string, approveRequestRequest: ApproveRequestRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RequestResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/${encodeURIComponent(id)}/approve`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: approveRequestRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Decline a pending request (admin)
+ */
+export function declineRequest(id: string, declineRequestRequest: DeclineRequestRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RequestResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/${encodeURIComponent(id)}/decline`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: declineRequestRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Approve a failed request again (admin)
+ */
+export function retryRequest(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RequestResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/${encodeURIComponent(id)}/retry`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
 }
 /**
  * Agents with devices and tested capabilities, by hostname (admin)

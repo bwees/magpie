@@ -13,8 +13,6 @@ import (
 	"magpie/internal/identity"
 	"magpie/internal/library"
 	libraryfakes "magpie/internal/library/fakes"
-	requestsapi "magpie/internal/requests/api"
-	requeststest "magpie/internal/requests/api/contracttest"
 	"magpie/internal/subtitles"
 	subtitlesfakes "magpie/internal/subtitles/fakes"
 	"magpie/internal/transcode"
@@ -43,6 +41,4 @@ var PortFakes = fx.Provide(
 
 // ReaderFakes provides the in-memory Reader of each context whose repository isn't built yet.
 // A slice that implements a context's Reader removes that context's line here.
-var ReaderFakes = fx.Provide(
-	fx.Annotate(func() *requeststest.Fake { return requeststest.NewFake(requeststest.Fixture{}) }, fx.As(new(requestsapi.Reader))),
-)
+var ReaderFakes = fx.Provide()

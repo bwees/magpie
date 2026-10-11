@@ -29,8 +29,15 @@ const (
 
 var start = time.Date(2026, time.October, 1, 12, 0, 0, 0, time.UTC)
 
-// Run checks a Reader against the requests contract.
+// Run checks a Reader against the whole requests contract.
 func Run(t *testing.T, newReader Factory) {
+	RunRequests(t, newReader)
+	runIssues(t, newReader)
+}
+
+// RunRequests checks Request, RequestsForTitle and Requesters. The fixture holds requests only, so a
+// repository that doesn't store issues yet can run this part.
+func RunRequests(t *testing.T, newReader Factory) {
 	ctx := context.Background()
 	dune, other := domain.NewID[domain.TitleID](), domain.NewID[domain.TitleID]()
 	alice, bob, carol := domain.NewID[domain.UserID](), domain.NewID[domain.UserID](), domain.NewID[domain.UserID]()
@@ -38,18 +45,11 @@ func Run(t *testing.T, newReader Factory) {
 	oldest := request(alice, &dune, api.StatusAvailable, 0)
 	declined := request(bob, &dune, api.StatusDeclined, 1)
 	again := request(alice, &dune, api.StatusPartiallyAvailable, 2)
+	again.AvailableItems, again.TotalItems = 1, 3
 	newest := request(carol, &dune, api.StatusFailed, 3)
 	unlinked := request(bob, nil, api.StatusPending, 4)
 
-	resolved := issue(alice, dune, api.IssueStatusResolved, 0)
-	openDune := issue(alice, dune, api.IssueStatusOpen, 1)
-	pendingOther := issue(bob, other, api.IssueStatusActionPending, 2)
-	openDuneLater := issue(carol, dune, api.IssueStatusOpen, 3)
-
-	fixture := Fixture{
-		Requests: []api.Request{again, unlinked, oldest, newest, declined},
-		Issues:   []api.Issue{openDune, resolved, openDuneLater, pendingOther},
-	}
+	fixture := Fixture{Requests: []api.Request{again, unlinked, oldest, newest, declined}}
 
 	t.Run("Request returns ErrNotFound for an unknown ID", func(t *testing.T) {
 		r := newReader(t, fixture)
@@ -62,6 +62,9 @@ func Run(t *testing.T, newReader Factory) {
 		}
 		if got.User != alice || got.Status != api.StatusPartiallyAvailable || got.Title == nil || *got.Title != dune {
 			t.Errorf("Request = %+v", got)
+		}
+		if got.AvailableItems != again.AvailableItems || got.TotalItems != again.TotalItems {
+			t.Errorf("items = %d/%d, want %d/%d", got.AvailableItems, got.TotalItems, again.AvailableItems, again.TotalItems)
 		}
 	})
 
@@ -105,6 +108,19 @@ func Run(t *testing.T, newReader Factory) {
 			t.Errorf("Requesters without requests = %v", none)
 		}
 	})
+}
+
+func runIssues(t *testing.T, newReader Factory) {
+	ctx := context.Background()
+	dune, other := domain.NewID[domain.TitleID](), domain.NewID[domain.TitleID]()
+	alice, bob, carol := domain.NewID[domain.UserID](), domain.NewID[domain.UserID](), domain.NewID[domain.UserID]()
+
+	resolved := issue(alice, dune, api.IssueStatusResolved, 0)
+	openDune := issue(alice, dune, api.IssueStatusOpen, 1)
+	pendingOther := issue(bob, other, api.IssueStatusActionPending, 2)
+	openDuneLater := issue(carol, dune, api.IssueStatusOpen, 3)
+
+	fixture := Fixture{Issues: []api.Issue{openDune, resolved, openDuneLater, pendingOther}}
 
 	t.Run("OpenIssues lists open and action-pending issues newest first", func(t *testing.T) {
 		r := newReader(t, fixture)

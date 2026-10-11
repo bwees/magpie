@@ -111,9 +111,8 @@ linters:
           list-mode: lax
           files: ["**/internal/requests/**", "**/internal/lintfixture/requests/**"]
           deny:
-            - { pkg: magpie/internal/acquisition/api, desc: Requests reads only Catalog and Identity }
-            - { pkg: magpie/internal/transcode/api, desc: Requests reads only Catalog and Identity }
-            - { pkg: magpie/internal/activity/api, desc: Requests reads only Catalog and Identity }
+            - { pkg: magpie/internal/transcode/api, desc: Requests reads only Catalog, Identity and Acquisition }
+            - { pkg: magpie/internal/activity/api, desc: Requests reads only Catalog, Identity and Acquisition }
         library-dependencies:
           list-mode: lax
           files: ["**/internal/library/**", "**/internal/lintfixture/library/**"]

@@ -20,8 +20,8 @@ Handles users asking for Titles, admin approval, tracking each request until Jel
 
 | Table | Key columns |
 |---|---|
-| `requests` | `id`, `userId`, `kind` (`MOVIE` \| `SERIES`), `tmdbId`, `titleId?`, `scope` (`MOVIE` \| `ALL_SEASONS` \| `SEASONS`), `seasons` (JSON int[]), `profileId`, `status`, `createdAt`, `decidedBy?`, `decidedAt?`, `declineReason?`, `failureReason?`, `availableAt?` |
-| `request_items` | `requestId`, `episodeId?` (null for a movie), `availableAt?` — one row per requested movie or released episode in scope |
+| `requests_requests` | `id`, `userId`, `kind` (`MOVIE` \| `SERIES`), `tmdbId`, `titleId?`, `scope` (`MOVIE` \| `ALL_SEASONS` \| `SEASONS`), `seasons` (JSON int[]), `profileId`, `status`, `createdAt`, `decidedBy?`, `decidedAt?`, `declineReason?`, `failureReason?`, `availableAt?` |
+| `requests_request_items` | `requestId`, `episodeId?` (null for a movie), `availableAt?` — one row per requested movie or released episode in scope, unique on `(requestId, episodeId)` |
 | `issues` | `id`, `userId`, `titleId`, `episodeId?`, `kind` (`VIDEO` \| `AUDIO` \| `SUBTITLE` \| `OTHER`), `text`, `status` (`OPEN` \| `ACTION_PENDING` \| `RESOLVED`), `pendingAction?`, `createdAt`, `resolvedAt?`, `resolvedBy?` |
 | `issue_comments` | `id`, `issueId`, `userId`, `body`, `createdAt` |
 
@@ -176,13 +176,13 @@ None. Requests reads Identity and Catalog only through their Readers.
 
 Routes under `/api/requests`: requests at the root (`POST /api/requests`), issues under `/api/requests/issues`.
 
-- `POST /api/requests` create `{kind, tmdbId, scope, seasons?}`. The profile defaults to the admin-set default profile (`1080p` on a fresh install).
-- `GET /api/requests` list. Requesters see their own unless they have the "view others' requests" toggle. Filters: `status`, `userId`; `count` returns only the count.
-- `GET /api/requests/{id}` one request with item progress.
-- `POST /api/requests/{id}/approve` `{profileId?}` (admin).
+- `POST /api/requests` create `{kind, tmdbId, scope, seasons?}`. The profile is the default profile (`acquisition.Reader.DefaultProfile`; `1080p` on a fresh install). `409` problems: `already-requested` with `instance` = `/api/requests/{existingId}`, or `already-monitored`.
+- `GET /api/requests` list, newest first: `{items, total, counts}`. Requesters see their own unless they have the "view others' requests" toggle (asking for another `userId` without it is `403`). Filters: `status` (repeatable), `userId`, `titleId`. `count=true` leaves `items` empty. `counts` has every status, counted over the visible requests ignoring `status`, for the status chips.
+- `GET /api/requests/{id}` one request with item progress. Another user's request is `404` without the toggle.
+- `POST /api/requests/{id}/approve` `{profileId?}` (admin). An unknown profile is `400`; a request that isn't `PENDING` is `409`.
 - `POST /api/requests/{id}/decline` `{reason?}` (admin).
 - `POST /api/requests/{id}/retry` re-publish `RequestApproved` for a `FAILED` request (admin).
-- `DELETE /api/requests/{id}` cancel your own `PENDING` request.
+- `DELETE /api/requests/{id}` cancel your own `PENDING` request (`204`), publishing `RequestCancelled`.
 - `POST /api/requests/issues` `{titleId, episodeId?, kind, text}` (needs the "report issues" toggle).
 - `GET /api/requests/issues` list; `GET /api/requests/issues/{id}`.
 - `POST /api/requests/issues/{id}/comments` `{body}` (reporter or admin).
@@ -199,7 +199,7 @@ Routes under `/api/requests`: requests at the root (`POST /api/requests`), issue
 - On `POST /requests`, Requests reads `identity.Reader` for the user's role and toggles:
   - Admin, or the toggle matching the kind (`autoApproveMovies` / `autoApproveTv`): approved at once, publishing `RequestApproved{Auto: true}`.
   - Otherwise status `PENDING` and `RequestCreated` is published (admins are notified).
-- Duplicate guard: if a non-terminal request (not `DECLINED`/`FAILED`) already covers the same `(kind, tmdbId)` and every requested season, the API returns `409` with the existing request ID.
+- Duplicate guard: if a non-terminal request (not `DECLINED`/`FAILED`) already covers the same `(kind, tmdbId)` and every requested season, the API returns `409` with the existing request ID. A request whose Title was since removed from Catalog is history and covers nothing.
 - Also rejected with `409`: a request whose scope is already fully monitored in Catalog (`catalog.Reader.TitleByTmdb` + monitoring).
 - Approving lets the admin override the profile.
 
