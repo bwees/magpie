@@ -249,6 +249,9 @@ func TestSearchQueriesOneIndexersTorznabEndpoint(t *testing.T) {
 	if magnet.DownloadURL != "" || !strings.HasPrefix(magnet.MagnetURI, "magnet:?xt=urn:btih:89ABCDEF") || magnet.DownloadVolumeFactor != 1 {
 		t.Errorf("magnet item = %+v", magnet)
 	}
+	if !magnet.PublishedAt.Equal(time.Date(2026, 10, 10, 20, 0, 0, 0, time.UTC)) {
+		t.Errorf("published with a GMT zone = %s", magnet.PublishedAt)
+	}
 }
 
 func TestTVSearchAndRSSURLs(t *testing.T) {

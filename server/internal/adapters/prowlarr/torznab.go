@@ -243,6 +243,19 @@ func (c *Client) feed(ctx context.Context, indexerID int, query url.Values) ([]a
 	return items, nil
 }
 
+// pubDateLayouts: Prowlarr writes .NET's "r" format, which names the zone GMT; other feeds use an offset.
+var pubDateLayouts = []string{time.RFC1123Z, time.RFC1123}
+
+// parsePubDate returns the zero time for a date in no known layout.
+func parsePubDate(value string) time.Time {
+	for _, layout := range pubDateLayouts {
+		if published, err := time.Parse(layout, value); err == nil {
+			return published.UTC()
+		}
+	}
+	return time.Time{}
+}
+
 func (raw feedItem) item() acquisition.TorznabItem {
 	item := acquisition.TorznabItem{
 		GUID:                 raw.GUID,
@@ -252,9 +265,7 @@ func (raw feedItem) item() acquisition.TorznabItem {
 		DownloadVolumeFactor: fullVolumeFactor,
 		UploadVolumeFactor:   fullVolumeFactor,
 	}
-	if published, err := time.Parse(time.RFC1123Z, raw.PubDate); err == nil {
-		item.PublishedAt = published
-	}
+	item.PublishedAt = parsePubDate(raw.PubDate)
 	link := raw.Link
 	if link == "" {
 		link = raw.Enclosure.URL
