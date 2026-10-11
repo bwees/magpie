@@ -73,6 +73,21 @@ description = "Vet and lint the Go server codebase"
 dir = "server"
 run = ["go vet ./...", "golangci-lint run ./..."]
 
+[tasks."lint:boundaries"]
+description = "Check that depguard rejects the cross-context import fixture"
+dir = "server"
+run = '''
+if output=$(golangci-lint run --build-tags lintfixture ./internal/lintfixture/... 2>&1); then
+  echo "lint fixture passed: the cross-context import rules are not enforced"
+  exit 1
+fi
+if ! echo "$output" | grep -q "depguard"; then
+  echo "$output"
+  exit 1
+fi
+echo "depguard rejects the cross-context fixture"
+'''
+
 [tasks."lint:web"]
 description = "Lint the web codebase (prettier + eslint)"
 dir = "web"
@@ -80,7 +95,7 @@ run = "pnpm lint"
 
 [tasks.lint]
 description = "Lint the server and web codebases"
-depends = ["lint:server", "lint:web"]
+depends = ["lint:server", "lint:boundaries", "lint:web"]
 
 [tasks.check]
 description = "Type-check the web codebase"
@@ -90,7 +105,7 @@ run = "pnpm check"
 [tasks."test:server"]
 description = "Run the Go server tests"
 dir = "server"
-run = "go test ./..."
+run = "go test -race ./..."
 
 [tasks."test:web"]
 description = "Run the web unit tests"

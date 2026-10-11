@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"log/slog"
+	"os"
 
-	"magpie/internal/platform"
+	"magpie/internal/app"
 	"magpie/internal/platform/httpserver"
+	"magpie/internal/platform/restart"
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -20,11 +22,21 @@ func main() {
 		mode = httpserver.ModeExportSpec
 	}
 
+	var restarter *restart.Restarter
 	fx.New(
 		fx.WithLogger(newFxLogger),
 		fx.Supply(mode),
-		platform.Module,
+		app.Module,
+		fx.Populate(&restarter),
 	).Run()
+
+	if restarter.Requested() {
+		slog.Info("restarting")
+		if err := restart.Exec(); err != nil {
+			slog.Error("restart failed", "error", err)
+			os.Exit(1)
+		}
+	}
 }
 
 // Keeps fx's wiring chatter at debug while startup errors still surface.

@@ -15,6 +15,74 @@ linters:
             - pkg: github.com/mattn/go-sqlite3
               desc: needs cgo; open SQLite through github.com/ncruces/go-sqlite3/gormlite
 
+        # A context's public contract depends only on the shared kernel.
+        api-packages:
+          list-mode: strict
+          files:
+            - "**/internal/*/api/**"
+            - "!**/internal/*/api/contracttest/**"
+          allow:
+            - $gostd
+            - magpie/internal/domain
+
+        # Outside a context, only its api package may be imported. internal/app wires the modules.
+        identity-boundary:
+          list-mode: lax
+          files: [$all, "!**/internal/identity/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          allow: [magpie/internal/identity/api]
+          deny:
+            - pkg: magpie/internal/identity
+              desc: other contexts may import only magpie/internal/identity/api
+        catalog-boundary:
+          list-mode: lax
+          files: [$all, "!**/internal/catalog/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          allow: [magpie/internal/catalog/api]
+          deny:
+            - pkg: magpie/internal/catalog
+              desc: other contexts may import only magpie/internal/catalog/api
+        requests-boundary:
+          list-mode: lax
+          files: [$all, "!**/internal/requests/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          allow: [magpie/internal/requests/api]
+          deny:
+            - pkg: magpie/internal/requests
+              desc: other contexts may import only magpie/internal/requests/api
+        library-boundary:
+          list-mode: lax
+          files: [$all, "!**/internal/library/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          allow: [magpie/internal/library/api]
+          deny:
+            - pkg: magpie/internal/library
+              desc: other contexts may import only magpie/internal/library/api
+        acquisition-boundary:
+          list-mode: lax
+          files: [$all, "!**/internal/acquisition/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          allow: [magpie/internal/acquisition/api]
+          deny:
+            - pkg: magpie/internal/acquisition
+              desc: other contexts may import only magpie/internal/acquisition/api
+        subtitles-boundary:
+          list-mode: lax
+          files: [$all, "!**/internal/subtitles/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          allow: [magpie/internal/subtitles/api]
+          deny:
+            - pkg: magpie/internal/subtitles
+              desc: other contexts may import only magpie/internal/subtitles/api
+        transcode-boundary:
+          list-mode: lax
+          files: [$all, "!**/internal/transcode/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          allow: [magpie/internal/transcode/api]
+          deny:
+            - pkg: magpie/internal/transcode
+              desc: other contexts may import only magpie/internal/transcode/api
+        activity-boundary:
+          list-mode: lax
+          files: [$all, "!**/internal/activity/**", "!**/internal/app/**", "!**/internal/flows_test/**"]
+          allow: [magpie/internal/activity/api]
+          deny:
+            - pkg: magpie/internal/activity
+              desc: other contexts may import only magpie/internal/activity/api
+
 formatters:
   enable:
     - gofmt
