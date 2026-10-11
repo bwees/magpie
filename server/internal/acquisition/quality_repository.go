@@ -131,6 +131,27 @@ func (r *QualityRepository) DefaultProfile(ctx context.Context) (domain.ProfileI
 	return DefaultProfileKey.GetTx(r.db.Read(ctx))
 }
 
+// ScoringProfile loads a profile with every custom format compiled, ready for Evaluate.
+func (r *QualityRepository) ScoringProfile(ctx context.Context, id domain.ProfileID) (ScoringProfile, error) {
+	p, err := r.Profile(ctx, id)
+	if err != nil {
+		return ScoringProfile{}, err
+	}
+	formats, err := r.Formats(ctx)
+	if err != nil {
+		return ScoringProfile{}, err
+	}
+	compiled := make([]CompiledFormat, 0, len(formats))
+	for _, f := range formats {
+		c, err := CompileFormat(f)
+		if err != nil {
+			return ScoringProfile{}, err
+		}
+		compiled = append(compiled, c)
+	}
+	return NewScoringProfile(p, compiled), nil
+}
+
 // Formats lists every custom format ordered by name.
 func (r *QualityRepository) Formats(ctx context.Context) ([]CustomFormat, error) {
 	return loadFormats(r.db.Read(ctx))

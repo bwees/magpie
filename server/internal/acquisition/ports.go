@@ -19,7 +19,8 @@ type Prowlarr interface {
 	// WebURL is Prowlarr's own UI, where indexers are configured. "" when no connection is set up.
 	WebURL(ctx context.Context) (string, error)
 	// Search queries ONE indexer's Torznab endpoint (/{id}/api). Never the aggregate search.
-	// The query carries ID params the indexer supports, else a title query; ctx carries the 60 s timeout.
+	// The query carries ID params the indexer supports, else a title query. ctx lives as long as the
+	// search: the caller reports FAILED after the search timeout but still takes a later answer.
 	Search(ctx context.Context, indexerID int, q TorznabQuery) ([]TorznabItem, error)
 	// RSS fetches an indexer's recent feed (Torznab search with no query).
 	RSS(ctx context.Context, indexerID int, categories []int) ([]TorznabItem, error)
@@ -126,6 +127,8 @@ type QBittorrent interface {
 	Sync(ctx context.Context, rid int64) (SyncState, error)
 	// SetShareLimits always sends the full parameter set (ratio, seeding time, inactive time, action, mode).
 	SetShareLimits(ctx context.Context, hash string, l ShareLimits) error
+	// FreeSpace is the free bytes on qBittorrent's download disk (sync/maindata server_state.free_space_on_disk).
+	FreeSpace(ctx context.Context) (int64, error)
 }
 
 type WebAPIVersion struct{ Major, Minor, Patch int }

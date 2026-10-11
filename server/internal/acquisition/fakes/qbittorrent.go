@@ -21,6 +21,7 @@ const (
 	QBittorrentFiles          scripted.Method = "QBittorrent.Files"
 	QBittorrentSync           scripted.Method = "QBittorrent.Sync"
 	QBittorrentSetShareLimits scripted.Method = "QBittorrent.SetShareLimits"
+	QBittorrentFreeSpace      scripted.Method = "QBittorrent.FreeSpace"
 )
 
 // Deletion is one hash passed to Delete.
@@ -48,6 +49,8 @@ type QBittorrent struct {
 	torrents  map[string]*torrent
 	files     map[string][]acquisition.TorrentFile
 	deletions []Deletion
+	// freeSpace is nil until SetFreeSpace; FreeSpace then answers ErrUnavailable, as an unreachable client does.
+	freeSpace *int64
 }
 
 var _ acquisition.QBittorrent = (*QBittorrent)(nil)
@@ -253,6 +256,25 @@ func (q *QBittorrent) SetShareLimits(ctx context.Context, hash string, l acquisi
 	}
 	t.limits = &l
 	return nil
+}
+
+// SetFreeSpace sets what FreeSpace reports for the download disk.
+func (q *QBittorrent) SetFreeSpace(bytes int64) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.freeSpace = &bytes
+}
+
+func (q *QBittorrent) FreeSpace(ctx context.Context) (int64, error) {
+	if err := q.Enter(ctx, QBittorrentFreeSpace); err != nil {
+		return 0, err
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.freeSpace == nil {
+		return 0, acquisition.ErrUnavailable
+	}
+	return *q.freeSpace, nil
 }
 
 func compareVersions(a, b acquisition.WebAPIVersion) int {

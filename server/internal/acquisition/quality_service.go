@@ -67,23 +67,7 @@ func (s *QualityService) Profile(ctx context.Context, id domain.ProfileID) (api.
 
 // ScoringProfile loads a profile with every custom format compiled, ready for Evaluate.
 func (s *QualityService) ScoringProfile(ctx context.Context, id domain.ProfileID) (ScoringProfile, error) {
-	p, err := s.repo.Profile(ctx, id)
-	if err != nil {
-		return ScoringProfile{}, err
-	}
-	formats, err := s.repo.Formats(ctx)
-	if err != nil {
-		return ScoringProfile{}, err
-	}
-	compiled := make([]CompiledFormat, 0, len(formats))
-	for _, f := range formats {
-		c, err := CompileFormat(f)
-		if err != nil {
-			return ScoringProfile{}, err
-		}
-		compiled = append(compiled, c)
-	}
-	return NewScoringProfile(p, compiled), nil
+	return s.repo.ScoringProfile(ctx, id)
 }
 
 func (s *QualityService) CreateProfile(ctx context.Context, p api.Profile) (api.Profile, error) {

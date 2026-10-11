@@ -28,7 +28,21 @@ var Module = fx.Module(string(owner.Acquisition),
 	),
 	fx.Invoke(syncIndexersOnStart),
 	qualityOptions,
+	searchOptions,
 )
+
+// searchOptions wires interactive search: the fan-out, decision engine and result cache.
+var searchOptions = fx.Options(
+	fx.Provide(
+		NewSearchService,
+		httpserver.AsController(NewSearchController),
+	),
+	fx.Invoke(closeSearchesOnStop),
+)
+
+func closeSearchesOnStop(lc fx.Lifecycle, s *SearchService) {
+	lc.Append(fx.StopHook(s.Close))
+}
 
 // Migrations is Acquisition's goose directory, for tests that open a database without the app.
 func Migrations() db.MigrationSet {

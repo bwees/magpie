@@ -38,6 +38,9 @@ var IndexerOptionsKey = settings.NewKey(owner.Acquisition, "indexers", IndexerOp
 	ResultCache:   settings.Duration(DefaultResultCache),
 })
 
+// MaximumSizeKey caps every release's size in bytes, whatever its profile says; 0 means no cap.
+var MaximumSizeKey = settings.NewKey(owner.Acquisition, "maximumSize", int64(0))
+
 func (o IndexerOptions) Validate() error {
 	var errs []error
 	if !within(o.SyncInterval.Std(), MinIndexerSyncInterval, MaxIndexerSyncInterval) {
