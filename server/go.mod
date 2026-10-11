@@ -4,6 +4,7 @@ go 1.27.0
 
 require (
 	github.com/coder/websocket v1.8.15
+	github.com/dlclark/regexp2/v2 v2.8.4
 	github.com/getkin/kin-openapi v0.149.0
 	github.com/go-fuego/fuego v0.21.0
 	github.com/mikestefanello/backlite v0.8.0
