@@ -3,9 +3,13 @@ module magpie
 go 1.27.0
 
 require (
+	github.com/coder/websocket v1.8.15
 	github.com/getkin/kin-openapi v0.149.0
 	github.com/go-fuego/fuego v0.21.0
+	github.com/mikestefanello/backlite v0.8.0
+	github.com/ncruces/go-sqlite3 v0.35.6
 	github.com/ncruces/go-sqlite3/gormlite v0.34.0
+	github.com/oklog/ulid/v2 v2.1.2
 	github.com/pressly/goose/v3 v3.29.0
 	go.uber.org/fx v1.24.0
 	golang.org/x/sys v0.49.0
@@ -25,7 +29,6 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
-	github.com/ncruces/go-sqlite3 v0.35.6 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/oasdiff/yaml v0.1.1 // indirect
