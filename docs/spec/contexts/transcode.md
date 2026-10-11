@@ -56,15 +56,15 @@ package api // internal/transcode/api
 type Reader interface {
 	// Job returns one job or ErrNotFound.
 	Job(ctx context.Context, id domain.JobID) (Job, error)
-	// JobsForMediaFile returns every job for the file, newest first.
+	// JobsForMediaFile returns every job for the file, newest first. An unknown file returns an empty slice.
 	JobsForMediaFile(ctx context.Context, id domain.MediaFileID) ([]Job, error)
-	// ActiveJobs returns jobs in OFFERED..VERIFYING, ordered by priority then age.
+	// ActiveJobs returns jobs in OFFERED..VERIFYING, ordered by priority (highest first) then age (oldest first).
 	ActiveJobs(ctx context.Context) ([]Job, error)
 	// QueueSummary returns counts per state and the estimated bytes saved for queued transcodes.
 	QueueSummary(ctx context.Context) (QueueSummary, error)
-	// Agents returns all known agents with devices, capabilities and current jobs.
+	// Agents returns all known agents with devices, capabilities and current jobs, ordered by hostname.
 	Agents(ctx context.Context) ([]Agent, error)
-	// IsExcluded reports whether a title is excluded from transcoding.
+	// IsExcluded reports whether a title is excluded from transcoding. Unknown titles are not excluded.
 	IsExcluded(ctx context.Context, title domain.TitleID) (bool, error)
 	// Target returns the active transcode target (codec, preset, caps).
 	Target(ctx context.Context) (Target, error)
@@ -77,6 +77,7 @@ type Job struct {
 	Kind       JobKind
 	MediaFile  domain.MediaFileID
 	State      JobState
+	Priority   int // higher is offered first
 	Agent      *domain.AgentID
 	Attempt    int
 	Progress   float64 // 0..1, last durable value
@@ -84,7 +85,14 @@ type Job struct {
 	QueuedAt   time.Time
 	FinishedAt *time.Time
 }
+
+type QueueSummary struct { Counts map[JobState]int; EstimatedSavedBytes int64 }
+type Target struct { Codec TargetCodec; Preset Preset; CapsMbps map[ResolutionClass]int } // HEVC_10 | AV1_10; 2160P | 1080P | 720P | SD
+// Agent: ID, hostname, versions, Mode (DOWNLOAD_FIRST | DIRECT_READ), slots override, online, draining,
+// last seen, scratch free, throughput, Devices (each with Capabilities) and the job IDs it holds.
 ```
+
+- Job state constants are `StateQueued … StateCancelled` (`JobQueued`/`JobFailed` name events); `JobState.Active()` is the OFFERED..VERIFYING set.
 
 ## Events published
 
@@ -159,7 +167,19 @@ type JobProgressed struct {
 }
 ```
 
-Every event is published in the same transaction as the job state change that causes it. `JobFailed` is published on every failed attempt; `Final` marks the last one.
+Every event is published in the same transaction as the job state change that causes it. `JobFailed` is published on every failed attempt; `Final` marks the last one. Aggregate ID: the media file for job, skip and Whisper events; the agent for `AgentOnline`/`AgentOffline`.
+
+## Command accepted
+
+```go
+// RunAgentJob: the only command in v1 (api/commands.go). Durable, aggregate = media file.
+type RunAgentJob struct {
+	Kind      JobKind // WHISPER
+	MediaFile domain.MediaFileID
+	Language  domain.Language
+	Model     string // large-v3-turbo (default) | large-v3 | medium | small
+}
+```
 
 ## Events and commands consumed
 
@@ -181,8 +201,10 @@ Transcode has no third-party adapters. Its only external party is the Agent, thr
 // ports.go: used for staging and source checks
 type FileStat interface {
 	// Stat returns size, mtime and inode for an absolute path; ETag is derived from them.
+	// A missing path returns an error matching fs.ErrNotExist.
 	Stat(path string) (FileInfo, error)
 }
+type FileInfo struct { Size int64; ModTime time.Time; Inode, Device uint64 }
 ```
 
 ## HTTP surface
@@ -227,11 +249,14 @@ One WebSocket per agent, dialled by the agent. Text frames carry JSON:
 
 ```go
 type Envelope struct {
-	Type string          `json:"type"` // message name below
+	Type MessageType     `json:"type"` // UPPER_SNAKE message name: HELLO, HEARTBEAT, JOB_ACCEPT, …, WELCOME, JOB_OFFER, ACK
 	ID   string          `json:"id"`   // ULID, for logs and Ack
 	Body json.RawMessage `json:"body"`
 }
 ```
+
+- The types live in `internal/transcode/api/agentproto`, shared by the server and `agent/`. Bodies use camelCase JSON fields.
+- Enumerated string fields below are typed there (`Mode`, `Vendor`, `Capability`, `Stage`, `RejectReason`, `Outcome`, `JobKind`). Codec, encoder, container and Whisper model names stay ffmpeg/whisper.cpp spellings.
 
 Agent → server:
 
