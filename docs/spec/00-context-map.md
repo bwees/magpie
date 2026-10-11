@@ -126,13 +126,13 @@ type Event struct {
   - Handlers record the event ID in `processed_events` and must be idempotent.
 - **Ephemeral events** (`…Progressed`, `SearchResultsReceived`, `ProjectionUpdated`): published on the in-process bus only. They aren't persisted, and only the live gateway's replay buffer can resend them. No state may depend on them.
 - **Commands:** same envelope, exactly one owning handler. Used only when the sender needs a specific action from the owner. v1 has exactly one: `transcode.RunAgentJob`.
-- **Live gateway:** `internal/platform/live` forwards events to browser WebSocket clients, filtered by the user's role (reads `identity.Reader`, `requests.Reader`). Envelope sequence numbers allow resume after reconnect ([01-architecture.md](01-architecture.md#live-updates-to-browsers)).
+- **Live gateway:** `internal/platform/live` forwards events to browser WebSocket clients, filtered by the user's role (reads `identity.Reader`, `requests.Reader`). A payload implementing `domain.Personal` (`Recipient() UserID`) goes only to that user, admins included; `activity.NotificationCreated` is the one such event. Envelope sequence numbers allow resume after reconnect ([01-architecture.md](01-architecture.md#live-updates-to-browsers)).
 
 ## Event catalog
 
 | Event | Publisher | Key payload | Consumers → reaction |
 |---|---|---|---|
-| `identity.UserCreated` | Identity | user, role, source | Activity → default notification prefs |
+| `identity.UserCreated` | Identity | user, role, source | Activity → history (no notification prefs to create: in-app is always on and URLs start empty) |
 | `catalog.TitleAdded` | Catalog | title, kind, external IDs, profile, monitored episodes, released, requestedBy, requestID?, origin, scanFolder? | Acquisition → search now if released and origin REQUEST/MANUAL (never for LIBRARY_SCAN/MIGRATION); Requests → link request; Activity → timeline/pipeline |
 | `catalog.TitleAddFailed` | Catalog | tmdb, kind, requestID, reason | Requests → request FAILED |
 | `catalog.MonitoringChanged` | Catalog | title, episodes ±, movie?, requestID? | Acquisition → search newly monitored; Requests → link/extend request items; Activity |

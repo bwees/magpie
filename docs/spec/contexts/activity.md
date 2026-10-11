@@ -138,7 +138,8 @@ type ImportTimelineEvent struct {
 ## Events published
 
 ```go
-// Durable. One per recipient per notification, so the live gateway can push it to that user only.
+// Durable. One per recipient per notification, so the live gateway can push it to that user only:
+// it implements domain.Personal with Recipient() = User, which hides it from admins too.
 type NotificationCreated struct {
     Notification string // ID
     User         domain.UserID
@@ -271,6 +272,12 @@ Shown beside the bar; they never change the main stage.
 - **Admin scope for requester kinds:** admins may subscribe their URLs to requester-scoped kinds for *any* user.
 - **Requester limits:** requesters may subscribe only to requester-scoped kinds for their own requests. Saving any other kind returns `422`; at send time it's also skipped.
 - **Request lookups:** recipients and titles come from `requests.Reader` (request → user) and `catalog.Reader` (title name for message text).
+- **Recipients:** "Admins" means the enabled admins (`identity.Reader.Admins`); a disabled user gets nothing, in-app or by URL. Failures that carry only a download or file ID find their title through `activity_refs`.
+- **Links:** in-app links are app paths: the title (`/titles/{id}`) when known, else `/requests`, `/settings/connections` (service unreachable), `/activity/agents` (agent offline) or `/activity`. External messages carry the same path joined to `MAGPIE_BASE_URL`, or no link when it is unset.
+- **Sending:** one `activity.send` backlite job per subscribed URL, queued in the handler's transaction. The job names the URL by ID, so the secret stays out of the queue. At send time it is dropped if the URL was deleted, no longer subscribes to the kind, or its owner may no longer hold the kind (demoted or disabled).
+  - `ErrUnavailable`: tried 3 times in all, waiting 1 min then 5 min, then `last_error` is stored.
+  - `ErrRejected` or an invalid URL: not retried; `last_error` is stored at once.
+  - A delivery sets `last_sent_at` and clears `last_error`.
 
 ## External ports
 
@@ -288,6 +295,9 @@ type Message struct{ Title, Body, Link string }
 
 Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shoutrrr (MIT).
 
+- **Schemes:** `discord`, `gotify`, `ntfy`, `pushover`, `slack`, `smtp`, `telegram`. These parse without a network call; other shoutrrr services (matrix signs in on parse, for one) are `ErrInvalidURL`.
+- **Errors:** the adapter reads the service's last HTTP exchange, because some services (telegram) swallow failed responses. A 4xx other than 408/429 is `ErrRejected`; network errors, 5xx, 408 and 429 are `ErrUnavailable`; any other failure (e.g. SMTP) is `ErrUnavailable`.
+
 ## HTTP surface
 
 | Route | Who | Purpose |
@@ -298,12 +308,12 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 | `GET /api/activity/pipeline?active=true` | signed in (requesters: own titles) | Rows currently searching, downloading, importing or transcoding ("Live now"), at most 200 |
 | `GET /api/activity/history?severity=&before=&limit=` | admin | Global feed |
 | `GET /api/activity/attention` | admin | Open attention items ("Needs you") |
-| `GET /api/activity/notifications` | signed in | Own in-app notifications |
-| `POST /api/activity/notifications/{id}/read`, `POST …/read-all` | signed in | Mark read |
-| `GET /api/activity/notification-kinds` | signed in | Kinds the caller's role may subscribe to |
-| `GET/POST /api/activity/notification-urls` | signed in | Own URLs (masked) / add |
-| `PATCH/DELETE /api/activity/notification-urls/{id}` | owner | Edit label/kinds, delete |
-| `POST /api/activity/notification-urls/{id}/test` | owner | Send a test message now |
+| `GET /api/activity/notifications?unread=&before=&limit=` | signed in | Own in-app notifications, newest first, plus `unreadCount` |
+| `POST /api/activity/notifications/{id}/read`, `POST …/read-all` | signed in | Mark read (`204`; someone else's notification is `404`) |
+| `GET /api/activity/notification-kinds` | signed in | Kinds the caller's role may subscribe to: `kind`, `label`, `scope` (`REQUESTER` \| `ADMIN`), `optIn` |
+| `GET/POST /api/activity/notification-urls` | signed in | Own URLs (masked) / add `{label, url, kinds}` |
+| `PATCH/DELETE /api/activity/notification-urls/{id}` | owner | Edit `{label?, kinds?}` (null or left out = unchanged), delete |
+| `POST /api/activity/notification-urls/{id}/test` | owner | Send a test message now: `204`, `422` when the service refuses it, `502` when it can't be reached |
 
 - Pipeline takes exactly one of `title`, `titles` or `active=true`; anything else is `400`. A title a requester may not see is `404`.
 - `before` is an RFC 3339 time; `limit` follows `Page` (default 50, max 200).
@@ -318,8 +328,9 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
   - `ERROR`: `DownloadFailed`, `ImportFailed`, `TitleAddFailed`, final `JobFailed`, `ServiceHealthChanged{Healthy: false}`.
   - `WARN`: `ReleaseRejected`, `TranscodeSwapRejected`, `AgentOffline`, `SearchCompleted{NOTHING_ACCEPTED}`, non-final `JobFailed`.
 - **"Needs you"** (home screen) is the attention list Activity owns (table above). The UI reads `GET /api/activity/attention`, updates it from `AttentionChanged`, and calls the owning context's API for each action (approve → Requests, search again → Acquisition, view agent → Transcode).
-- **Limits:** at most 10 notification URLs per user. A URL is validated on save; invalid → `422`.
-- **Secrets:** URLs are never returned in full. Responses show scheme and host plus `…`, and only the owner can edit them.
+- **Limits:** at most 10 notification URLs per user. A URL is validated on save; invalid → `422`. The 11th URL, and a kind the caller's role may not hold, are also `422`, each with its own problem type (`invalid-notification-url`, `notification-url-limit`, `notification-kind-not-allowed`).
+- **Labels:** trimmed, at most 60 characters; a blank label becomes the service name (`Ntfy`). Kinds are deduped and stored in the table's order.
+- **Secrets:** URLs are never returned in full. Responses show scheme and host plus `…`, and only the owner can edit them. Another user's URL is `404`.
 - **Settings owned:** `activity.historyRetentionDays` (90), `activity.notificationRetentionDays` (90).
 
 ## Test seeds

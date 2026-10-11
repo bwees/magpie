@@ -186,7 +186,7 @@ Owner: **Activity**. Per user, visible to every user ([ticket 25](../../.scratch
 
 | Setting | Default | Validation |
 |---|---|---|
-| Notification URLs (label + shoutrrr URL) | none | URL parses with shoutrrr; Send test |
+| Notification URLs (label + shoutrrr URL) | none | at most 10 per user; URL parses with shoutrrr, schemes `discord`, `gotify`, `ntfy`, `pushover`, `slack`, `smtp`, `telegram`; Send test |
 | Events per URL | none ticked | event must be in the user's role-scoped list |
 | In-app notifications | always on | |
 | Global activity retention | 90 days | 7–365 (admin only) |
