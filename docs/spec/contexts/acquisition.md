@@ -39,7 +39,7 @@ Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md
 | `pending_releases` | `id`, `title_id`, `episode_ids`, release snapshot, `publish_at`, `reason` (delay) |
 | `blocklist` | `title_id`, `info_hash`, `release_name`, `indexer`, `reason` (`BLOCKED_FILE` \| `METADATA_TIMEOUT` \| `STALLED` \| `IMPORT_FAILED` \| `DOWNLOAD_FAILED` \| `USER` \| `ISSUE` \| `MIGRATED`), `at`, `expires_at?` (null = permanent) |
 | `downloads` | `id`, `info_hash`, `qbit_hash`, `title_id`, `episode_ids`, `release_name`, `indexer_id`, `quality_id`, `cf_score`, `state`, `seeding_mode`, `goal_ratio?`, `goal_time?`, `grabbed_at`, `completed_at?`, `removed_at?`, `search_id?` |
-| `file_scores` | `media_file_id`, `title_id`, `episode_ids`, `quality_id`, `cf_score`, `cutoff_met bool`, `transcoded bool`, `origin` (Acquisition's own view of library files; built from `FileImported`/`FileTranscoded`/`FileDeleted`) |
+| `file_scores` | `media_file_id`, `title_id`, `episode_ids`, `quality_id`, `cf_score`, `profile_id` (the Title's profile at the last evaluation), `cutoff_met bool`, `transcoded bool`, `origin` (Acquisition's own view of library files; built from `FileImported`/`FileTranscoded`/`FileDeleted`) |
 
 **Qualities** use Radarr's 30 IDs. Imported Sonarr IDs are remapped (13→20, 22→21, 20→30, 21→31). Profiles and custom formats are **one pool shared by movies and TV**; the title references a profile by `ProfileID` (stored in Catalog).
 
@@ -59,11 +59,12 @@ type Reader interface {
     Profiles(ctx context.Context) ([]ProfileSummary, error)
     // ActiveDownloads lists downloads not yet removed from qBittorrent, newest first.
     ActiveDownloads(ctx context.Context) ([]Download, error)
-    // DownloadsForTitle lists every download for a title, including removed ones.
+    // DownloadsForTitle lists every download for a title, including removed ones, newest first.
     DownloadsForTitle(ctx context.Context, title domain.TitleID) ([]Download, error)
-    // Blocklist lists entries for a title (or all when title is empty), newest first.
+    // Blocklist lists entries for a title (or all when title is empty), newest first, expired temporary entries included.
     Blocklist(ctx context.Context, title domain.TitleID) ([]BlocklistEntry, error)
     // CutoffStatus reports whether a library file meets its profile cutoff and whether upgrades are still allowed.
+    // Returns ErrNotFound for a file Acquisition has no score for.
     CutoffStatus(ctx context.Context, file domain.MediaFileID) (CutoffStatus, error)
 }
 
@@ -76,9 +77,12 @@ type CutoffStatus struct {
 }
 ```
 
+- `Profile`, `ProfileSummary`, `Download`, `BlocklistEntry` and the enums are spelled out in `internal/acquisition/api`. Profile items are in preference order, most preferred first; `Profile.Cutoff` is an index into them.
+- `ErrNotFound = errors.New("acquisition: not found")`.
+
 ## Events published
 
-All durable unless marked ephemeral. Aggregate ID = title ID (searches, downloads, cutoff), so a title's events stay ordered.
+All durable unless marked ephemeral. Aggregate ID = title ID (searches, downloads, cutoff), so a title's events stay ordered. The two ephemeral events carry no title: `SearchResultsReceived` uses the search ID and `DownloadProgressed` the download ID.
 
 ```go
 type SearchStarted struct {
@@ -238,8 +242,20 @@ type QBittorrent interface {
     // SetShareLimits always sends the full parameter set (ratio, seeding time, inactive time, action, mode).
     SetShareLimits(ctx context.Context, hash string, l ShareLimits) error
 }
-// Auth: API key (Authorization: Bearer). Errors: ErrUnauthorized, ErrNotFound (hash gone), ErrUnavailable.
+// Auth: API key (Authorization: Bearer). Errors: ErrUnauthorized, ErrTorrentNotFound (hash gone), ErrUnavailable.
+
+// ports.go — implemented by internal/adapters/trash. Reads TRaSH Guides' public JSON (docs/json/{radarr,sonarr}).
+type TrashGuides interface {
+    CustomFormats(ctx context.Context, app TrashApp) ([]TrashCustomFormat, error)     // cf/: trash_id, trash_scores, specs
+    QualityProfiles(ctx context.Context, app TrashApp) ([]TrashQualityProfile, error) // quality-profiles/
+    QualitySizes(ctx context.Context, app TrashApp) ([]TrashQualitySize, error)       // quality-size/: MB/min per quality
+}
+type TrashApp string // RADARR | SONARR
+// Errors: ErrUnavailable.
 ```
+
+- The qBittorrent "hash gone" error is `ErrTorrentNotFound`, so it isn't confused with `api.ErrNotFound`.
+- Port data types (`ProwlarrIndexer`, `TorznabQuery`, `TorznabItem`, `TorrentPayload`, `AddRequest`, `TorrentFile`, `SyncState`, `ShareLimits`, the TRaSH types) are spelled out in `internal/acquisition/ports.go`.
 
 The adapter maps remote paths to local ones, so `DownloadCompleted.ContentPath` is always a path the server can read.
 
