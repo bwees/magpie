@@ -34,10 +34,16 @@ Decisions: [07](../../../.scratch/v1-spec/issues/07-subtitles.md), [16](../../..
 ```go
 package api // internal/subtitles/api
 
+type Source string         // EMBEDDED | RELEASE | PROVIDER | WHISPER
+type CoverageStatus string // SATISFIED | PENDING | MISSING (SEARCHING and WAITING_WHISPER read as PENDING)
+type Quota struct { Remaining int; ResetAt time.Time }
+
 type Reader interface {
-	// ForFile returns every subtitle known for a media file, embedded tracks included.
+	// ForFile returns every subtitle known for a media file, embedded tracks included, ordered by
+	// language, then Forced, then SDH. An unknown file returns an empty slice, no error.
 	ForFile(ctx context.Context, file domain.MediaFileID) ([]Subtitle, error)
-	// Coverage returns per wanted language whether it's satisfied, pending or missing, for the title page.
+	// Coverage returns per wanted language whether it's satisfied, pending or missing, for the title page,
+	// in wanted-language order. An unknown file returns an empty slice, no error.
 	Coverage(ctx context.Context, file domain.MediaFileID) ([]LanguageCoverage, error)
 	// Quota returns OpenSubtitles downloads left today and when they reset.
 	Quota(ctx context.Context) (Quota, error)
@@ -120,7 +126,11 @@ type Syncer interface {
 	// Returns the shifted subtitle and the applied offset; ErrNoSpeech if alignment is not confident.
 	Sync(ctx context.Context, videoPath string, srt []byte) (synced []byte, offset time.Duration, err error)
 }
+
+var ErrNoSpeech error // declared in subtitles/ports.go; internal/adapters/subsync returns it
 ```
+
+- `Token`, `SearchQuery` (comparable: moviehash, TMDB/IMDb ID, season, episode, one language) and `Candidate` (file ID, release name, hash match, HI, forced, machine/AI translated, identity fields for scoring) are in `ports.go`.
 
 ## HTTP surface
 

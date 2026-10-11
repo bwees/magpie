@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"testing"
 	"time"
+
+	"magpie/internal/subtitles"
 )
 
 const (
@@ -16,6 +18,8 @@ const (
 	tolerance    = 100 * time.Millisecond
 	palSpeedup   = 25 / 23.976
 )
+
+var _ subtitles.Syncer = (*Syncer)(nil)
 
 var anyTimestamp = regexp.MustCompile(`\d+:\d{2}:\d{2},\d{3}`)
 
@@ -87,8 +91,8 @@ func TestSyncReturnsErrNoSpeech(t *testing.T) {
 			t.Parallel()
 			_, _, err := New(decoder).Sync(context.Background(), tc.video, tc.srt)
 			t.Log(err)
-			if !errors.Is(err, ErrNoSpeech) {
-				t.Errorf("err = %v, want ErrNoSpeech", err)
+			if !errors.Is(err, subtitles.ErrNoSpeech) {
+				t.Errorf("err = %v, want subtitles.ErrNoSpeech", err)
 			}
 		})
 	}

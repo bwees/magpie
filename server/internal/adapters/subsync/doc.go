@@ -35,7 +35,7 @@
 //
 // Confidence is the peak-to-sidelobe ratio: how many standard deviations the best score stands
 // above the scores of all other shifts more than 2 s away. Below MinPeakRatio, or with less than
-// MinSpeech of detected speech, Sync returns ErrNoSpeech. On the test corpus aligned clips score
+// MinSpeech of detected speech, Sync returns subtitles.ErrNoSpeech. On the test corpus aligned clips score
 // 9 to 15 and mismatched or speechless ones 2.5 to 4.
 //
 // Unlike ffsubsync, a framerate change must beat the unchanged subtitle by 1%, so a 0.1%

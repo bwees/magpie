@@ -2,10 +2,11 @@ package subsync
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"time"
+
+	"magpie/internal/subtitles"
 )
 
 const (
@@ -18,10 +19,6 @@ const (
 	// MinSpeech is the least detected speech an alignment can be based on.
 	MinSpeech = 5 * time.Second
 )
-
-// ErrNoSpeech means the video has no usable speech or the subtitle doesn't line up with it
-// confidently. The caller keeps the subtitle unsynced.
-var ErrNoSpeech = errors.New("no confident alignment between speech and subtitle")
 
 // AudioDecoder decodes a video's audio for the speech detector.
 type AudioDecoder interface {
@@ -44,7 +41,7 @@ func New(decoder AudioDecoder) *Syncer {
 func (s *Syncer) Sync(ctx context.Context, videoPath string, srt []byte) ([]byte, time.Duration, error) {
 	cues := parseCues(srt)
 	if !hasDialogue(cues) {
-		return nil, 0, fmt.Errorf("%w: subtitle has no dialogue cues", ErrNoSpeech)
+		return nil, 0, fmt.Errorf("%w: subtitle has no dialogue cues", subtitles.ErrNoSpeech)
 	}
 
 	speech, err := s.detectSpeech(ctx, videoPath)
@@ -52,7 +49,7 @@ func (s *Syncer) Sync(ctx context.Context, videoPath string, srt []byte) ([]byte
 		return nil, 0, err
 	}
 	if spoken := countSpeech(speech); spoken < int(MinSpeech/frameDuration) {
-		return nil, 0, fmt.Errorf("%w: %v of speech detected", ErrNoSpeech, time.Duration(spoken)*frameDuration)
+		return nil, 0, fmt.Errorf("%w: %v of speech detected", subtitles.ErrNoSpeech, time.Duration(spoken)*frameDuration)
 	}
 
 	result, err := align(ctx, speechSignal(speech), cues, int(MaxOffset/frameDuration))
@@ -60,7 +57,7 @@ func (s *Syncer) Sync(ctx context.Context, videoPath string, srt []byte) ([]byte
 		return nil, 0, err
 	}
 	if result.peakRatio < MinPeakRatio {
-		return nil, 0, fmt.Errorf("%w: peak ratio %.1f below %.1f", ErrNoSpeech, result.peakRatio, MinPeakRatio)
+		return nil, 0, fmt.Errorf("%w: peak ratio %.1f below %.1f", subtitles.ErrNoSpeech, result.peakRatio, MinPeakRatio)
 	}
 	t := result.timing()
 	return shiftSRT(srt, t), t.offset, nil
