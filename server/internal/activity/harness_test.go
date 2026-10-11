@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -11,12 +12,14 @@ import (
 	catalogapi "magpie/internal/catalog/api"
 	catalogtest "magpie/internal/catalog/api/contracttest"
 	"magpie/internal/domain"
+	identitytest "magpie/internal/identity/api/contracttest"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/db/dbtest"
 	"magpie/internal/platform/settings"
 	requeststest "magpie/internal/requests/api/contracttest"
 
+	"github.com/mikestefanello/backlite"
 	"gorm.io/gorm"
 )
 
@@ -32,12 +35,91 @@ type harness struct {
 	bus      *bus.Bus
 	catalog  *catalogtest.Fake
 	requests *requeststest.Fake
+	identity *identitytest.Fake
+	sender   *sender
+	jobs     *queued
 	repo     *Repository
 	service  *Service
 	handlers []bus.Handler
 
 	mu        sync.Mutex
 	published []bus.Event
+}
+
+// sender accepts URLs starting with validScheme and records what it sends. The fake in activity/fakes
+// can't be used here: it imports this package.
+type sender struct {
+	mu       sync.Mutex
+	failures []error
+	sent     []Message
+}
+
+const validScheme = "ntfy://"
+
+func (s *sender) Validate(raw string) error {
+	if !strings.HasPrefix(raw, validScheme) || len(raw) == len(validScheme) {
+		return ErrInvalidURL
+	}
+	return nil
+}
+
+// failNext makes the next sends fail with errs, in order.
+func (s *sender) failNext(errs ...error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failures = append(s.failures, errs...)
+}
+
+func (s *sender) Send(_ context.Context, raw string, m Message) error {
+	if err := s.Validate(raw); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.failures) > 0 {
+		err := s.failures[0]
+		s.failures = s.failures[1:]
+		return err
+	}
+	s.sent = append(s.sent, m)
+	return nil
+}
+
+func (s *sender) messages() []Message {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.sent)
+}
+
+// queued records the tasks handlers enqueue instead of running them.
+type queued struct {
+	mu    sync.Mutex
+	tasks []backlite.Task
+}
+
+func (q *queued) Enqueue(_ context.Context, task backlite.Task) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.tasks = append(q.tasks, task)
+	return nil
+}
+
+func (q *queued) EnqueueTx(tx *gorm.DB, task backlite.Task) error {
+	return q.Enqueue(tx.Statement.Context, task)
+}
+
+// sends returns the queued send tasks and forgets them.
+func (q *queued) sends() []sendTask {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	var sends []sendTask
+	for _, task := range q.tasks {
+		if send, ok := task.(sendTask); ok {
+			sends = append(sends, send)
+		}
+	}
+	q.tasks = nil
+	return sends
 }
 
 func newHarness(t *testing.T) *harness {
@@ -50,6 +132,9 @@ func newHarness(t *testing.T) *harness {
 		bus:      b,
 		catalog:  catalogtest.NewFake(catalogtest.Fixture{}),
 		requests: requeststest.NewFake(requeststest.Fixture{}),
+		identity: identitytest.NewFake(identitytest.Fixture{}),
+		sender:   &sender{},
+		jobs:     &queued{},
 		repo:     NewRepository(d),
 	}
 	h.service = NewService(ServiceParams{
@@ -58,13 +143,17 @@ func newHarness(t *testing.T) *harness {
 		Bus:        b,
 		Catalog:    h.catalog,
 		Requests:   h.requests,
+		Identity:   h.identity,
 		Settings:   settings.NewStore(d),
+		Sender:     h.sender,
+		Jobs:       h.jobs,
 	})
 	h.handlers = []bus.Handler{
 		NewTimelineHandler(h.service),
 		NewHistoryHandler(h.service),
 		NewPipelineHandler(h.service),
 		NewAttentionHandler(h.service),
+		NewNotifyHandler(h.service),
 	}
 	unsubscribe := b.Subscribe(func(ev bus.Event) {
 		h.mu.Lock()

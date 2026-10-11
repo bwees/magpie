@@ -119,6 +119,7 @@ func (c *Controller) Register(server *fuego.Server) {
 		fuego.OptionSummary("Open attention items, oldest first (admin)"),
 		fuego.OptionTags(tagActivity),
 	)
+	c.registerNotifications(server)
 }
 
 func viewer(ctx context.Context) (domain.Principal, error) {

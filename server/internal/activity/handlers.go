@@ -20,6 +20,7 @@ const (
 	handlerHistory   = "activity.history"
 	handlerPipeline  = "activity.pipeline"
 	handlerAttention = "activity.attention"
+	handlerNotify    = "activity.notify"
 )
 
 // DurableEventTypes are the events Activity records: every durable event other contexts and the platform
@@ -61,4 +62,8 @@ func NewPipelineHandler(s *Service) bus.Handler {
 
 func NewAttentionHandler(s *Service) bus.Handler {
 	return bus.Handler{Name: handlerAttention, EventTypes: DurableEventTypes(), Handle: s.UpdateAttention}
+}
+
+func NewNotifyHandler(s *Service) bus.Handler {
+	return bus.Handler{Name: handlerNotify, EventTypes: DurableEventTypes(), Handle: s.Notify}
 }

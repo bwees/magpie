@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"errors"
+	"net/url"
 	"slices"
 	"time"
 
@@ -10,9 +11,12 @@ import (
 	"magpie/internal/activity/api"
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
+	identityapi "magpie/internal/identity/api"
 	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
+	"magpie/internal/platform/config"
 	"magpie/internal/platform/db"
+	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/settings"
 	requestsapi "magpie/internal/requests/api"
 
@@ -39,7 +43,11 @@ type ServiceParams struct {
 	Bus        *bus.Bus
 	Catalog    catalogapi.Reader
 	Requests   requestsapi.Reader
+	Identity   identityapi.Reader
 	Settings   *settings.Store
+	Sender     NotificationSender
+	Jobs       jobs.Enqueuer
+	Env        config.Env
 }
 
 type Service struct {
@@ -47,8 +55,13 @@ type Service struct {
 	bus      *bus.Bus
 	catalog  catalogapi.Reader
 	requests requestsapi.Reader
+	identity identityapi.Reader
 	settings *settings.Store
-	now      func() time.Time
+	sender   NotificationSender
+	jobs     jobs.Enqueuer
+	// baseURL makes external notification links absolute; nil leaves them out.
+	baseURL *url.URL
+	now     func() time.Time
 }
 
 func NewService(p ServiceParams) *Service {
@@ -57,7 +70,11 @@ func NewService(p ServiceParams) *Service {
 		bus:      p.Bus,
 		catalog:  p.Catalog,
 		requests: p.Requests,
+		identity: p.Identity,
 		settings: p.Settings,
+		sender:   p.Sender,
+		jobs:     p.Jobs,
+		baseURL:  p.Env.BaseURL,
 		now:      time.Now,
 	}
 }

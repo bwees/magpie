@@ -15,7 +15,9 @@ type NotificationSender interface {
 }
 
 type Message struct {
-	Title, Body, Link string
+	Title string `json:"title"`
+	Body  string `json:"body"`
+	Link  string `json:"link"`
 }
 
 var (
