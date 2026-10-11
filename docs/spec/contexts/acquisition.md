@@ -29,11 +29,12 @@ Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md
 | Table | Key fields |
 |---|---|
 | `qualities` | `id` (Radarr IDs, see below), `name`, `source`, `resolution` |
-| `quality_profiles` | `id`, `name`, `upgrade_allowed`, `cutoff_item_id`, `min_format_score`, `cutoff_format_score` (upgrade-until), `min_upgrade_format_score` (increment), `propers_mode` (`PREFER_AND_UPGRADE` \| `DO_NOT_UPGRADE` \| `DO_NOT_PREFER`), `trash_profile_id?` |
-| `quality_profile_items` | `profile_id`, `order`, `quality_id?` or `group_id`, `allowed`, `min_mb_per_min`, `preferred_mb_per_min`, `max_mb_per_min` (sizes live on the profile) |
-| `quality_groups` | `id` (≥1000), `profile_id`, `name`, member quality IDs (equal rank inside a group) |
-| `custom_formats` | `id`, `name`, `trash_id?`, `include_when_renaming=false`, `specs` (JSON: kind, negate, required, value) |
+| `quality_profiles` | `id`, `name` (unique, any case), `upgrade_allowed`, `cutoff_item_id` (a quality ID or a group ID), `min_format_score`, `cutoff_format_score` (upgrade-until), `min_upgrade_format_score` (increment), `propers_mode` (`PREFER_AND_UPGRADE` \| `DO_NOT_UPGRADE` \| `DO_NOT_PREFER`), `preset?` (`720P` \| `1080P` \| `2160P`), `trash_profile_id?`, `trash_score_set?` |
+| `quality_profile_items` | `profile_id`, `position`, `quality_id?` or `group_id`, `allowed`, `min_mb_per_min`, `preferred_mb_per_min`, `max_mb_per_min` (sizes live on the profile) |
+| `quality_groups` | `profile_id`, `id` (≥1000, numbered per profile in item order), `name`, member quality IDs (equal rank inside a group) |
+| `custom_formats` | `id`, `name` (unique, any case), `trash_id?`, `trash_scores` (JSON: TRaSH score per score set), `include_when_renaming=false`, `specs` (JSON: kind, name, negate, required, value, min, max) |
 | `profile_format_scores` | `profile_id`, `format_id`, `score`, `user_override bool` |
+| `trash_profiles` | `trash_id`, `app`, `name`, `profile` (JSON: the guide profile), `synced_at`: the guide profiles of the last TRaSH sync |
 | `indexers` | `prowlarr_id`, `name`, `privacy` (`PUBLIC` \| `SEMI_PRIVATE` \| `PRIVATE`), `caps` (JSON: search modes, ID params, categories), `status` (`OK` \| `FAILING` \| `GONE`), `last_error`, `failing_since?`, `average_response_ms`, `priority` (default 25), `min_seeders` (default 1), `seeding_mode_override` (`USE_GLOBAL` \| `SEED_UNTIL_GOALS` \| `DONT_SEED`, default `USE_GLOBAL`), `seed_ratio?`, `seed_days?` (null = the global goal), `last_ok_at?`, `synced_at` |
 | `searches` | `id`, `title_id`, `episode_ids`, `trigger` (`RSS` \| `AUTO` \| `USER_AUTO` \| `INTERACTIVE` \| `REGRAB`), `started_at`, `completed_at`, counts. Results are not persisted. |
 | `pending_releases` | `id`, `title_id`, `episode_ids`, release snapshot, `publish_at`, `reason` (delay) |
@@ -251,12 +252,16 @@ type QBittorrent interface {
 // ports.go — implemented by internal/adapters/trash. Reads TRaSH Guides' public JSON (docs/json/{radarr,sonarr}).
 type TrashGuides interface {
     CustomFormats(ctx context.Context, app TrashApp) ([]TrashCustomFormat, error)     // cf/: trash_id, trash_scores, specs
-    QualityProfiles(ctx context.Context, app TrashApp) ([]TrashQualityProfile, error) // quality-profiles/
-    QualitySizes(ctx context.Context, app TrashApp) ([]TrashQualitySize, error)       // quality-size/: MB/min per quality
+    QualityProfiles(ctx context.Context, app TrashApp) ([]TrashQualityProfile, error) // quality-profiles/: items, cutoff, scores, formats (trash_ids)
+    QualitySizes(ctx context.Context, app TrashApp) ([]TrashQualitySize, error)       // quality-size/movie.json or series.json: MB/min per quality
 }
 type TrashApp string // RADARR | SONARR
 // Errors: ErrUnavailable.
 ```
+
+- The TRaSH adapter lists each directory through GitHub's contents API and downloads the files from raw.githubusercontent.com, so a sync costs six API calls. Its tests run against recorded files in `internal/adapters/trash/testdata`.
+- The adapter maps Sonarr's and Radarr's condition enums to Magpie values: sources to the parser's source names, plus `BLURAY_RAW` and `TV_RAW` for Sonarr's raw sources (Remux, Raw-HD), so its "Bluray but not Remux" formats keep their meaning; language IDs to ISO codes, with `ORIGINAL` for the title's original language; indexer flags to `FREELEECH` / `INTERNAL`; release types to `SINGLE_EPISODE` / `MULTI_EPISODE` / `SEASON_PACK`. A format with a condition it can't map (for example `exceptLanguage`) is left out with a warning.
+- `TrashQualityProfile.Formats` lists the trash_ids of the formats the guide profile scores. Each score is that format's `trash_scores[ScoreSet]`, else its `default`.
 
 - The qBittorrent "hash gone" error is `ErrTorrentNotFound`, so it isn't confused with `api.ErrNotFound`.
 - Port data types (`ProwlarrIndexer`, `TorznabQuery`, `TorznabItem`, `TorrentPayload`, `AddRequest`, `TorrentFile`, `SyncState`, `ShareLimits`, the TRaSH types) are spelled out in `internal/acquisition/ports.go`.
@@ -273,13 +278,15 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 | POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results |
 | DELETE | `/searches/{id}` | Cancel |
 | GET | `/downloads` · DELETE `/downloads/{id}?deleteData=` | Queue view; remove |
-| GET/POST/PUT/DELETE | `/profiles`, `/custom-formats` | Profile and CF CRUD; `POST /profiles/from-preset` |
-| POST | `/trash/sync` · GET `/trash/profiles` | Manual TRaSH sync; list guide profiles |
+| GET | `/qualities` | Radarr's 30 qualities |
+| GET/POST/PUT/DELETE | `/profiles`, `/custom-formats` | Profile and CF CRUD; `POST /profiles/from-preset {preset}`. `GET /profiles` is open to every signed-in user (profile pickers); the rest is admin-only. Deleting the default profile is a 409. |
+| POST | `/custom-formats/block-term` | `{term}` → a format matching release names that contain the term (literal, any case), scored −10000 in every profile |
+| POST · GET | `/trash/sync` · `/trash/status` · `/trash/profiles` | Queue a TRaSH sync (202, runs as a job); last attempt, last success and error; guide profiles as of the last sync |
 | GET · PUT | `/indexers` · `/indexers/{id}` | List (from Prowlarr, gone ones left out, with the last sync error and Prowlarr's URL) and per-indexer settings |
 | POST | `/indexers/sync` | Pull the list from Prowlarr now; 502 `prowlarr-unavailable` / `prowlarr-unauthorized` on failure |
 | GET · PUT | `/indexer-options` | Sync interval, search timeout and result cache (apply to every indexer) |
 | GET · DELETE | `/blocklist` · `/blocklist/{id}` | View and remove |
-| GET · PUT | `/settings` | Blocked patterns, metadata timeout, delay, settle window, seeding defaults, search-on-add |
+| GET · PUT | `/settings` | Blocked patterns, metadata timeout, delay, settle window, seeding defaults, search-on-add. Quality fields so far: `defaultProfileId` (must exist), `defaultDelayMinutes` (0–1440), `settleWindowSeconds` (5–120), `trashSyncEnabled` |
 
 ## Behaviour
 
@@ -305,12 +312,24 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 
 - **Parser:** Sonarr/Radarr's release-title parser, ported to Go (allowed under GPL-3.0). Their ~2.7k fixture titles are the parser's test suite.
 - **Quality** = source × resolution + revision (proper/repack/real/version). Everything else (codec, HDR, audio, group tier) comes from **custom formats**.
-- **Custom formats:** specs compile with `dlclark/regexp2` with a match timeout of 100 ms per regex. A timeout counts as "no match" and logs a warning. There are no release profiles; "must not contain" is a CF with a large negative score. The UI's "block term" creates one.
-- **TRaSH sync:** daily, plus manual. Formats and profiles are fetched and matched by `trash_id`, else by name (Sonarr/Radarr Remux names are aliased). Scores the user edited (`user_override`) are never overwritten.
+- **Custom formats:** specs compile with `dlclark/regexp2` (case-insensitive) with a match timeout of 100 ms per regex. A timeout counts as "no match" and logs a warning. There are no release profiles; "must not contain" is a CF with a large negative score. The UI's "block term" creates one.
+  - Matching follows Sonarr: specs of one kind are OR'd unless one is required, which must then match; kinds are AND'd; `negate` inverts a spec. A format with no specs never matches.
+  - Title regexes run on the release name, group regexes on the parsed group, edition regexes on the parsed edition. A release that names no language counts as the title's original language.
+- **Evaluation** is a pure function, `Evaluate(release, profile) → {Quality, QualityRank, Formats, Score, Allowed, CutoffMet}` in `internal/acquisition`. Rank follows item order (higher is better, group members share a rank, 0 = not in the profile); `Allowed` is the item's flag; `Score` sums the profile's scores of every matching format. The minimum-score check and the rest of the decision engine build on it.
+- **TRaSH sync:** daily while the setting is on, plus manual. Formats and profiles are fetched and matched by `trash_id`, else by name (Sonarr/Radarr Remux names are aliased). Scores the user edited (`user_override`) are never overwritten.
+  - Radarr's guide is applied first, then Sonarr's. Movies and TV share one pool, so when both guides have a format of the same name, Radarr's definition is kept and Sonarr's stands for it; Sonarr-only formats (season pack, multi-episode, …) are added.
+  - A stored format without a `trash_id` and with the same name is linked to TRaSH instead of duplicated.
+  - A profile is linked to a guide profile by `trash_profile_id`, else by name; it gets that guide profile's formats and score set. A preset profile gets its preset's formats. Item structure is never changed by a sync.
+  - A score is `user_override` when it differs from the format's TRaSH score for the profile's score set; setting it back to TRaSH's value clears the flag. Every other score of a TRaSH-linked format follows TRaSH.
+  - Fetching runs before any write; a failed fetch changes nothing and records the error for the UI.
+  - The first sync is started by the first-run wizard's quality step or **Sync now**; boot never calls GitHub.
 - **First-run presets** are resolution-only: `720p`, `1080p`, `2160p` ([ticket 31 follow-up](../../../.scratch/v1-spec/issues/29-assemble-spec.md)).
   - Each preset is one quality group containing every source at that resolution (WEB-DL, WEBRip, HDTV, Bluray, Remux), and that group is the cutoff. The first accepted release at that resolution meets cutoff; the file then transcodes and upgrades stop.
   - Source preference inside the group comes from TRaSH custom-format scores during selection (ranking: CF score breaks the tie inside a group).
   - No lower-resolution stopgap. Imported Sonarr/Radarr profiles keep their own structure.
+  - The first start creates all three and makes `1080p` the default profile for new requests. Later starts don't recreate deleted presets.
+  - Group members: every quality at the resolution with source WEB-DL, WEBRip, HDTV or Bluray, without BR-DISK and Raw-HD (Remux included). Sizes: min = the lowest TRaSH minimum of the members across the movie and series tables (720p 10, 1080p 12.5, 2160p 25 MB/min), preferred 1999, max 2000. Upgrade-until 0, increment 1, propers `PREFER_AND_UPGRADE`.
+  - Preset formats, by TRaSH name, at TRaSH's default scores: Remux Tier 01–03, WEB Tier 01–03, WEB Scene, Repack/Proper, Repack2, Repack3, BR-DISK, LQ, LQ (Release Title), 3D, Extras, Upscaled, Bad Dual Groups; plus HD Bluray Tier 01–03 and x265 (HD) for 720p/1080p, UHD Bluray Tier 01–03 for 2160p. They are attached when the preset is created and on every sync.
 - **Sizes:** MB per minute × runtime (from `catalog.Reader`), set per profile item. Runtime 0 → rejected with `UNKNOWN_RUNTIME`, except episodes airing in the last 24 h.
 
 ### Decision engine
@@ -501,3 +520,14 @@ The check is on by default and can be turned off in settings.
     - Given an indexer missing from Prowlarr's list, then its row is kept with status `GONE` and its settings; it is left out of `GET /indexers`. When it reappears, it is `OK` with the same settings.
     - Given Prowlarr backs an indexer off and its caps call answers `<error code="429">`, then it is `FAILING` with that error and its last known caps are kept. A healthy sync clears the error.
     - Given Prowlarr is unreachable, when the sync runs, then no row changes and the Indexers page shows the error.
+35. **First-run presets:**
+    - Given a fresh install, when the server starts, then profiles `720p`, `1080p` and `2160p` exist, each one allowed group that is the cutoff, and the default profile is `1080p`.
+    - Given the `1080p` preset, then WEB-DL, WEBRip, HDTV, Bluray and Remux 1080p releases are allowed and meet the cutoff, and 720p and 2160p releases are not allowed.
+    - Given the user deleted the `2160p` preset, when the server restarts, then it isn't recreated.
+36. **TRaSH sync:**
+    - Given Radarr's and Sonarr's guides both have "WEB Tier 01" with different trash_ids, when the sync runs, then one "WEB Tier 01" (Radarr's) exists, and Sonarr-only formats such as "Season Pack" are added.
+    - Given a stored "web tier 01" format without a trash_id, then the sync links it to TRaSH instead of adding a second one.
+    - Given the `1080p` preset scores "WEB Tier 01" 1700 from TRaSH and the user changes it to 1234, when TRaSH changes its scores to 1800 and the sync runs again, then "WEB Tier 01" stays 1234 and "BR-DISK" becomes 1800.
+    - Given a profile named "Remux-1080p + WEB" and a Sonarr guide profile "Bluray-1080p Remux + WEB", then the sync links them by aliased name and scores the guide profile's formats; renaming the profile keeps the link.
+    - Given TRaSH is unreachable, when the sync runs, then no format or score changes and the status shows the error.
+37. **Block term:** given three profiles, when the term `HC.Subs` is blocked, then each profile scores the new format −10000, and a release named `….HC.Subs.…` scores −10000 while `….HCxSubs.…` scores 0.

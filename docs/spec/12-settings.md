@@ -41,7 +41,7 @@ All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row i
 | Missing backlog sweep | Acquisition | daily, spread | daily–weekly |
 | Cutoff-unmet sweep | Acquisition | weekly, spread | daily–monthly |
 | Prowlarr indexer list refresh | Acquisition | 1 h | 15 min–24 h |
-| TRaSH sync | Acquisition | daily | daily–weekly, or off |
+| TRaSH sync | Acquisition | daily | daily, or off (the TRaSH Guides sync switch under Quality); a weekly option isn't built yet |
 | TMDB refresh | Catalog | continuing series daily; ended series and movies weekly; images < 5 months | images must stay < 6 months (TMDB terms) |
 | Subtitle upgrade check | Subtitles | 6 h | 1–24 h |
 | Jellyfin full reconcile | Library | daily | 6 h–weekly |
@@ -81,11 +81,11 @@ Owner: **Acquisition**. Decided in [ticket 10](../../.scratch/v1-spec/issues/10-
 |---|---|---|
 | Quality profiles | first-run presets `720p`, `1080p`, `2160p` (resolution-only: one group with every source at that resolution, which is also the cutoff; source preference from TRaSH CF scores) | name unique; cutoff must be an allowed quality; one shared pool for movies and TV |
 | Default profile for new requests | `1080p` | must exist |
-| Profile sizes (MB/min min/preferred/max per quality) | TRaSH defaults | min ≤ preferred ≤ max |
+| Profile sizes (MB/min min/preferred/max per quality) | presets: the lowest TRaSH minimum of the group (720p 10, 1080p 12.5, 2160p 25), preferred 1999, max 2000 | 0 ≤ min ≤ preferred ≤ max |
 | Profile scores: min CF score, cutoff CF score, upgrade-until | from preset | integers |
 | Custom formats (Advanced) | TRaSH-linked set | regexes compile with `regexp2`, 100 ms match timeout |
 | "Block term" quick action | none | creates a CF scored −10000 |
-| TRaSH Guides sync | on | user score overrides kept across syncs |
+| TRaSH Guides sync | on, daily; **Sync now** queues one | user score overrides kept across syncs; the first-run quality step starts the first sync |
 | Delay before grabbing (default delay profile) | 0 min | 0–1440. Bypass if cutoff met with max CF score. |
 | Search settle window | 30 s | 5–120 s |
 | Movie availability rule | search only after TMDB digital/physical release date; with neither, theatrical + 90 days | fixed rule, owner Catalog ([ticket 31](../../.scratch/v1-spec/issues/31-import-wizard-and-model-gaps.md)) |
