@@ -3,8 +3,10 @@ package catalog
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
+	"magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/settings"
@@ -14,10 +16,13 @@ import (
 )
 
 const (
-	addTitleQueueName     = "catalog.add-title"
-	refreshTitleQueueName = "catalog.refresh-title"
-	movieRefreshQueueName = "catalog.refresh-movies"
-	releaseClockQueueName = "catalog.release-clock"
+	addTitleQueueName      = "catalog.add-title"
+	refreshTitleQueueName  = "catalog.refresh-title"
+	movieRefreshQueueName  = "catalog.refresh-movies"
+	seriesRefreshQueueName = "catalog.refresh-series"
+	releaseClockQueueName  = "catalog.release-clock"
+
+	periodicNameSeparator = "."
 
 	// Database errors retry through backlite; TMDB errors in add-title retry on addTitleRetries instead.
 	queueAttempts = 3
@@ -54,6 +59,15 @@ func (movieRefreshTask) Config() backlite.QueueConfig {
 	return backlite.QueueConfig{Name: movieRefreshQueueName, MaxAttempts: queueAttempts, Backoff: queueBackoff}
 }
 
+// seriesRefreshTask refreshes the series with one api.SeriesStatus*.
+type seriesRefreshTask struct {
+	Status string `json:"status"`
+}
+
+func (seriesRefreshTask) Config() backlite.QueueConfig {
+	return backlite.QueueConfig{Name: seriesRefreshQueueName, MaxAttempts: queueAttempts, Backoff: queueBackoff}
+}
+
 type releaseClockTask struct{}
 
 func (releaseClockTask) Config() backlite.QueueConfig {
@@ -83,10 +97,10 @@ func addTitleQueue(s *Service, later delayedEnqueue) backlite.Queue {
 	})
 }
 
-// addTitle retries TMDB failures on the task's own schedule and then reports them; a movie TMDB doesn't
+// addTitle retries TMDB failures on the task's own schedule and then reports them; a Title TMDB doesn't
 // know fails at once.
 func addTitle(ctx context.Context, s *Service, later delayedEnqueue, task addTitleTask) error {
-	err := s.AddRequestedMovie(ctx, task.Request)
+	err := s.AddRequestedTitle(ctx, task.Request)
 	if err == nil || !isTmdbError(err) {
 		return err
 	}
@@ -119,17 +133,39 @@ func newReleaseClockPeriodic(store *settings.Store) jobs.Periodic {
 	}
 }
 
-// newMovieRefreshPeriodic pauses while an invalid TMDB key has paused refreshing.
+func newSeriesRefreshQueue(s *Service) backlite.Queue {
+	return backlite.NewQueue(func(ctx context.Context, task seriesRefreshTask) error { return s.RefreshSeries(ctx, task.Status) })
+}
+
 func newMovieRefreshPeriodic(s *Service) jobs.Periodic {
-	interval := jobs.EverySetting(s.settings, movieRefreshInterval)
+	return refreshPeriodic(s, movieRefreshQueueName, movieRefreshInterval, movieRefreshTask{})
+}
+
+// newSeriesRefreshPeriodic refreshes the series with one api.SeriesStatus* on that status' interval.
+func newSeriesRefreshPeriodic(s *Service, status string) jobs.Periodic {
+	name := seriesRefreshQueueName + periodicNameSeparator + strings.ToLower(status)
+	return refreshPeriodic(s, name, seriesRefreshInterval(status), seriesRefreshTask{Status: status})
+}
+
+func newContinuingSeriesRefreshPeriodic(s *Service) jobs.Periodic {
+	return newSeriesRefreshPeriodic(s, api.SeriesStatusContinuing)
+}
+
+func newEndedSeriesRefreshPeriodic(s *Service) jobs.Periodic {
+	return newSeriesRefreshPeriodic(s, api.SeriesStatusEnded)
+}
+
+// refreshPeriodic pauses while an invalid TMDB key has paused refreshing.
+func refreshPeriodic(s *Service, name string, key settings.Key[settings.Duration], task backlite.Task) jobs.Periodic {
+	interval := jobs.EverySetting(s.settings, key)
 	return jobs.Periodic{
-		Name: movieRefreshQueueName,
+		Name: name,
 		Schedule: func(ctx context.Context) (jobs.Schedule, error) {
 			if paused, err := s.RefreshPaused(ctx); err != nil || paused {
 				return nil, err
 			}
 			return interval(ctx)
 		},
-		Task: func() backlite.Task { return movieRefreshTask{} },
+		Task: func() backlite.Task { return task },
 	}
 }

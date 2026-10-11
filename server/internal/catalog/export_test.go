@@ -11,13 +11,16 @@ var (
 	NewRequestApprovedHandler = newRequestApprovedHandler
 	NewTmdbHealthHandler      = newTmdbHealthHandler
 	NewMovieRefreshPeriodic   = newMovieRefreshPeriodic
+	NewSeriesRefreshQueue     = newSeriesRefreshQueue
+	NewSeriesRefreshPeriodic  = newSeriesRefreshPeriodic
 	AddTitleRetries           = addTitleRetries
 	RefreshPausedSetting      = refreshPaused
 )
 
 type (
-	ReleaseClockTask = releaseClockTask
-	MovieRefreshTask = movieRefreshTask
+	ReleaseClockTask  = releaseClockTask
+	MovieRefreshTask  = movieRefreshTask
+	SeriesRefreshTask = seriesRefreshTask
 )
 
 func (s *Service) SetClock(now func() time.Time) {

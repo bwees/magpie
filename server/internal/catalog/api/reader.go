@@ -102,8 +102,9 @@ type Reader interface {
 	// EpisodeByNumber resolves a season/number in the current numbering. ErrNotFound if no match.
 	EpisodeByNumber(ctx context.Context, title domain.TitleID, season, number int) (Episode, error)
 	// Wanted returns what is wanted for a Title. Series: its monitored, released episodes ordered by
-	// (Season, Number), with ok = at least one. Movies: an empty slice, with ok = the movie is monitored
-	// and released. Callers decide whether a file is missing. ErrNotFound if the Title is unknown.
+	// (Season, Number), with ok = at least one; an unmonitored series wants nothing. Movies: an empty slice,
+	// with ok = the movie is monitored and released. Callers decide whether a file is missing.
+	// ErrNotFound if the Title is unknown.
 	Wanted(ctx context.Context, title domain.TitleID) (episodes []Episode, ok bool, err error)
 	// ImagePath returns the local cached image path for an ImageKind*, or ErrNotFound if not cached yet.
 	ImagePath(ctx context.Context, title domain.TitleID, kind string) (string, error)

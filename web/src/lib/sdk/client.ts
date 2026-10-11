@@ -278,6 +278,22 @@ export type DiscoverResponse = {
     trending: boolean;
 };
 export type String = string;
+export type LanguageOptionResponse = {
+    code: string;
+    name: string;
+};
+export type WantedLanguageEntry = {
+    forced: boolean;
+    hearingImpaired: boolean;
+    language: string;
+};
+export type WantedLanguagesResponse = {
+    available: LanguageOptionResponse[];
+    languages: WantedLanguageEntry[];
+};
+export type UpdateWantedLanguagesRequest = {
+    languages: WantedLanguageEntry[];
+};
 export type CatalogSettingsResponse = {
     language: string;
     releaseRegion: string;
@@ -315,10 +331,12 @@ export type SeasonResponse = {
 };
 export type TitleResponse = {
     addedAt: string;
+    episodeGroupId: string;
     id: string;
     images: TitleImagesResponse;
     imdbId: string | null;
     kind: string;
+    languagesOverride: WantedLanguageEntry[] | null;
     monitorFutureSeasons: boolean;
     monitored: boolean;
     name: string;
@@ -346,6 +364,22 @@ export type UpdateTitleRequest = {
     monitorFutureSeasons?: boolean;
     monitored?: boolean;
     profileId?: string;
+};
+export type SelectEpisodeGroupRequest = {
+    groupId: string;
+};
+export type EpisodeGroupResponse = {
+    episodeCount: number;
+    groupCount: number;
+    id: string;
+    name: string;
+    "type": string;
+};
+export type UpdateMonitoredRequest = {
+    monitored: boolean;
+};
+export type UpdateTitleLanguagesRequest = {
+    languages: WantedLanguageEntry[] | null;
 };
 export type RefreshTitleResponse = {
     queued: boolean;
@@ -1655,6 +1689,52 @@ export function getTitleImage(titleId: string, kind: string, { w }: {
     }));
 }
 /**
+ * Get the global wanted languages and the languages a list may hold
+ */
+export function getWantedLanguages({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: WantedLanguagesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/catalog/languages", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Replace the global wanted languages, most wanted first (admin)
+ */
+export function updateWantedLanguages(updateWantedLanguagesRequest: UpdateWantedLanguagesRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: WantedLanguagesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/catalog/languages", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: updateWantedLanguagesRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
  * Get the metadata language and release region
  */
 export function getCatalogSettings({ accept }: {
@@ -1806,6 +1886,100 @@ export function updateTitle(id: string, updateTitleRequest: UpdateTitleRequest, 
     })));
 }
 /**
+ * Number a series by a TMDB episode group, or by aired order for an empty ID (admin)
+ */
+export function selectEpisodeGroup(id: string, selectEpisodeGroupRequest: SelectEpisodeGroupRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}/episode-group`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: selectEpisodeGroupRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * List TMDB's episode groups for a series
+ */
+export function listEpisodeGroups(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: EpisodeGroupResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}/episode-groups`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Monitor or unmonitor one episode (admin)
+ */
+export function updateEpisode(id: string, episodeId: string, updateMonitoredRequest: UpdateMonitoredRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}/episodes/${encodeURIComponent(episodeId)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: updateMonitoredRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Set or clear a Title's wanted-languages override (admin)
+ */
+export function updateTitleLanguages(id: string, updateTitleLanguagesRequest: UpdateTitleLanguagesRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}/languages`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: updateTitleLanguagesRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
  * Refresh a Title's metadata and images from TMDB now (admin)
  */
 export function refreshTitle(id: string, { accept }: {
@@ -1827,6 +2001,30 @@ export function refreshTitle(id: string, { accept }: {
             Accept: accept
         })
     }));
+}
+/**
+ * Monitor or unmonitor a season and all its episodes (admin)
+ */
+export function updateSeason(id: string, n: string, updateMonitoredRequest: UpdateMonitoredRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}/seasons/${encodeURIComponent(n)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: updateMonitoredRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
 }
 /**
  * Report that the server is up

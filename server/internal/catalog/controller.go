@@ -44,12 +44,43 @@ const (
 	attributionLink   = "https://www.themoviedb.org"
 	svgDataURIPrefix  = "data:image/svg+xml;base64,"
 
-	TypeTitleNotFound   problem.Type = "urn:magpie:problem:title-not-found"
-	TypeImageNotFound   problem.Type = "urn:magpie:problem:image-not-found"
-	TypeTmdbUnavailable problem.Type = "urn:magpie:problem:tmdb-unavailable"
-	TypeInvalidSettings problem.Type = "urn:magpie:problem:invalid-catalog-settings"
-	TypeSeriesPending   problem.Type = "urn:magpie:problem:series-unsupported"
+	pathSeason    = "n"
+	pathEpisodeID = "episodeId"
+
+	TypeTitleNotFound       problem.Type = "urn:magpie:problem:title-not-found"
+	TypeSeasonNotFound      problem.Type = "urn:magpie:problem:season-not-found"
+	TypeEpisodeNotFound     problem.Type = "urn:magpie:problem:episode-not-found"
+	TypeNotASeries          problem.Type = "urn:magpie:problem:not-a-series"
+	TypeUnknownEpisodeGroup problem.Type = "urn:magpie:problem:unknown-episode-group"
+	TypeInvalidLanguages    problem.Type = "urn:magpie:problem:invalid-wanted-languages"
+	TypeImageNotFound       problem.Type = "urn:magpie:problem:image-not-found"
+	TypeTmdbUnavailable     problem.Type = "urn:magpie:problem:tmdb-unavailable"
+	TypeInvalidSettings     problem.Type = "urn:magpie:problem:invalid-catalog-settings"
 )
+
+// EpisodeGroupType names TMDB's episode group types.
+type EpisodeGroupType string
+
+const (
+	EpisodeGroupTypeOriginalAirDate EpisodeGroupType = "ORIGINAL_AIR_DATE"
+	EpisodeGroupTypeAbsolute        EpisodeGroupType = "ABSOLUTE"
+	EpisodeGroupTypeDVD             EpisodeGroupType = "DVD"
+	EpisodeGroupTypeDigital         EpisodeGroupType = "DIGITAL"
+	EpisodeGroupTypeStoryArc        EpisodeGroupType = "STORY_ARC"
+	EpisodeGroupTypeProduction      EpisodeGroupType = "PRODUCTION"
+	EpisodeGroupTypeTV              EpisodeGroupType = "TV"
+	EpisodeGroupTypeUnknown         EpisodeGroupType = "UNKNOWN"
+)
+
+var episodeGroupTypes = map[TmdbEpisodeGroupType]EpisodeGroupType{
+	TmdbGroupOriginalAirDate: EpisodeGroupTypeOriginalAirDate,
+	TmdbGroupAbsolute:        EpisodeGroupTypeAbsolute,
+	TmdbGroupDVD:             EpisodeGroupTypeDVD,
+	TmdbGroupDigital:         EpisodeGroupTypeDigital,
+	TmdbGroupStoryArc:        EpisodeGroupTypeStoryArc,
+	TmdbGroupProduction:      EpisodeGroupTypeProduction,
+	TmdbGroupTV:              EpisodeGroupTypeTV,
+}
 
 //go:embed tmdb-logo.svg
 var tmdbLogo []byte
@@ -114,8 +145,59 @@ type TitleResponse struct {
 	RequestedBy          *domain.UserID       `json:"requestedBy"`
 	AddedAt              time.Time            `json:"addedAt" validate:"required"`
 	Images               TitleImagesResponse  `json:"images" validate:"required"`
+	// EpisodeGroupID is the TMDB episode group numbering the episodes; "" is aired order.
+	EpisodeGroupID string `json:"episodeGroupId" validate:"required"`
+	// LanguagesOverride is null when the Title uses the global wanted languages.
+	LanguagesOverride []WantedLanguageEntry `json:"languagesOverride"`
 	// Seasons is empty for movies and in lists.
 	Seasons []SeasonResponse `json:"seasons" validate:"required"`
+}
+
+type WantedLanguageEntry struct {
+	// Language is an ISO 639-1 code.
+	Language domain.Language `json:"language" validate:"required"`
+	// Forced also wants a forced track.
+	Forced bool `json:"forced" validate:"required"`
+	// HearingImpaired accepts the hearing-impaired variant.
+	HearingImpaired bool `json:"hearingImpaired" validate:"required"`
+}
+
+type LanguageOptionResponse struct {
+	Code domain.Language `json:"code" validate:"required"`
+	Name string          `json:"name" validate:"required"`
+}
+
+type WantedLanguagesResponse struct {
+	// Languages is the global list, most wanted first.
+	Languages []WantedLanguageEntry `json:"languages" validate:"required"`
+	// Available lists the ISO 639-1 languages a list may hold.
+	Available []LanguageOptionResponse `json:"available" validate:"required"`
+}
+
+type UpdateWantedLanguagesRequest struct {
+	Languages []WantedLanguageEntry `json:"languages" validate:"required"`
+}
+
+type UpdateTitleLanguagesRequest struct {
+	// Languages overrides the global list for this Title; null goes back to the global list.
+	Languages []WantedLanguageEntry `json:"languages"`
+}
+
+type UpdateMonitoredRequest struct {
+	Monitored bool `json:"monitored"`
+}
+
+type EpisodeGroupResponse struct {
+	ID           string           `json:"id" validate:"required"`
+	Name         string           `json:"name" validate:"required"`
+	Type         EpisodeGroupType `json:"type" validate:"required"`
+	EpisodeCount int              `json:"episodeCount" validate:"required"`
+	GroupCount   int              `json:"groupCount" validate:"required"`
+}
+
+type SelectEpisodeGroupRequest struct {
+	// GroupID is a TMDB episode group of this series, or "" for aired order.
+	GroupID string `json:"groupId"`
 }
 
 type UpdateTitleRequest struct {
@@ -208,6 +290,48 @@ func (c *Controller) Register(server *fuego.Server) {
 		fuego.OptionTags(tagCatalog),
 		fuego.OptionPath(pathTitleID, "Title ID"),
 		fuego.OptionDefaultStatusCode(http.StatusAccepted),
+	)
+	fuego.Patch(api, "/titles/{id}/seasons/{n}", c.updateSeason,
+		fuego.OptionOperationID("updateSeason"),
+		fuego.OptionSummary("Monitor or unmonitor a season and all its episodes (admin)"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+		fuego.OptionPath(pathSeason, "Season number in the current numbering"),
+	)
+	fuego.Patch(api, "/titles/{id}/episodes/{episodeId}", c.updateEpisode,
+		fuego.OptionOperationID("updateEpisode"),
+		fuego.OptionSummary("Monitor or unmonitor one episode (admin)"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+		fuego.OptionPath(pathEpisodeID, "Episode ID"),
+	)
+	fuego.Get(api, "/titles/{id}/episode-groups", c.listEpisodeGroups,
+		fuego.OptionOperationID("listEpisodeGroups"),
+		fuego.OptionSummary("List TMDB's episode groups for a series"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+	)
+	fuego.Put(api, "/titles/{id}/episode-group", c.selectEpisodeGroup,
+		fuego.OptionOperationID("selectEpisodeGroup"),
+		fuego.OptionSummary("Number a series by a TMDB episode group, or by aired order for an empty ID (admin)"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+	)
+	fuego.Put(api, "/titles/{id}/languages", c.updateTitleLanguages,
+		fuego.OptionOperationID("updateTitleLanguages"),
+		fuego.OptionSummary("Set or clear a Title's wanted-languages override (admin)"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathTitleID, "Title ID"),
+	)
+	fuego.Get(api, "/languages", c.getLanguages,
+		fuego.OptionOperationID("getWantedLanguages"),
+		fuego.OptionSummary("Get the global wanted languages and the languages a list may hold"),
+		fuego.OptionTags(tagCatalog),
+	)
+	fuego.Put(api, "/languages", c.updateLanguages,
+		fuego.OptionOperationID("updateWantedLanguages"),
+		fuego.OptionSummary("Replace the global wanted languages, most wanted first (admin)"),
+		fuego.OptionTags(tagCatalog),
 	)
 	fuego.Delete(api, "/titles/{id}", c.removeTitle,
 		fuego.OptionOperationID("removeTitle"),
@@ -324,13 +448,137 @@ func (c *Controller) refreshTitle(ctx fuego.ContextNoBody) (RefreshTitleResponse
 	if err != nil {
 		return RefreshTitleResponse{}, titleError(err)
 	}
-	if view.Kind != domain.MediaKindMovie {
-		return RefreshTitleResponse{}, problem.New(TypeSeriesPending, http.StatusConflict, "refreshing series is not supported yet")
-	}
 	if err := c.queue.Enqueue(ctx.Context(), refreshTitleTask{Title: view.ID}); err != nil {
 		return RefreshTitleResponse{}, err
 	}
 	return RefreshTitleResponse{Queued: true}, nil
+}
+
+func (c *Controller) updateSeason(ctx fuego.ContextWithBody[UpdateMonitoredRequest]) (TitleResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return TitleResponse{}, err
+	}
+	number, err := strconv.Atoi(ctx.PathParam(pathSeason))
+	if err != nil {
+		return TitleResponse{}, badRequest("season must be a number")
+	}
+	body, err := ctx.Body()
+	if err != nil {
+		return TitleResponse{}, err
+	}
+	view, err := c.service.SetSeasonMonitored(ctx.Context(), domain.TitleID(ctx.PathParam(pathTitleID)), number, body.Monitored)
+	return titleResult(view, err)
+}
+
+func (c *Controller) updateEpisode(ctx fuego.ContextWithBody[UpdateMonitoredRequest]) (TitleResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return TitleResponse{}, err
+	}
+	body, err := ctx.Body()
+	if err != nil {
+		return TitleResponse{}, err
+	}
+	title, episode := domain.TitleID(ctx.PathParam(pathTitleID)), domain.EpisodeID(ctx.PathParam(pathEpisodeID))
+	view, err := c.service.SetEpisodeMonitored(ctx.Context(), title, episode, body.Monitored)
+	return titleResult(view, err)
+}
+
+func (c *Controller) listEpisodeGroups(ctx fuego.ContextNoBody) ([]EpisodeGroupResponse, error) {
+	groups, err := c.service.EpisodeGroups(ctx.Context(), domain.TitleID(ctx.PathParam(pathTitleID)))
+	if err != nil {
+		return nil, titleError(err)
+	}
+	response := make([]EpisodeGroupResponse, 0, len(groups))
+	for _, g := range groups {
+		kind, ok := episodeGroupTypes[g.Type]
+		if !ok {
+			kind = EpisodeGroupTypeUnknown
+		}
+		response = append(response, EpisodeGroupResponse{ID: g.ID, Name: g.Name, Type: kind, EpisodeCount: g.EpisodeCount, GroupCount: g.GroupCount})
+	}
+	return response, nil
+}
+
+func (c *Controller) selectEpisodeGroup(ctx fuego.ContextWithBody[SelectEpisodeGroupRequest]) (TitleResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return TitleResponse{}, err
+	}
+	body, err := ctx.Body()
+	if err != nil {
+		return TitleResponse{}, err
+	}
+	view, err := c.service.SelectEpisodeGroup(ctx.Context(), domain.TitleID(ctx.PathParam(pathTitleID)), body.GroupID)
+	return titleResult(view, err)
+}
+
+func (c *Controller) updateTitleLanguages(ctx fuego.ContextWithBody[UpdateTitleLanguagesRequest]) (TitleResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return TitleResponse{}, err
+	}
+	body, err := ctx.Body()
+	if err != nil {
+		return TitleResponse{}, err
+	}
+	view, err := c.service.SetTitleLanguages(ctx.Context(), domain.TitleID(ctx.PathParam(pathTitleID)), wantedLanguages(body.Languages))
+	return titleResult(view, err)
+}
+
+func (c *Controller) getLanguages(ctx fuego.ContextNoBody) (WantedLanguagesResponse, error) {
+	langs, err := c.repo.GlobalLanguages(ctx.Context())
+	return languagesResponse(langs), err
+}
+
+func (c *Controller) updateLanguages(ctx fuego.ContextWithBody[UpdateWantedLanguagesRequest]) (WantedLanguagesResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return WantedLanguagesResponse{}, err
+	}
+	body, err := ctx.Body()
+	if err != nil {
+		return WantedLanguagesResponse{}, err
+	}
+	langs, err := c.service.SetGlobalLanguages(ctx.Context(), wantedLanguages(body.Languages))
+	if err != nil {
+		return WantedLanguagesResponse{}, titleError(err)
+	}
+	return languagesResponse(langs), nil
+}
+
+// wantedLanguages keeps nil as nil: for a Title it means "use the global list".
+func wantedLanguages(entries []WantedLanguageEntry) []api.WantedLanguage {
+	if entries == nil {
+		return nil
+	}
+	langs := make([]api.WantedLanguage, 0, len(entries))
+	for _, e := range entries {
+		langs = append(langs, api.WantedLanguage(e))
+	}
+	return langs
+}
+
+func languageEntries(langs []api.WantedLanguage) []WantedLanguageEntry {
+	if langs == nil {
+		return nil
+	}
+	entries := make([]WantedLanguageEntry, 0, len(langs))
+	for _, l := range langs {
+		entries = append(entries, WantedLanguageEntry(l))
+	}
+	return entries
+}
+
+func languagesResponse(langs []api.WantedLanguage) WantedLanguagesResponse {
+	response := WantedLanguagesResponse{Languages: languageEntries(langs), Available: make([]LanguageOptionResponse, 0, len(LanguageOptions))}
+	for _, option := range LanguageOptions {
+		response.Available = append(response.Available, LanguageOptionResponse(option))
+	}
+	return response
+}
+
+func titleResult(view TitleView, err error) (TitleResponse, error) {
+	if err != nil {
+		return TitleResponse{}, titleError(err)
+	}
+	return titleResponse(view), nil
 }
 
 func (c *Controller) removeTitle(ctx fuego.ContextNoBody) (RemoveTitleResponse, error) {
@@ -458,6 +706,8 @@ func titleResponse(v TitleView) TitleResponse {
 		Origin:               v.Origin,
 		RequestedBy:          v.RequestedBy,
 		AddedAt:              v.AddedAt,
+		EpisodeGroupID:       v.EpisodeGroupID,
+		LanguagesOverride:    languageEntries(v.LanguagesOverride),
 		Seasons:              make([]SeasonResponse, 0, len(v.Seasons)),
 	}
 	for _, kind := range v.Images {
@@ -485,8 +735,21 @@ func titleResponse(v TitleView) TitleResponse {
 }
 
 func titleError(err error) error {
-	if errors.Is(err, api.ErrNotFound) {
+	switch {
+	case errors.Is(err, ErrSeasonNotFound):
+		return problem.New(TypeSeasonNotFound, http.StatusNotFound, "no such season")
+	case errors.Is(err, ErrEpisodeNotFound):
+		return problem.New(TypeEpisodeNotFound, http.StatusNotFound, "no such episode")
+	case errors.Is(err, api.ErrNotFound):
 		return problem.New(TypeTitleNotFound, http.StatusNotFound, "no such title")
+	case errors.Is(err, ErrNotASeries):
+		return problem.New(TypeNotASeries, http.StatusConflict, "only series have seasons and episode groups")
+	case errors.Is(err, ErrUnknownEpisodeGroup):
+		return problem.New(TypeUnknownEpisodeGroup, http.StatusBadRequest, err.Error())
+	case errors.Is(err, ErrInvalidLanguages):
+		return problem.New(TypeInvalidLanguages, http.StatusBadRequest, err.Error())
+	case isTmdbError(err):
+		return problem.New(TypeTmdbUnavailable, http.StatusServiceUnavailable, "TMDB is unavailable: "+err.Error())
 	}
 	return err
 }

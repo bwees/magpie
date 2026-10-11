@@ -29,8 +29,6 @@ const (
 	discoverPosterSize = "w342"
 )
 
-var ErrSeriesUnsupported = errors.New("catalog: series are not supported yet")
-
 // imageKinds is the order images are cached in.
 var imageKinds = []string{api.ImageKindPoster, api.ImageKindBackdrop, api.ImageKindLogo}
 
@@ -57,6 +55,8 @@ type TitleView struct {
 	// Images lists the cached image kinds.
 	Images  []string
 	Seasons []SeasonView
+	// LanguagesOverride is nil when the Title uses the global wanted languages.
+	LanguagesOverride []api.WantedLanguage
 }
 
 type SeasonView struct {
@@ -110,7 +110,11 @@ func (s *Service) summary(conn *gorm.DB, row titleRow) (TitleView, error) {
 	if err != nil {
 		return TitleView{}, err
 	}
-	view := TitleView{Title: title, Overview: row.Overview, AddedAt: row.AddedAt.UTC(), Images: []string{}, Seasons: []SeasonView{}}
+	override, err := row.languagesOverride()
+	if err != nil {
+		return TitleView{}, err
+	}
+	view := TitleView{Title: title, Overview: row.Overview, AddedAt: row.AddedAt.UTC(), Images: []string{}, Seasons: []SeasonView{}, LanguagesOverride: override}
 	for _, img := range images {
 		view.Images = append(view.Images, img.Kind)
 	}
@@ -130,7 +134,7 @@ func (s *Service) view(conn *gorm.DB, id domain.TitleID) (TitleView, error) {
 	if err != nil {
 		return TitleView{}, err
 	}
-	episodes, err := s.repo.episodeRows(conn.Where("title_id = ?", id))
+	episodes, err := s.repo.titleEpisodes(conn, id)
 	if err != nil {
 		return TitleView{}, err
 	}
@@ -149,9 +153,6 @@ func (s *Service) view(conn *gorm.DB, id domain.TitleID) (TitleView, error) {
 // MonitorTracked handles a RequestApproved for a Title Catalog already tracks: it monitors it and reports
 // handled. When the Title isn't tracked, handled is false and the caller fetches it from TMDB.
 func (s *Service) MonitorTracked(tx *gorm.DB, req requestsapi.RequestApproved) (handled bool, err error) {
-	if req.Kind != domain.MediaKindMovie {
-		return false, fmt.Errorf("%w: request %s", ErrSeriesUnsupported, req.Request)
-	}
 	row, err := s.repo.titleByTmdb(tx, req.Kind, req.Tmdb)
 	if errors.Is(err, api.ErrNotFound) {
 		return false, nil
@@ -167,6 +168,9 @@ func (s *Service) monitorForRequest(tx *gorm.DB, row titleRow, req requestsapi.R
 	if row.RequestID != nil && *row.RequestID == string(req.Request) {
 		return nil
 	}
+	if domain.MediaKind(row.Kind) == domain.MediaKindSeries {
+		return s.monitorSeriesForRequest(tx, row, req)
+	}
 	row.Monitored = true
 	if err := s.repo.saveTitle(tx, row); err != nil {
 		return err
@@ -180,9 +184,16 @@ func (s *Service) monitorForRequest(tx *gorm.DB, row titleRow, req requestsapi.R
 	})
 }
 
-// AddRequestedMovie fetches a requested movie from TMDB, stores it monitored with the request's profile and
-// publishes TitleAdded. Images are cached after the commit; a failed download is retried by the refresh job.
-func (s *Service) AddRequestedMovie(ctx context.Context, req requestsapi.RequestApproved) error {
+// AddRequestedTitle fetches a requested Title from TMDB, stores it with the request's profile and monitoring,
+// and publishes TitleAdded. Images are cached after the commit; a failed download is retried by the refresh job.
+func (s *Service) AddRequestedTitle(ctx context.Context, req requestsapi.RequestApproved) error {
+	if req.Kind == domain.MediaKindSeries {
+		return s.addRequestedSeries(ctx, req)
+	}
+	return s.addRequestedMovie(ctx, req)
+}
+
+func (s *Service) addRequestedMovie(ctx context.Context, req requestsapi.RequestApproved) error {
 	meta, err := metadataSetting.Get(ctx, s.settings)
 	if err != nil {
 		return err
@@ -302,12 +313,16 @@ func applyMovie(row *titleRow, movie TmdbMovie, region string, now time.Time) {
 	row.MetadataRefreshedAt = now
 }
 
-// RunReleaseClock marks movies whose release point has passed as released and publishes one
-// WantedReleased per monitored Title. Unmonitored movies are marked without an event.
+// RunReleaseClock marks movies and episodes whose release point has passed as released and publishes one
+// WantedReleased per monitored Title. Unmonitored ones are marked without an event.
 func (s *Service) RunReleaseClock(ctx context.Context) error {
-	now := s.now().UTC()
+	local := s.now()
+	now := local.UTC()
 	movie, unreleased := domain.MediaKindMovie, false
 	return s.db.Write(ctx, func(tx *gorm.DB) error {
+		if err := s.releaseEpisodes(tx, local); err != nil {
+			return err
+		}
 		rows, err := s.repo.titleRows(tx, TitleQuery{Filter: api.TitleFilter{Kind: &movie, Released: &unreleased}})
 		if err != nil {
 			return err
@@ -331,18 +346,31 @@ func (s *Service) RunReleaseClock(ctx context.Context) error {
 	})
 }
 
-// RefreshMovies refreshes movies TMDB reports as changed and any not fully refreshed for 30 days, and
-// re-fetches stale images for the rest. An invalid key pauses refreshing until TMDB is healthy again.
+// RefreshMovies refreshes movies on the movie schedule. See refreshTitles.
 func (s *Service) RefreshMovies(ctx context.Context) error {
+	return s.refreshTitles(ctx, TitleQuery{Filter: api.TitleFilter{Kind: ptr(domain.MediaKindMovie)}}, movieRefreshInterval)
+}
+
+// RefreshSeries refreshes series with an api.SeriesStatus* on that status' schedule: continuing series
+// daily, ended ones weekly. See refreshTitles.
+func (s *Service) RefreshSeries(ctx context.Context, status string) error {
+	query := TitleQuery{Filter: api.TitleFilter{Kind: ptr(domain.MediaKindSeries)}, SeriesStatus: status}
+	return s.refreshTitles(ctx, query, seriesRefreshInterval(status))
+}
+
+// refreshTitles refreshes the Titles TMDB reports as changed within the run's interval and any not fully
+// refreshed for 30 days, and re-fetches stale images for the rest. An invalid key pauses refreshing until
+// TMDB is healthy again.
+func (s *Service) refreshTitles(ctx context.Context, query TitleQuery, intervalKey settings.Key[settings.Duration]) error {
 	if paused, err := refreshPaused.Get(ctx, s.settings); err != nil || paused {
 		return err
 	}
-	interval, err := movieRefreshInterval.Get(ctx, s.settings)
+	interval, err := intervalKey.Get(ctx, s.settings)
 	if err != nil {
 		return err
 	}
 	now := s.now().UTC()
-	changedIDs, err := s.tmdb.Changes(ctx, domain.MediaKindMovie, now.Add(-min(interval.Std(), changesWindow)))
+	changedIDs, err := s.tmdb.Changes(ctx, *query.Filter.Kind, now.Add(-min(interval.Std(), changesWindow)))
 	if err != nil {
 		return s.pauseOnUnauthorized(ctx, err)
 	}
@@ -351,8 +379,7 @@ func (s *Service) RefreshMovies(ctx context.Context) error {
 		changed[id] = true
 	}
 
-	movie := domain.MediaKindMovie
-	rows, err := s.repo.titleRows(s.db.Read(ctx), TitleQuery{Filter: api.TitleFilter{Kind: &movie}})
+	rows, err := s.repo.titleRows(s.db.Read(ctx), query)
 	if err != nil {
 		return err
 	}
@@ -398,8 +425,8 @@ func (s *Service) RefreshTitle(ctx context.Context, id domain.TitleID) error {
 	if err != nil {
 		return err
 	}
-	if domain.MediaKind(row.Kind) != domain.MediaKindMovie {
-		return fmt.Errorf("%w: title %s", ErrSeriesUnsupported, id)
+	if domain.MediaKind(row.Kind) == domain.MediaKindSeries {
+		return s.refreshSeries(ctx, row)
 	}
 	meta, err := metadataSetting.Get(ctx, s.settings)
 	if err != nil {
@@ -509,7 +536,8 @@ func setImagePath(images *TmdbImages, kind, path string) {
 	}
 }
 
-// UpdateTitle applies an admin's change and publishes ProfileChanged and, for movies, MonitoringChanged.
+// UpdateTitle applies an admin's change and publishes ProfileChanged and MonitoringChanged. Turning a series
+// on or off adds or removes all its monitored episodes.
 func (s *Service) UpdateTitle(ctx context.Context, id domain.TitleID, update TitleUpdate) (TitleView, error) {
 	var view TitleView
 	err := s.db.Write(ctx, func(tx *gorm.DB) error {
@@ -524,9 +552,13 @@ func (s *Service) UpdateTitle(ctx context.Context, id domain.TitleID, update Tit
 		}
 		if update.Monitored != nil && *update.Monitored != row.Monitored {
 			row.Monitored = *update.Monitored
-			if domain.MediaKind(row.Kind) == domain.MediaKindMovie {
-				events = append(events, api.MonitoringChanged{Title: id, Added: []domain.EpisodeID{}, Removed: []domain.EpisodeID{}, Movie: ptr(row.Monitored)})
+			event := api.MonitoringChanged{Title: id, Added: []domain.EpisodeID{}, Removed: []domain.EpisodeID{}, Movie: ptr(row.Monitored)}
+			if domain.MediaKind(row.Kind) == domain.MediaKindSeries {
+				if event, err = s.seriesMonitoringChanged(tx, row); err != nil {
+					return err
+				}
 			}
+			events = append(events, event)
 		}
 		if update.MonitorFutureSeasons != nil {
 			row.MonitorFutureSeasons = *update.MonitorFutureSeasons

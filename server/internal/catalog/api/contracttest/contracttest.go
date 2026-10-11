@@ -44,6 +44,9 @@ const (
 	arrivalYear   = 2016
 	severanceTmdb = 95396
 	severanceYear = 2022
+	pluribusName  = "Pluribus"
+	pluribusTmdb  = 225171
+	pluribusYear  = 2025
 	posterPath    = "/data/images/dune-2021/poster.jpg"
 
 	languageEnglish  domain.Language = "en"
@@ -55,7 +58,9 @@ type world struct {
 	fixture                Fixture
 	duneNew, duneOld       api.Title
 	arrival, severance     api.Title
+	pluribus               api.Title
 	s1e1, s1e2, s2e1, s2e2 api.Episode
+	pluribusPilot          api.Episode
 	globalLangs, override  []api.WantedLanguage
 }
 
@@ -75,12 +80,16 @@ func newWorld() world {
 	w.s2e1 = episode(w.severance.ID, 2, 1, 1, 3, true, true)
 	w.s2e2 = episode(w.severance.ID, 2, 2, 1, 4, true, false)
 
+	w.pluribus = title(domain.MediaKindSeries, pluribusName, pluribusYear, pluribusTmdb)
+	w.pluribus.Released = true
+	w.pluribusPilot = episode(w.pluribus.ID, 1, 1, 1, 1, true, true)
+
 	w.globalLangs = []api.WantedLanguage{{Language: languageEnglish}, {Language: languageSpanish, Forced: true}}
 	w.override = []api.WantedLanguage{{Language: languageJapanese}, {Language: languageEnglish, HearingImpaired: true}}
 
 	w.fixture = Fixture{
-		Titles:            []api.Title{w.severance, w.duneNew, w.arrival, w.duneOld},
-		Episodes:          []api.Episode{w.s2e2, w.s1e2, w.s2e1, w.s1e1},
+		Titles:            []api.Title{w.severance, w.duneNew, w.arrival, w.duneOld, w.pluribus},
+		Episodes:          []api.Episode{w.s2e2, w.s1e2, w.s2e1, w.s1e1, w.pluribusPilot},
 		Images:            []Image{{Title: w.duneNew.ID, Kind: api.ImageKindPoster, Path: posterPath}},
 		GlobalLanguages:   w.globalLangs,
 		LanguageOverrides: map[domain.TitleID][]api.WantedLanguage{w.arrival.ID: w.override},
@@ -135,7 +144,7 @@ func Run(t *testing.T, newReader Factory) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertTitles(t, got, w.arrival, w.duneOld, w.duneNew, w.severance)
+		assertTitles(t, got, w.arrival, w.duneOld, w.duneNew, w.pluribus, w.severance)
 	})
 
 	t.Run("Titles applies every filter field", func(t *testing.T) {
@@ -221,6 +230,17 @@ func Run(t *testing.T, newReader Factory) {
 			t.Error("ok = false")
 		}
 		assertEpisodes(t, got, w.s1e1, w.s2e1)
+	})
+
+	t.Run("Wanted is empty for an unmonitored series", func(t *testing.T) {
+		r := newReader(t, w.fixture)
+		got, ok, err := r.Wanted(ctx, w.pluribus.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok || len(got) != 0 {
+			t.Errorf("Wanted = %v, %v; want empty, false", got, ok)
+		}
 	})
 
 	t.Run("Wanted reports a movie as an empty slice with ok when monitored and released", func(t *testing.T) {

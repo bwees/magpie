@@ -234,6 +234,9 @@ func (f *Fake) Wanted(ctx context.Context, title domain.TitleID) ([]api.Episode,
 	if t.Kind == domain.MediaKindMovie {
 		return []api.Episode{}, t.Monitored && t.Released, nil
 	}
+	if !t.Monitored {
+		return []api.Episode{}, false, nil
+	}
 	wanted := f.episodesOf(title, func(e api.Episode) bool { return e.Monitored && e.Released })
 	return wanted, len(wanted) > 0, nil
 }

@@ -34,7 +34,7 @@ Knows what exists (from TMDB) and what is wanted: Titles, seasons, episodes, the
 | `catalog_scan_review` | `id`, `folderPath`, `parsedTitle`, `parsedYear?`, `tmdbHint?`, `candidates` JSON, `state` (`PENDING` \| `MATCHED` \| `IGNORED`), `createdAt` |
 
 - Columns are snake_case in SQL (`tmdb_id`), like the platform tables.
-- Settings live in the platform settings store, not a table: `catalog.metadata` (`language`, default `en-US`; `releaseRegion`, default `US`), `catalog.schedule.movieRefresh` (`168h`), `catalog.schedule.releaseClock` (`1h`) and `catalog.refresh.paused` (set by a `401`).
+- Settings live in the platform settings store, not a table: `catalog.metadata` (`language`, default `en-US`; `releaseRegion`, default `US`), `catalog.schedule.movieRefresh` (`168h`), `catalog.schedule.continuingSeriesRefresh` (`24h`), `catalog.schedule.endedSeriesRefresh` (`168h`), `catalog.schedule.releaseClock` (`1h`) and `catalog.refresh.paused` (set by a `401`).
 - Cached images are files under `<data dir>/images/<titleId>/`, with resized variants beside them.
 - `EpisodeID` is stable across episode-group changes: it is tied to `tmdbEpisodeId`, not to season/number.
 - `seasonNumber` and `episodeNumber` always reflect the selected episode group, or aired order when none is selected.
@@ -111,8 +111,9 @@ type Reader interface {
     // EpisodeByNumber resolves a season/number in the current numbering. ErrNotFound if no match.
     EpisodeByNumber(ctx context.Context, title domain.TitleID, season, number int) (Episode, error)
     // Wanted returns what is wanted for a Title. Series: its monitored, released episodes ordered by
-    // (Season, Number), with ok = at least one. Movies: an empty slice, with ok = the movie is monitored
-    // and released. Callers decide whether a file is missing. ErrNotFound if the Title is unknown.
+    // (Season, Number), with ok = at least one; an unmonitored series wants nothing. Movies: an empty slice,
+    // with ok = the movie is monitored and released. Callers decide whether a file is missing.
+    // ErrNotFound if the Title is unknown.
     Wanted(ctx context.Context, title domain.TitleID) (episodes []Episode, ok bool, err error)
     // ImagePath returns the local cached image path for kind POSTER | BACKDROP | LOGO,
     // or ErrNotFound if not cached yet.
@@ -280,8 +281,10 @@ Routes under `/api/catalog`. Schemas come from fuego's OpenAPI.
 - `GET /images/{titleId}/{kind}?w=` serve a cached image, resized. `w` rounds up to 92, 154, 185, 342, 500, 780 or 1280; no `w`, or one wider than the image, serves the cached file.
 - `GET /discover?q=` TMDB search, each item marked `inLibrary` (with its `titleId`); an empty `q` returns TMDB trending this week (`trending: true`). TMDB failures answer `503` with problem type `tmdb-unavailable`.
 - `GET /settings`, `PUT /settings` metadata language, release region (admin). The TMDB key is platform connection config (`/api/platform/connections`).
-- `GET /languages`, `PUT /languages` global wanted languages, ordered (admin). Shown in Settings → Subtitles.
-- `PUT /titles/{id}/languages` set or clear a Title's override (admin).
+- `GET /languages` the global wanted languages, ordered, plus `available`: the ISO 639-1 codes and English names a list may hold. `PUT /languages {languages}` replaces the list (admin): at least one language, each a known ISO 639-1 code, no duplicates, else `400 invalid-wanted-languages`. Shown in Settings → Subtitles and the setup wizard.
+- `PUT /titles/{id}/languages {languages}` set a Title's override, or clear it with `null` (admin). Same validation. `TitleResponse.languagesOverride` is `null` when the Title uses the global list.
+- `PATCH /titles/{id}/seasons/{n}` and `PATCH /titles/{id}/episodes/{episodeId}` take `{monitored}` and return the Title. `n` is in the current numbering. Unknown seasons and episodes answer `404`; a movie answers `409 not-a-series`. So do the episode-group routes.
+- `GET /titles/{id}/episode-groups` items: `id`, `name`, `type` (`ORIGINAL_AIR_DATE` \| `ABSOLUTE` \| `DVD` \| `DIGITAL` \| `STORY_ARC` \| `PRODUCTION` \| `TV`), `episodeCount`, `groupCount`. `PUT /titles/{id}/episode-group {groupId}` answers `400 unknown-episode-group` for a group TMDB doesn't list for the series. `TitleResponse.episodeGroupId` is the selected group (`""` = aired order).
 - `GET /scan-review`, `POST /scan-review/{id}/match {tmdbId}`, `POST /scan-review/{id}/ignore` library-scan review queue (admin).
 - `GET /attribution` TMDB logo and notice for the About page.
 
@@ -300,8 +303,10 @@ Adding a Title from the top-bar search goes through Requests (`POST /api/request
 
 **Episode groups** ([ticket 09](../../../.scratch/v1-spec/issues/09-choose-metadata-source.md))
 - Default numbering is TMDB aired order. An admin may select one TMDB episode group per series.
-- Selecting a group recomputes `seasonNumber`/`episodeNumber` for every episode, rebuilds `catalog_seasons` with monitoring carried by episode, and publishes `EpisodeGroupChanged` listing every episode whose numbering moved.
-- Episodes in the group that TMDB doesn't place stay in their aired position under season 0.
+- Numbering matches Jellyfin's ([PR 16052](https://github.com/jellyfin/jellyfin/pull/16052)): an episode's season is its group's `order` and its number is its `order` inside the group + 1.
+- Selecting a group recomputes `seasonNumber`/`episodeNumber` for every episode, rebuilds `catalog_seasons` with monitoring carried by episode (a season is monitored when any of its episodes is), and publishes `EpisodeGroupChanged` listing every episode whose numbering moved.
+- Episodes the group doesn't place go to season 0, in aired order, numbered after the group's own season-0 episodes. Unplaced specials therefore keep their aired numbers unless the group has its own specials.
+- A refresh re-applies the selected group. Existing episodes it moves publish `EpisodeGroupChanged`. If TMDB no longer has the group, the series falls back to aired order and publishes `EpisodeGroupChanged{GroupID: ""}`.
 - The selected group ID is exposed on `Title.EpisodeGroupID`, so Library can tell the user to pick the same group in Jellyfin.
 
 **Monitoring**
@@ -309,22 +314,25 @@ Adding a Title from the top-bar search goes through Requests (`POST /api/request
 - A series has per-season and per-episode flags.
   - Monitoring a season monitors all its episodes.
   - Episodes added later by a refresh inherit their season's flag.
-  - With `monitorFutureSeasons`, new seasons are monitored on arrival.
-- Whole-series requests set every season monitored and `monitorFutureSeasons = true`. Season requests monitor only the chosen seasons.
+  - With `monitorFutureSeasons`, new seasons are monitored on arrival. Season 0 (specials) never is.
+  - The Title's own `monitored` flag gates the series: an unmonitored series wants nothing (`Reader.Wanted`) and its episodes publish no `WantedReleased`. Turning it off or on publishes `MonitoringChanged` with every monitored episode in `Removed` or `Added`.
+  - Season and episode changes publish `MonitoringChanged` with the episodes whose flag changed. An episode change leaves its season's flag alone.
+- Whole-series requests set every season but season 0 monitored and `monitorFutureSeasons = true`, like Sonarr. Season requests monitor only the chosen seasons, by number in the current numbering. A request for a tracked series also turns the Title's flag on.
 
 **Released rule** ([ticket 31](../../../.scratch/v1-spec/issues/31-import-wizard-and-model-gaps.md))
 - A movie is released when today ≥ the earliest TMDB Digital (type 4) or Physical (type 5) release date in `releaseRegion`.
   - If the region has neither, the earliest Digital/Physical date in any region counts.
   - With no Digital/Physical date anywhere, the movie counts as released at its earliest Theatrical date + 90 days. Theatrical means TMDB types 2 (limited) and 3, from the region if it has one, else any region.
   - With no date at all, it stays unreleased. A manual search is still allowed.
-- An episode is released when its `airDate` (a date, read in the server's time zone) is today or earlier.
+- An episode is released when its `airDate` (a date, read in the server's time zone) is today or earlier. Episodes that have aired when a series is added are released at once. Episodes a refresh finds are released by the clock, so already-aired ones publish `WantedReleased` on its next run. A series is released once any episode is.
 - An hourly release-clock job finds monitored items that just crossed their release point, sets `releasedAt`, and publishes one `WantedReleased` per Title.
 - `TitleAdded.Released` tells Acquisition whether to search straight away (only for `Origin` REQUEST or MANUAL).
 
 **Metadata refresh** ([ticket 24](../../../.scratch/v1-spec/issues/24-scheduling.md))
 - Continuing series: daily. Ended series and movies: weekly.
 - Each run first calls TMDB `/changes` for the span since the previous run (its interval, at most TMDB's 14 days) and skips unchanged Titles. Every Title is still fully refreshed at least once every 30 days. Unchanged Titles only re-fetch stale images.
-- New episodes produce `EpisodesAnnounced`. Changed air dates feed the release clock.
+- Continuing and ended series run as two jobs, each checking `/changes` over its own interval.
+- New episodes produce `EpisodesAnnounced`. Changed air dates feed the release clock. Episodes TMDB drops stay in Catalog.
 
 **Image cache** ([ticket 09](../../../.scratch/v1-spec/issues/09-choose-metadata-source.md))
 - Poster, backdrop and logo are downloaded when a Title is added, and served resized from `/api/catalog/images`.

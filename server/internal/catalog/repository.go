@@ -190,6 +190,9 @@ func (r *Repository) Wanted(ctx context.Context, title domain.TitleID) ([]api.Ep
 	if domain.MediaKind(row.Kind) == domain.MediaKindMovie {
 		return []api.Episode{}, row.Monitored && row.Released, nil
 	}
+	if !row.Monitored {
+		return []api.Episode{}, false, nil
+	}
 	rows, err := r.episodeRows(conn.Where("title_id = ? AND monitored AND released", title))
 	if err != nil {
 		return nil, false, err
@@ -211,14 +214,23 @@ func (r *Repository) WantedLanguages(ctx context.Context, title domain.TitleID) 
 	if err != nil {
 		return nil, err
 	}
-	if row.LanguagesOverride != nil {
-		var override []api.WantedLanguage
-		if err := json.Unmarshal([]byte(*row.LanguagesOverride), &override); err != nil {
-			return nil, fmt.Errorf("title %s languages override: %w", title, err)
-		}
-		return override, nil
+	override, err := row.languagesOverride()
+	if err != nil || override != nil {
+		return override, err
 	}
 	return r.globalLanguages(conn)
+}
+
+// languagesOverride is nil when the Title uses the global list.
+func (row titleRow) languagesOverride() ([]api.WantedLanguage, error) {
+	if row.LanguagesOverride == nil {
+		return nil, nil
+	}
+	override := []api.WantedLanguage{}
+	if err := json.Unmarshal([]byte(*row.LanguagesOverride), &override); err != nil {
+		return nil, fmt.Errorf("title %s languages override: %w", row.ID, err)
+	}
+	return override, nil
 }
 
 func (r *Repository) GlobalLanguages(ctx context.Context) ([]api.WantedLanguage, error) {
@@ -251,6 +263,8 @@ type TitleQuery struct {
 	// Search matches the name, original name or an alias, case-insensitively.
 	Search string
 	Sort   TitleSort
+	// SeriesStatus keeps series with this api.SeriesStatus*; "" keeps every Title.
+	SeriesStatus string
 }
 
 func (r *Repository) title(conn *gorm.DB, id domain.TitleID) (titleRow, error) {
@@ -279,6 +293,9 @@ func (r *Repository) titleRows(conn *gorm.DB, q TitleQuery) ([]titleRow, error) 
 	if len(q.Filter.IDs) > 0 {
 		query = query.Where("id IN ?", q.Filter.IDs)
 	}
+	if q.SeriesStatus != "" {
+		query = query.Where("series_status = ?", q.SeriesStatus)
+	}
 	if search := strings.TrimSpace(q.Search); search != "" {
 		pattern := likeWildcard + escapeLike(search) + likeWildcard
 		query = query.Where(
@@ -301,10 +318,69 @@ func (r *Repository) episodeRows(query *gorm.DB) ([]episodeRow, error) {
 	return rows, err
 }
 
+func (r *Repository) titleEpisodes(conn *gorm.DB, title domain.TitleID) ([]episodeRow, error) {
+	return r.episodeRows(conn.Where("title_id = ?", title))
+}
+
+func (r *Repository) episode(conn *gorm.DB, title domain.TitleID, id domain.EpisodeID) (episodeRow, error) {
+	var row episodeRow
+	err := first(conn.Where("title_id = ? AND id = ?", title, id), &row)
+	return row, err
+}
+
+// airedUnreleased lists episodes with an air date that the release clock hasn't released yet.
+func (r *Repository) airedUnreleased(conn *gorm.DB) ([]episodeRow, error) {
+	var rows []episodeRow
+	err := conn.Where("NOT released AND air_date IS NOT NULL").Order("title_id, " + orderEpisodes).Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) saveEpisodes(tx *gorm.DB, rows []episodeRow) error {
+	for _, row := range rows {
+		if err := tx.Save(&row).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Repository) seasonRows(conn *gorm.DB, title domain.TitleID) ([]seasonRow, error) {
 	var rows []seasonRow
 	err := conn.Where("title_id = ?", title).Order("number").Find(&rows).Error
 	return rows, err
+}
+
+func (r *Repository) season(conn *gorm.DB, title domain.TitleID, number int) (seasonRow, error) {
+	var row seasonRow
+	err := first(conn.Where("title_id = ? AND number = ?", title, number), &row)
+	return row, err
+}
+
+func (r *Repository) saveSeason(tx *gorm.DB, row seasonRow) error {
+	return tx.Save(&row).Error
+}
+
+// replaceSeasons swaps a Title's season rows for rows.
+func (r *Repository) replaceSeasons(tx *gorm.DB, title domain.TitleID, rows []seasonRow) error {
+	if err := tx.Where("title_id = ?", title).Delete(&seasonRow{}).Error; err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return tx.Create(&rows).Error
+}
+
+// replaceGlobalLanguages stores langs as the global list, in order.
+func (r *Repository) replaceGlobalLanguages(tx *gorm.DB, langs []api.WantedLanguage) error {
+	if err := tx.Where("1 = 1").Delete(&languageRow{}).Error; err != nil {
+		return err
+	}
+	rows := make([]languageRow, 0, len(langs))
+	for position, lang := range langs {
+		rows = append(rows, languageRow{Position: position, Language: string(lang.Language), Forced: lang.Forced, HearingImpaired: lang.HearingImpaired})
+	}
+	return tx.Create(&rows).Error
 }
 
 func (r *Repository) imageRows(conn *gorm.DB, title domain.TitleID) ([]imageRow, error) {

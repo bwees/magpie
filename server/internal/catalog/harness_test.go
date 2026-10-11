@@ -138,6 +138,7 @@ func newHarness(t *testing.T) *harness {
 		catalog.AddTitleQueue(h.service, h.tasks.later),
 		catalog.NewRefreshTitleQueue(h.service),
 		catalog.NewMovieRefreshQueue(h.service),
+		catalog.NewSeriesRefreshQueue(h.service),
 		catalog.NewReleaseClockQueue(h.service),
 	} {
 		h.queues[q.Config().Name] = q

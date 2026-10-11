@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"time"
 
+	"magpie/internal/catalog/api"
 	"magpie/internal/platform/owner"
 	"magpie/internal/platform/settings"
 )
@@ -14,8 +15,10 @@ const (
 	DefaultMetadataLanguage = "en-US"
 	DefaultReleaseRegion    = "US"
 
-	defaultMovieRefresh = 7 * 24 * time.Hour
-	defaultReleaseClock = time.Hour
+	defaultMovieRefresh            = 7 * 24 * time.Hour
+	defaultContinuingSeriesRefresh = 24 * time.Hour
+	defaultEndedSeriesRefresh      = 7 * 24 * time.Hour
+	defaultReleaseClock            = time.Hour
 )
 
 var ErrInvalidSettings = errors.New("catalog: invalid settings")
@@ -48,8 +51,18 @@ var (
 		Language:      DefaultMetadataLanguage,
 		ReleaseRegion: DefaultReleaseRegion,
 	})
-	movieRefreshInterval = settings.NewKey(owner.Catalog, "schedule.movieRefresh", settings.Duration(defaultMovieRefresh))
-	releaseClockInterval = settings.NewKey(owner.Catalog, "schedule.releaseClock", settings.Duration(defaultReleaseClock))
+	movieRefreshInterval            = settings.NewKey(owner.Catalog, "schedule.movieRefresh", settings.Duration(defaultMovieRefresh))
+	continuingSeriesRefreshInterval = settings.NewKey(owner.Catalog, "schedule.continuingSeriesRefresh", settings.Duration(defaultContinuingSeriesRefresh))
+	endedSeriesRefreshInterval      = settings.NewKey(owner.Catalog, "schedule.endedSeriesRefresh", settings.Duration(defaultEndedSeriesRefresh))
+	releaseClockInterval            = settings.NewKey(owner.Catalog, "schedule.releaseClock", settings.Duration(defaultReleaseClock))
 	// refreshPaused is set when TMDB rejects the key and cleared when the TMDB connection is healthy again.
 	refreshPaused = settings.NewKey(owner.Catalog, "refresh.paused", false)
 )
+
+// seriesRefreshInterval is how often series with an api.SeriesStatus* refresh.
+func seriesRefreshInterval(status string) settings.Key[settings.Duration] {
+	if status == api.SeriesStatusEnded {
+		return endedSeriesRefreshInterval
+	}
+	return continuingSeriesRefreshInterval
+}

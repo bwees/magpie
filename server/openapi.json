@@ -785,6 +785,34 @@
 				],
 				"type": "object"
 			},
+			"EpisodeGroupResponse": {
+				"description": "EpisodeGroupResponse schema",
+				"properties": {
+					"episodeCount": {
+						"type": "integer"
+					},
+					"groupCount": {
+						"type": "integer"
+					},
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodeCount",
+					"groupCount",
+					"id",
+					"name",
+					"type"
+				],
+				"type": "object"
+			},
 			"EpisodeMove": {
 				"properties": {
 					"episode": {
@@ -1732,6 +1760,21 @@
 					"job",
 					"kind",
 					"mediaFile"
+				],
+				"type": "object"
+			},
+			"LanguageOptionResponse": {
+				"properties": {
+					"code": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"code",
+					"name"
 				],
 				"type": "object"
 			},
@@ -3006,6 +3049,18 @@
 				],
 				"type": "object"
 			},
+			"SelectEpisodeGroupRequest": {
+				"description": "SelectEpisodeGroupRequest schema",
+				"properties": {
+					"groupId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"groupId"
+				],
+				"type": "object"
+			},
 			"ServiceHealthChanged": {
 				"description": "ServiceHealthChanged schema",
 				"properties": {
@@ -3434,6 +3489,9 @@
 						"format": "date-time",
 						"type": "string"
 					},
+					"episodeGroupId": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -3446,6 +3504,15 @@
 					},
 					"kind": {
 						"type": "string"
+					},
+					"languagesOverride": {
+						"items": {
+							"$ref": "#/components/schemas/WantedLanguageEntry"
+						},
+						"type": [
+							"array",
+							"null"
+						]
 					},
 					"monitorFutureSeasons": {
 						"type": "boolean"
@@ -3512,10 +3579,12 @@
 				},
 				"required": [
 					"addedAt",
+					"episodeGroupId",
 					"id",
 					"images",
 					"imdbId",
 					"kind",
+					"languagesOverride",
 					"monitorFutureSeasons",
 					"monitored",
 					"name",
@@ -3870,6 +3939,36 @@
 				],
 				"type": "object"
 			},
+			"UpdateMonitoredRequest": {
+				"description": "UpdateMonitoredRequest schema",
+				"properties": {
+					"monitored": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"monitored"
+				],
+				"type": "object"
+			},
+			"UpdateTitleLanguagesRequest": {
+				"description": "UpdateTitleLanguagesRequest schema",
+				"properties": {
+					"languages": {
+						"items": {
+							"$ref": "#/components/schemas/WantedLanguageEntry"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					}
+				},
+				"required": [
+					"languages"
+				],
+				"type": "object"
+			},
 			"UpdateTitleRequest": {
 				"description": "UpdateTitleRequest schema",
 				"properties": {
@@ -3923,6 +4022,21 @@
 						"type": "boolean"
 					}
 				},
+				"type": "object"
+			},
+			"UpdateWantedLanguagesRequest": {
+				"description": "UpdateWantedLanguagesRequest schema",
+				"properties": {
+					"languages": {
+						"items": {
+							"$ref": "#/components/schemas/WantedLanguageEntry"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"languages"
+				],
 				"type": "object"
 			},
 			"UserCreated": {
@@ -4010,6 +4124,47 @@
 					"forced",
 					"hearingImpaired",
 					"language"
+				],
+				"type": "object"
+			},
+			"WantedLanguageEntry": {
+				"properties": {
+					"forced": {
+						"type": "boolean"
+					},
+					"hearingImpaired": {
+						"type": "boolean"
+					},
+					"language": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"forced",
+					"hearingImpaired",
+					"language"
+				],
+				"type": "object"
+			},
+			"WantedLanguagesResponse": {
+				"description": "WantedLanguagesResponse schema",
+				"properties": {
+					"available": {
+						"items": {
+							"$ref": "#/components/schemas/LanguageOptionResponse"
+						},
+						"type": "array"
+					},
+					"languages": {
+						"items": {
+							"$ref": "#/components/schemas/WantedLanguageEntry"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"available",
+					"languages"
 				],
 				"type": "object"
 			},
@@ -6144,6 +6299,139 @@
 				]
 			}
 		},
+		"/api/catalog/languages": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getWantedLanguages",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WantedLanguagesResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Get the global wanted languages and the languages a list may hold",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateWantedLanguages",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateWantedLanguagesRequest"
+							}
+						}
+					},
+					"description": "Request body for catalog.UpdateWantedLanguagesRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WantedLanguagesResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Replace the global wanted languages, most wanted first (admin)",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
 		"/api/catalog/settings": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -6610,6 +6898,335 @@
 				]
 			}
 		},
+		"/api/catalog/titles/{id}/episode-group": {
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).selectEpisodeGroup`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "selectEpisodeGroup",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SelectEpisodeGroupRequest"
+							}
+						}
+					},
+					"description": "Request body for catalog.SelectEpisodeGroupRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TitleResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Number a series by a TMDB episode group, or by aired order for an empty ID (admin)",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/titles/{id}/episode-groups": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).listEpisodeGroups`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listEpisodeGroups",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/EpisodeGroupResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "List TMDB's episode groups for a series",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/titles/{id}/episodes/{episodeId}": {
+			"patch": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateEpisode`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateEpisode",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Episode ID",
+						"in": "path",
+						"name": "episodeId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateMonitoredRequest"
+							}
+						}
+					},
+					"description": "Request body for catalog.UpdateMonitoredRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TitleResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Monitor or unmonitor one episode (admin)",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/titles/{id}/languages": {
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateTitleLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateTitleLanguages",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateTitleLanguagesRequest"
+							}
+						}
+					},
+					"description": "Request body for catalog.UpdateTitleLanguagesRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TitleResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Set or clear a Title's wanted-languages override (admin)",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
 		"/api/catalog/titles/{id}/refresh": {
 			"post": {
 				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).refreshTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -6675,6 +7292,97 @@
 					}
 				},
 				"summary": "Refresh a Title's metadata and images from TMDB now (admin)",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/titles/{id}/seasons/{n}": {
+			"patch": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateSeason`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateSeason",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Season number in the current numbering",
+						"in": "path",
+						"name": "n",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateMonitoredRequest"
+							}
+						}
+					},
+					"description": "Request body for catalog.UpdateMonitoredRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TitleResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Monitor or unmonitor a season and all its episodes (admin)",
 				"tags": [
 					"api",
 					"catalog"

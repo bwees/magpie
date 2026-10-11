@@ -205,17 +205,6 @@ func TestTmdbOutageThatRecoversAddsTheTitle(t *testing.T) {
 	}
 }
 
-func TestSeriesRequestsFailTheHandlerUntilSeriesAreSupported(t *testing.T) {
-	h := newHarness(t)
-	req := approved(profileP)
-	req.Kind = domain.MediaKindSeries
-
-	err := h.handle(catalog.NewRequestApprovedHandler(h.service, h.tasks), req)
-	if !errors.Is(err, catalog.ErrSeriesUnsupported) {
-		t.Errorf("err = %v, want ErrSeriesUnsupported so the event parks for a later retry", err)
-	}
-}
-
 // Seed catalog #7.
 func TestReleaseClockReleasesAMovieWhoseOnlyDigitalDateIsInAnotherRegion(t *testing.T) {
 	h := newHarness(t)
