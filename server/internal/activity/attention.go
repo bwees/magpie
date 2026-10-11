@@ -52,6 +52,9 @@ func init() {
 	onAttention(func(e requestsapi.RequestDeclined) []attentionChange {
 		return clearItem(api.AttentionRequestPending, string(e.Request))
 	})
+	onAttention(func(e requestsapi.RequestCancelled) []attentionChange {
+		return clearItem(api.AttentionRequestPending, string(e.Request))
+	})
 	onAttention(func(e requestsapi.IssueReported) []attentionChange {
 		return []attentionChange{{
 			Kind: api.AttentionIssueOpen, Ref: string(e.Issue), Open: true, Title: &e.Title,

@@ -416,6 +416,18 @@ func TestRequestAttentionOpensAndClearsOnce(t *testing.T) {
 	}
 }
 
+func TestCancelledRequestClearsItsAttentionItem(t *testing.T) {
+	h := newHarness(t)
+	request := domain.NewID[domain.RequestID]()
+
+	h.deliver(requestsapi.RequestCreated{Request: request, Kind: domain.MediaKindSeries})
+	h.deliver(requestsapi.RequestCancelled{Request: request})
+
+	if items := h.attention(); len(items) != 0 {
+		t.Errorf("open items = %+v, want none after the cancel", items)
+	}
+}
+
 // Seed 19.
 func TestAgentOfflineOpensOneItemUntilOnline(t *testing.T) {
 	h := newHarness(t)

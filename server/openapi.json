@@ -2935,6 +2935,22 @@
 				],
 				"type": "object"
 			},
+			"RequestCancelled": {
+				"description": "RequestCancelled schema",
+				"properties": {
+					"request": {
+						"type": "string"
+					},
+					"user": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"request",
+					"user"
+				],
+				"type": "object"
+			},
 			"RequestCreated": {
 				"description": "RequestCreated schema",
 				"properties": {

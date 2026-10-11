@@ -909,6 +909,10 @@ export type RequestAvailable = {
     title: string;
     user: string;
 };
+export type RequestCancelled = {
+    request: string;
+    user: string;
+};
 export type RequestCreated = {
     kind: string;
     request: string;

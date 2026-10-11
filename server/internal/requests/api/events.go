@@ -6,6 +6,7 @@ const (
 	TypeRequestCreated       = "requests.RequestCreated"
 	TypeRequestApproved      = "requests.RequestApproved"
 	TypeRequestDeclined      = "requests.RequestDeclined"
+	TypeRequestCancelled     = "requests.RequestCancelled"
 	TypeRequestAvailable     = "requests.RequestAvailable"
 	TypeIssueReported        = "requests.IssueReported"
 	TypeIssueCommented       = "requests.IssueCommented"
@@ -64,6 +65,16 @@ type RequestDeclined struct {
 func (RequestDeclined) Type() string          { return TypeRequestDeclined }
 func (e RequestDeclined) AggregateID() string { return string(e.Request) }
 func (RequestDeclined) Durable() bool         { return true }
+
+// RequestCancelled is durable: the requester withdrew their pending request, and its row is gone.
+type RequestCancelled struct {
+	Request domain.RequestID `json:"request"`
+	User    domain.UserID    `json:"user"`
+}
+
+func (RequestCancelled) Type() string          { return TypeRequestCancelled }
+func (e RequestCancelled) AggregateID() string { return string(e.Request) }
+func (RequestCancelled) Durable() bool         { return true }
 
 // RequestAvailable is durable: every item in scope is confirmed in Jellyfin. Published once per request.
 type RequestAvailable struct {
@@ -130,6 +141,7 @@ func Messages() []domain.Message {
 		RequestCreated{},
 		RequestApproved{},
 		RequestDeclined{},
+		RequestCancelled{},
 		RequestAvailable{},
 		IssueReported{},
 		IssueCommented{},

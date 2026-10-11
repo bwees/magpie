@@ -146,6 +146,7 @@ type Event struct {
 | `requests.RequestCreated` | Requests | request, user, kind, tmdb, scope (pending only) | Activity → admin notification + attention item |
 | `requests.RequestApproved` | Requests | request, user, tmdb, kind, scope, seasons, profile, auto | Catalog → add title / monitor seasons; Activity → requester notification, clear attention |
 | `requests.RequestDeclined` | Requests | request, user, reason | Activity → notify, clear attention |
+| `requests.RequestCancelled` | Requests | request, user (pending request withdrawn by its requester) | Activity → clear attention |
 | `requests.RequestAvailable` | Requests | request, user, title | Activity → notify |
 | `requests.IssueReported` | Requests | issue, title, episode?, kind, user | Activity → notify admins, attention item |
 | `requests.IssueCommented` | Requests | issue, author, reporter | Activity → notify reporter/admins |

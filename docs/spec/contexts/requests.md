@@ -2,8 +2,8 @@
 
 Handles users asking for Titles, admin approval, tracking each request until Jellyfin has it, and user-reported Issues.
 
-- **Depends on (Readers):** `catalog.Reader`, `identity.Reader`.
-- **Publishes:** `RequestCreated`, `RequestApproved`, `RequestDeclined`, `RequestAvailable`, `IssueReported`, `IssueCommented`, `IssueActionRequested`, `IssueResolved`.
+- **Depends on (Readers):** `catalog.Reader`, `identity.Reader`, `acquisition.Reader` (only `DefaultProfile`, for new requests).
+- **Publishes:** `RequestCreated`, `RequestApproved`, `RequestDeclined`, `RequestCancelled`, `RequestAvailable`, `IssueReported`, `IssueCommented`, `IssueActionRequested`, `IssueResolved`.
 - **Consumes:** `catalog.TitleAdded`, `catalog.MonitoringChanged`, `catalog.TitleAddFailed`, `catalog.WantedReleased`, `catalog.EpisodesAnnounced`, `catalog.TitleRemoved`, `library.ItemAvailable`, `library.FileImported`, `subtitles.SubtitleAdded`.
 - **Read by:** the platform live gateway (role filter) and Activity.
 
@@ -107,6 +107,13 @@ type RequestDeclined struct {
     Request domain.RequestID
     User    domain.UserID
     Reason  string
+}
+
+// RequestCancelled: the requester withdrew their pending request, and its row is gone.
+// Activity clears the request's attention item.
+type RequestCancelled struct {
+    Request domain.RequestID
+    User    domain.UserID
 }
 
 // RequestAvailable: every item in scope is confirmed in Jellyfin. Published once per request.

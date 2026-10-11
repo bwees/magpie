@@ -236,6 +236,9 @@ func init() {
 	on(func(e requestsapi.RequestDeclined) description {
 		return description{Text: "Request declined", Detail: e.Reason}
 	})
+	on(func(requestsapi.RequestCancelled) description {
+		return description{Text: "Request cancelled"}
+	})
 	on(func(e requestsapi.RequestAvailable) description {
 		return description{subject: titled(e.Title), Text: "Request available"}
 	})
