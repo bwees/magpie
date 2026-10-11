@@ -1,6 +1,72 @@
 {
 	"components": {
 		"schemas": {
+			"AgentCapabilityResponse": {
+				"properties": {
+					"capability": {
+						"type": "string"
+					},
+					"error": {
+						"type": "string"
+					},
+					"ok": {
+						"type": "boolean"
+					},
+					"testedAt": {
+						"format": "date-time",
+						"type": "string"
+					}
+				},
+				"required": [
+					"capability",
+					"error",
+					"ok",
+					"testedAt"
+				],
+				"type": "object"
+			},
+			"AgentDeviceResponse": {
+				"properties": {
+					"capabilities": {
+						"items": {
+							"$ref": "#/components/schemas/AgentCapabilityResponse"
+						},
+						"type": "array"
+					},
+					"driver": {
+						"type": "string"
+					},
+					"healthy": {
+						"type": "boolean"
+					},
+					"id": {
+						"type": "string"
+					},
+					"maxSessions": {
+						"type": "integer"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slots": {
+						"type": "integer"
+					},
+					"vendor": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"capabilities",
+					"driver",
+					"healthy",
+					"id",
+					"maxSessions",
+					"name",
+					"slots",
+					"vendor"
+				],
+				"type": "object"
+			},
 			"AgentOffline": {
 				"description": "AgentOffline schema",
 				"properties": {
@@ -31,6 +97,94 @@
 				"required": [
 					"agent",
 					"hostname"
+				],
+				"type": "object"
+			},
+			"AgentResponse": {
+				"description": "AgentResponse schema",
+				"properties": {
+					"devices": {
+						"items": {
+							"$ref": "#/components/schemas/AgentDeviceResponse"
+						},
+						"type": "array"
+					},
+					"draining": {
+						"type": "boolean"
+					},
+					"ffmpegVersion": {
+						"type": "string"
+					},
+					"hostname": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"lastSeenAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"lifetimeSavedBytes": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"mode": {
+						"type": "string"
+					},
+					"online": {
+						"type": "boolean"
+					},
+					"scratchFreeBytes": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"slotsOverride": {
+						"nullable": true,
+						"type": "integer"
+					},
+					"throughputBps": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"version": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"devices",
+					"draining",
+					"ffmpegVersion",
+					"hostname",
+					"id",
+					"lastSeenAt",
+					"lifetimeSavedBytes",
+					"mode",
+					"online",
+					"scratchFreeBytes",
+					"slotsOverride",
+					"throughputBps",
+					"version"
+				],
+				"type": "object"
+			},
+			"AgentSecretResponse": {
+				"description": "AgentSecretResponse schema",
+				"properties": {
+					"configured": {
+						"type": "boolean"
+					},
+					"masked": {
+						"type": "string"
+					},
+					"secret": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"configured",
+					"masked",
+					"secret"
 				],
 				"type": "object"
 			},
@@ -2157,6 +2311,18 @@
 				],
 				"type": "object"
 			},
+			"RetestResponse": {
+				"description": "RetestResponse schema",
+				"properties": {
+					"agent": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent"
+				],
+				"type": "object"
+			},
 			"RetryParkedEventRequest": {
 				"description": "RetryParkedEventRequest schema",
 				"properties": {
@@ -2880,6 +3046,22 @@
 				],
 				"type": "object"
 			},
+			"TranscodeSettingsResponse": {
+				"description": "TranscodeSettingsResponse schema",
+				"properties": {
+					"defaultSlotsPerGpu": {
+						"type": "integer"
+					},
+					"transferCap": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"defaultSlotsPerGpu",
+					"transferCap"
+				],
+				"type": "object"
+			},
 			"TranscodeSkipped": {
 				"description": "TranscodeSkipped schema",
 				"properties": {
@@ -3016,6 +3198,31 @@
 				],
 				"type": "object"
 			},
+			"UpdateAgentRequest": {
+				"description": "UpdateAgentRequest schema",
+				"properties": {
+					"draining": {
+						"type": "boolean"
+					},
+					"mode": {
+						"enum": [
+							"DOWNLOAD_FIRST",
+							"DIRECT_READ"
+						],
+						"type": "string"
+					},
+					"slotsOverride": {
+						"nullable": true,
+						"type": "integer"
+					}
+				},
+				"required": [
+					"draining",
+					"mode",
+					"slotsOverride"
+				],
+				"type": "object"
+			},
 			"UpdateCatalogSettingsRequest": {
 				"description": "UpdateCatalogSettingsRequest schema",
 				"properties": {
@@ -3093,6 +3300,22 @@
 						"type": "string"
 					}
 				},
+				"type": "object"
+			},
+			"UpdateTranscodeSettingsRequest": {
+				"description": "UpdateTranscodeSettingsRequest schema",
+				"properties": {
+					"defaultSlotsPerGpu": {
+						"type": "integer"
+					},
+					"transferCap": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"defaultSlotsPerGpu",
+					"transferCap"
+				],
 				"type": "object"
 			},
 			"UserCreated": {
@@ -5571,6 +5794,419 @@
 					"platform"
 				]
 			}
+		},
+		"/api/transcode/agents": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).listAgents`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listAgents",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/AgentResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Agents with devices and tested capabilities, by hostname (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/agents/{id}": {
+			"patch": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).updateAgent`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateAgent",
+				"parameters": [
+					{
+						"description": "Agent ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateAgentRequest"
+							}
+						}
+					},
+					"description": "Request body for transcode.UpdateAgentRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AgentResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Set an agent's slots override, transfer mode and draining (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/agents/{id}/retest": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).retestAgent`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "retestAgent",
+				"parameters": [
+					{
+						"description": "Agent ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RetestResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Ask a connected agent to re-run its capability tests (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/secret": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).getSecret`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getAgentSecret",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AgentSecretResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "The agent shared secret from MAGPIE_AGENT_SECRET, masked and for copying (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/settings": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).getSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getTranscodeSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TranscodeSettingsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Transcode settings (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateTranscodeSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateTranscodeSettingsRequest"
+							}
+						}
+					},
+					"description": "Request body for transcode.UpdateTranscodeSettingsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TranscodeSettingsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Update transcode settings (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
 		}
 	},
 	"tags": [
@@ -5591,6 +6227,9 @@
 		},
 		{
 			"name": "platform"
+		},
+		{
+			"name": "transcode"
 		}
 	]
 }

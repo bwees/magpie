@@ -321,6 +321,58 @@ export type RetryParkedEventRequest = {
     eventId: string;
     handler: string;
 };
+export type AgentCapabilityResponse = {
+    capability: string;
+    error: string;
+    ok: boolean;
+    testedAt: string;
+};
+export type AgentDeviceResponse = {
+    capabilities: AgentCapabilityResponse[];
+    driver: string;
+    healthy: boolean;
+    id: string;
+    maxSessions: number;
+    name: string;
+    slots: number;
+    vendor: string;
+};
+export type AgentResponse = {
+    devices: AgentDeviceResponse[];
+    draining: boolean;
+    ffmpegVersion: string;
+    hostname: string;
+    id: string;
+    lastSeenAt: string;
+    lifetimeSavedBytes: number;
+    mode: string;
+    online: boolean;
+    scratchFreeBytes: number;
+    slotsOverride: number | null;
+    throughputBps: number;
+    version: string;
+};
+export type UpdateAgentRequest = {
+    draining: boolean;
+    mode: "DOWNLOAD_FIRST" | "DIRECT_READ";
+    slotsOverride: number | null;
+};
+export type RetestResponse = {
+    agent: string;
+};
+export type AgentSecretResponse = {
+    configured: boolean;
+    masked: string;
+    secret: string;
+};
+export type TranscodeSettingsResponse = {
+    defaultSlotsPerGpu: number;
+    transferCap: number;
+};
+export type UpdateTranscodeSettingsRequest = {
+    defaultSlotsPerGpu: number;
+    transferCap: number;
+};
 export type AgentOffline = {
     agent: string;
     since: string;
@@ -1541,6 +1593,143 @@ export function retryParkedEvent(retryParkedEventRequest: RetryParkedEventReques
         ...opts,
         method: "POST",
         body: retryParkedEventRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Agents with devices and tested capabilities, by hostname (admin)
+ */
+export function listAgents({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/transcode/agents", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Set an agent's slots override, transfer mode and draining (admin)
+ */
+export function updateAgent(id: string, updateAgentRequest: UpdateAgentRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/transcode/agents/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: updateAgentRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Ask a connected agent to re-run its capability tests (admin)
+ */
+export function retestAgent(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: RetestResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/transcode/agents/${encodeURIComponent(id)}/retest`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * The agent shared secret from MAGPIE_AGENT_SECRET, masked and for copying (admin)
+ */
+export function getAgentSecret({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentSecretResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/transcode/secret", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Transcode settings (admin)
+ */
+export function getTranscodeSettings({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TranscodeSettingsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/transcode/settings", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Update transcode settings (admin)
+ */
+export function updateTranscodeSettings(updateTranscodeSettingsRequest: UpdateTranscodeSettingsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TranscodeSettingsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/transcode/settings", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: updateTranscodeSettingsRequest,
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept
         })
