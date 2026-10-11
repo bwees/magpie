@@ -3,6 +3,7 @@ package acquisition
 import (
 	"context"
 
+	"magpie/internal/acquisition/api"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/jobs"
 
@@ -13,6 +14,7 @@ import (
 var qualityOptions = fx.Options(
 	fx.Provide(
 		NewQualityRepository,
+		fx.Annotate(NewReader, fx.As(new(api.Reader))),
 		NewQualityService,
 		NewTrashSyncService,
 		httpserver.AsController(NewQualityController),

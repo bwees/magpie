@@ -28,10 +28,11 @@ type FileScore struct {
 
 // Fixture is the stored state a Reader starts with.
 type Fixture struct {
-	Profiles   []api.Profile
-	Downloads  []api.Download
-	Blocklist  []api.BlocklistEntry
-	FileScores []FileScore
+	Profiles       []api.Profile
+	DefaultProfile domain.ProfileID
+	Downloads      []api.Download
+	Blocklist      []api.BlocklistEntry
+	FileScores     []FileScore
 }
 
 // Factory returns a Reader holding exactly the fixture's state.
@@ -66,15 +67,32 @@ func Run(t *testing.T, newReader Factory) {
 	runDownloadsBlocklistAndCutoff(t, newReader)
 }
 
-// RunProfiles checks Profile and Profiles. The fixture holds profiles only, so a repository that
-// stores nothing else yet can run this part.
+// RunProfiles checks Profile, Profiles and DefaultProfile. The fixture holds profiles only, so a
+// repository that stores nothing else yet can run this part.
 func RunProfiles(t *testing.T, newReader Factory) {
 	ctx := context.Background()
 
 	full := detailedProfile("1080p")
 	p2160 := profile("2160p", true)
 	locked := profile("archive", false)
-	fixture := Fixture{Profiles: []api.Profile{p2160, locked, full}}
+	fixture := Fixture{Profiles: []api.Profile{p2160, locked, full}, DefaultProfile: full.ID}
+
+	t.Run("DefaultProfile returns the default for new requests, empty when unset", func(t *testing.T) {
+		got, err := newReader(t, fixture).DefaultProfile(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != full.ID {
+			t.Errorf("DefaultProfile = %q, want %q", got, full.ID)
+		}
+		unset, err := newReader(t, Fixture{Profiles: fixture.Profiles}).DefaultProfile(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if unset != "" {
+			t.Errorf("DefaultProfile without one set = %q, want empty", unset)
+		}
+	})
 
 	t.Run("Profile returns items, groups, sizes and scores, and ErrNotFound for an unknown ID", func(t *testing.T) {
 		r := newReader(t, fixture)

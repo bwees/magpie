@@ -49,15 +49,17 @@ Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md
 ```go
 package api // internal/acquisition/api
 
-// Reader is read-only and backed by Acquisition's repository. No other context depends on it
-// (see the context map); it exists for Acquisition's own HTTP layer. The UI's profile pickers call
-// GET /api/acquisition/profiles directly.
+// Reader is read-only and backed by Acquisition's repository. Requests is the only other context that
+// depends on it, for the default profile of new requests (see the context map). The UI's profile pickers
+// call GET /api/acquisition/profiles directly.
 type Reader interface {
     // Profile returns a quality profile with items, groups, sizes and format scores.
     // Returns ErrNotFound for unknown IDs.
     Profile(ctx context.Context, id domain.ProfileID) (Profile, error)
     // Profiles lists all profiles, ordered by name.
     Profiles(ctx context.Context) ([]ProfileSummary, error)
+    // DefaultProfile returns the default profile for new requests ("" before the first start seeds it).
+    DefaultProfile(ctx context.Context) (domain.ProfileID, error)
     // ActiveDownloads lists downloads not yet removed from qBittorrent, newest first.
     ActiveDownloads(ctx context.Context) ([]Download, error)
     // DownloadsForTitle lists every download for a title, including removed ones, newest first.

@@ -14,6 +14,7 @@ import (
 const (
 	ReaderProfile           scripted.Method = "acquisition.Reader.Profile"
 	ReaderProfiles          scripted.Method = "acquisition.Reader.Profiles"
+	ReaderDefaultProfile    scripted.Method = "acquisition.Reader.DefaultProfile"
 	ReaderActiveDownloads   scripted.Method = "acquisition.Reader.ActiveDownloads"
 	ReaderDownloadsForTitle scripted.Method = "acquisition.Reader.DownloadsForTitle"
 	ReaderBlocklist         scripted.Method = "acquisition.Reader.Blocklist"
@@ -24,21 +25,23 @@ const (
 type Fake struct {
 	scripted.Script
 
-	mu         sync.RWMutex
-	profiles   map[domain.ProfileID]api.Profile
-	downloads  map[domain.DownloadID]api.Download
-	blocklist  map[string]api.BlocklistEntry
-	fileScores map[domain.MediaFileID]FileScore
+	mu             sync.RWMutex
+	profiles       map[domain.ProfileID]api.Profile
+	defaultProfile domain.ProfileID
+	downloads      map[domain.DownloadID]api.Download
+	blocklist      map[string]api.BlocklistEntry
+	fileScores     map[domain.MediaFileID]FileScore
 }
 
 var _ api.Reader = (*Fake)(nil)
 
 func NewFake(f Fixture) *Fake {
 	fake := &Fake{
-		profiles:   map[domain.ProfileID]api.Profile{},
-		downloads:  map[domain.DownloadID]api.Download{},
-		blocklist:  map[string]api.BlocklistEntry{},
-		fileScores: map[domain.MediaFileID]FileScore{},
+		profiles:       map[domain.ProfileID]api.Profile{},
+		defaultProfile: f.DefaultProfile,
+		downloads:      map[domain.DownloadID]api.Download{},
+		blocklist:      map[string]api.BlocklistEntry{},
+		fileScores:     map[domain.MediaFileID]FileScore{},
 	}
 	for _, p := range f.Profiles {
 		fake.PutProfile(p)
@@ -59,6 +62,12 @@ func (f *Fake) PutProfile(p api.Profile) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.profiles[p.ID] = p
+}
+
+func (f *Fake) SetDefaultProfile(id domain.ProfileID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.defaultProfile = id
 }
 
 func (f *Fake) PutDownload(d api.Download) {
@@ -104,6 +113,15 @@ func (f *Fake) Profiles(ctx context.Context) ([]api.ProfileSummary, error) {
 	}
 	slices.SortFunc(summaries, func(a, b api.ProfileSummary) int { return cmp.Compare(a.Name, b.Name) })
 	return summaries, nil
+}
+
+func (f *Fake) DefaultProfile(ctx context.Context) (domain.ProfileID, error) {
+	if err := f.Enter(ctx, ReaderDefaultProfile); err != nil {
+		return "", err
+	}
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.defaultProfile, nil
 }
 
 func (f *Fake) ActiveDownloads(ctx context.Context) ([]api.Download, error) {

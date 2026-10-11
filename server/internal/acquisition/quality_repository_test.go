@@ -30,6 +30,10 @@ func (r profileReader) Profiles(ctx context.Context) ([]api.ProfileSummary, erro
 	return r.repo.Profiles(ctx)
 }
 
+func (r profileReader) DefaultProfile(ctx context.Context) (domain.ProfileID, error) {
+	return r.repo.DefaultProfile(ctx)
+}
+
 func TestRepositoryMeetsTheProfileContract(t *testing.T) {
 	contracttest.RunProfiles(t, func(t *testing.T, f contracttest.Fixture) api.Reader {
 		d := dbtest.Open(t, Migrations())
@@ -45,7 +49,10 @@ func TestRepositoryMeetsTheProfileContract(t *testing.T) {
 					return err
 				}
 			}
-			return nil
+			if f.DefaultProfile == "" {
+				return nil
+			}
+			return DefaultProfileKey.SetTx(tx, f.DefaultProfile)
 		})
 		if err != nil {
 			t.Fatal(err)

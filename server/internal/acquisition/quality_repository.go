@@ -126,6 +126,11 @@ func (r *QualityRepository) Profiles(ctx context.Context) ([]api.ProfileSummary,
 	return summaries, nil
 }
 
+// DefaultProfile implements api.Reader.
+func (r *QualityRepository) DefaultProfile(ctx context.Context) (domain.ProfileID, error) {
+	return DefaultProfileKey.GetTx(r.db.Read(ctx))
+}
+
 // Formats lists every custom format ordered by name.
 func (r *QualityRepository) Formats(ctx context.Context) ([]CustomFormat, error) {
 	return loadFormats(r.db.Read(ctx))
