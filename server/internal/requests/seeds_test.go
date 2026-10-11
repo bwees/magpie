@@ -1,6 +1,7 @@
 package requests
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"testing"
@@ -191,6 +192,26 @@ func TestMonitoredScopeIsAConflict(t *testing.T) {
 	}
 	if got := h.create(h.requester, seasons(severanceTmdb, 2)); got.Status != api.StatusPending {
 		t.Errorf("a season Catalog doesn't monitor yet = %+v", got)
+	}
+}
+
+func TestWholeSeriesIsMonitoredWithoutItsSpecials(t *testing.T) {
+	h := newHarness(t)
+	title, _ := h.series(severanceTmdb, [2]int{1, 1})
+	h.catalog.PutEpisode(catalogapi.Episode{ID: domain.NewID[domain.EpisodeID](), Title: title, Season: specialsSeason, Number: 1})
+
+	if got := h.create(h.requester, wholeSeries(severanceTmdb)); got.Status != api.StatusPending {
+		t.Errorf("whole series without new seasons monitored = %+v, want a new request", got)
+	}
+	tracked, err := h.catalog.Title(context.Background(), title)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracked.MonitorFutureSeasons = true
+	h.catalog.PutTitle(tracked)
+	rec := h.do(http.MethodPost, requestsPath, wholeSeries(severanceTmdb), h.other)
+	if rec.Code != http.StatusConflict || decodeProblem(t, rec).Type != string(TypeAlreadyMonitored) {
+		t.Errorf("whole series already monitored = %d: %s", rec.Code, rec.Body)
 	}
 }
 

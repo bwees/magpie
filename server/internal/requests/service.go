@@ -37,6 +37,9 @@ func (e DuplicateError) Error() string {
 	return fmt.Sprintf("requests: already requested in %s", e.Existing)
 }
 
+// specialsSeason is season 0, which a whole-series request leaves unmonitored.
+const specialsSeason = 0
+
 // openStatuses are the statuses a request still covers its scope in: everything but DECLINED and FAILED.
 var openStatuses = []api.Status{api.StatusPending, api.StatusApproved, api.StatusProcessing, api.StatusPartiallyAvailable, api.StatusAvailable}
 
@@ -214,7 +217,8 @@ func (s *Service) checkNotMonitored(ctx context.Context, in NewRequest) error {
 		return err
 	}
 	if in.Scope == api.ScopeAllSeasons {
-		if title.MonitorFutureSeasons && allMonitored(episodes) {
+		regular := slices.DeleteFunc(episodes, func(e catalogapi.Episode) bool { return e.Season == specialsSeason })
+		if title.MonitorFutureSeasons && allMonitored(regular) {
 			return ErrAlreadyMonitored
 		}
 		return nil
