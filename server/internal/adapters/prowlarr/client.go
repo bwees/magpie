@@ -52,7 +52,14 @@ func NewFromSettings(store *settings.Store) *Client {
 	return New(FromSettings(store))
 }
 
-var errNotConfigured = fmt.Errorf("%w: no Prowlarr connection is set up", acquisition.ErrUnavailable)
+var errNotConfigured = fmt.Errorf("%w: %w", acquisition.ErrUnavailable, errors.New("no Prowlarr connection is set up"))
+
+// httpStatus is the cause of an ErrUnavailable from an unexpected HTTP answer.
+type httpStatus int
+
+func (s httpStatus) Error() string {
+	return fmt.Sprintf("HTTP %d %s", int(s), http.StatusText(int(s)))
+}
 
 func (c *Client) WebURL(ctx context.Context) (string, error) {
 	conn, err := c.connection(ctx)
@@ -142,7 +149,7 @@ func statusError(status int) error {
 	case status >= http.StatusOK && status < http.StatusMultipleChoices:
 		return nil
 	}
-	return fmt.Errorf("%w: HTTP %d", acquisition.ErrUnavailable, status)
+	return fmt.Errorf("%w: %w", acquisition.ErrUnavailable, httpStatus(status))
 }
 
 func transportError(ctx context.Context, err error) error {

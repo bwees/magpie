@@ -216,10 +216,32 @@ func syncErrorMessage(err error) string {
 		return ""
 	case errors.Is(err, ErrUnauthorized):
 		return "Prowlarr rejected the API key"
-	case errors.Is(err, ErrUnavailable), errors.Is(err, ErrTimeout):
-		return "Prowlarr is unreachable: " + err.Error()
+	case errors.Is(err, ErrTimeout):
+		return "Prowlarr didn't answer in time"
+	case errors.Is(err, ErrUnavailable):
+		return "Prowlarr is unreachable: " + rootCause(err).Error()
 	}
 	return "Indexer sync failed"
+}
+
+// rootCause follows the last wrapped error down, so "acquisition: service unavailable: Get …: dial tcp …:
+// connection refused" becomes "connection refused".
+func rootCause(err error) error {
+	for {
+		var next error
+		switch wrapped := err.(type) {
+		case interface{ Unwrap() error }:
+			next = wrapped.Unwrap()
+		case interface{ Unwrap() []error }:
+			if all := wrapped.Unwrap(); len(all) > 0 {
+				next = all[len(all)-1]
+			}
+		}
+		if next == nil {
+			return err
+		}
+		err = next
+	}
 }
 
 func listResponse(list IndexerList) IndexerListResponse {

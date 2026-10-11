@@ -2,6 +2,8 @@ package acquisition_test
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -119,12 +121,15 @@ type problemBody struct {
 }
 
 func TestSyncNowReportsProwlarrErrors(t *testing.T) {
+	refused := fmt.Errorf("%w: %w", acquisition.ErrUnavailable,
+		fmt.Errorf("Get \"http://prowlarr:9696/api/v1/indexer\": %w", errors.New("connection refused")))
 	cases := map[string]struct {
-		err  error
-		want problem.Type
+		err    error
+		want   problem.Type
+		detail string
 	}{
-		"unreachable": {acquisition.ErrUnavailable, acquisition.TypeProwlarrUnavailable},
-		"bad API key": {acquisition.ErrUnauthorized, acquisition.TypeProwlarrUnauthorized},
+		"unreachable": {refused, acquisition.TypeProwlarrUnavailable, "Prowlarr is unreachable: connection refused"},
+		"bad API key": {acquisition.ErrUnauthorized, acquisition.TypeProwlarrUnauthorized, "Prowlarr rejected the API key"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -133,12 +138,12 @@ func TestSyncNowReportsProwlarrErrors(t *testing.T) {
 			handler := serve(t, f, admin())
 
 			rec := do(handler, http.MethodPost, "/api/acquisition/indexers/sync", "")
-			if p := decode[problemBody](t, rec); rec.Code != http.StatusBadGateway || p.Type != string(tc.want) {
-				t.Errorf("sync = %d %+v, want 502 %s", rec.Code, p, tc.want)
+			if p := decode[problemBody](t, rec); rec.Code != http.StatusBadGateway || p.Type != string(tc.want) || p.Detail != tc.detail {
+				t.Errorf("sync = %d %+v, want 502 %s %q", rec.Code, p, tc.want, tc.detail)
 			}
 
 			list := decode[acquisition.IndexerListResponse](t, do(handler, http.MethodGet, "/api/acquisition/indexers", ""))
-			if list.SyncError == "" || len(list.Indexers) != 0 {
+			if list.SyncError != tc.detail || len(list.Indexers) != 0 {
 				t.Errorf("list after failed sync = %+v, want the error and no indexers", list)
 			}
 		})
