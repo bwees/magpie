@@ -1,0 +1,7 @@
+[AVHWDeviceContext @ 0x55d0c8b4c1c0] libva: VA-API version 1.22.0
+[AVHWDeviceContext @ 0x55d0c8b4c1c0] libva: Trying to open /usr/lib/jellyfin-ffmpeg/lib/dri/iHD_drv_video.so
+[AVHWDeviceContext @ 0x55d0c8b4c1c0] libva: Found init function __vaDriverInit_1_22
+[AVHWDeviceContext @ 0x55d0c8b4c1c0] libva: va_openDriver() returns 0
+[AVHWDeviceContext @ 0x55d0c8b4c1c0] Initialised VAAPI connection: version 1.22
+[AVHWDeviceContext @ 0x55d0c8b4c1c0] VAAPI driver: Intel iHD driver for Intel(R) Gen Graphics - 24.4.4 ().
+[AVHWDeviceContext @ 0x55d0c8b4c1c0] Driver not found in known nonstandard list, using standard behaviour.

@@ -1,0 +1,1 @@
+[hevc @ 0x55e3b1c2d4c0] Failed setup for format qsv: hwaccel initialisation returned error.

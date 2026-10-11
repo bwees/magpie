@@ -1,0 +1,4 @@
+ffmpeg version 7.1.2-Jellyfin Copyright (c) 2000-2025 the FFmpeg developers
+built with gcc 12 (Debian 12.2.0-14+deb12u1)
+configuration: --prefix=/usr/lib/jellyfin-ffmpeg --target-os=linux --extra-version=Jellyfin --enable-gpl --enable-version3
+libavutil      59. 39.100 / 59. 39.100

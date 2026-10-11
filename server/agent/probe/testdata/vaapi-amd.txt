@@ -1,0 +1,6 @@
+[AVHWDeviceContext @ 0x5581f2a0c340] libva: VA-API version 1.22.0
+[AVHWDeviceContext @ 0x5581f2a0c340] libva: Trying to open /usr/lib/jellyfin-ffmpeg/lib/dri/radeonsi_drv_video.so
+[AVHWDeviceContext @ 0x5581f2a0c340] libva: va_openDriver() returns 0
+[AVHWDeviceContext @ 0x5581f2a0c340] Initialised VAAPI connection: version 1.22
+[AVHWDeviceContext @ 0x5581f2a0c340] VAAPI driver: Mesa Gallium driver 26.0.0 for AMD Radeon RX 7900 XTX (radeonsi, navi31, LLVM 19.1.7, DRM 3.61, 6.12.0-1-amd64).
+[AVHWDeviceContext @ 0x5581f2a0c340] Driver not found in known nonstandard list, using standard behaviour.

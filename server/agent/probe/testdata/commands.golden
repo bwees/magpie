@@ -1,0 +1,30 @@
+nvidia-smi --query-gpu=index,name,driver_version --format=csv,noheader
+ffmpeg -hide_banner -nostdin -v verbose -init_hw_device vaapi=va:/dev/dri/renderD128 -filter_hw_device va -f lavfi -i nullsrc=size=64x64 -frames:v 1 -f null -
+ffmpeg -hide_banner -nostdin -v verbose -init_hw_device vaapi=va:/dev/dri/renderD129 -filter_hw_device va -f lavfi -i nullsrc=size=64x64 -frames:v 1 -f null -
+ffmpeg -hide_banner -nostdin -v warning -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -pix_fmt yuv420p10le -c:v libx265 -x265-params log-level=error -y $SAMPLES/hevc10.mkv
+ffmpeg -hide_banner -nostdin -v warning -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -pix_fmt yuv420p -c:v libx264 -y $SAMPLES/h264.mkv
+whisper-cli --help
+ffmpeg -hide_banner -nostdin -v warning -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -vf format=p010le -c:v hevc_nvenc -profile:v main10 -gpu 0 -f null -
+ffmpeg -hide_banner -nostdin -v warning -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -vf format=p010le -c:v av1_nvenc -gpu 0 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device cuda=gpu:0 -hwaccel cuda -hwaccel_output_format cuda -i $SAMPLES/h264.mkv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device cuda=gpu:0 -hwaccel cuda -hwaccel_output_format cuda -i $SAMPLES/hevc10.mkv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device cuda=gpu:0 -hwaccel cuda -hwaccel_output_format cuda -i $SAMPLES/hevc10.mkv -vf scale_cuda=w=640:h=360:format=p010le -c:v hevc_nvenc -profile:v main10 -gpu 0 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device cuda=gpu:0 -init_hw_device vulkan=vk@gpu -f lavfi -i nullsrc=size=64x64 -frames:v 1 -f null -
+ffmpeg -hide_banner -nostdin -v warning -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -vf format=p010le -c:v hevc_nvenc -profile:v main10 -gpu 1 -f null -
+ffmpeg -hide_banner -nostdin -v warning -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -vf format=p010le -c:v av1_nvenc -gpu 1 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device cuda=gpu:1 -hwaccel cuda -hwaccel_output_format cuda -i $SAMPLES/h264.mkv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device cuda=gpu:1 -hwaccel cuda -hwaccel_output_format cuda -i $SAMPLES/hevc10.mkv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device cuda=gpu:1 -hwaccel cuda -hwaccel_output_format cuda -i $SAMPLES/hevc10.mkv -vf scale_cuda=w=640:h=360:format=p010le -c:v hevc_nvenc -profile:v main10 -gpu 1 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device cuda=gpu:1 -init_hw_device vulkan=vk@gpu -f lavfi -i nullsrc=size=64x64 -frames:v 1 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device qsv=qs@va -filter_hw_device qs -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -vf format=p010le,hwupload=extra_hw_frames=64 -c:v hevc_qsv -profile:v main10 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device qsv=qs@va -filter_hw_device qs -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -vf format=p010le,hwupload=extra_hw_frames=64 -c:v av1_qsv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device qsv=qs@va -filter_hw_device qs -hwaccel qsv -hwaccel_output_format qsv -i $SAMPLES/h264.mkv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device qsv=qs@va -filter_hw_device qs -hwaccel qsv -hwaccel_output_format qsv -i $SAMPLES/hevc10.mkv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device qsv=qs@va -filter_hw_device qs -hwaccel qsv -hwaccel_output_format qsv -i $SAMPLES/hevc10.mkv -vf vpp_qsv=w=640:h=360:format=p010 -c:v hevc_qsv -profile:v main10 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device drm=dr:/dev/dri/renderD128 -init_hw_device vulkan=vk@dr -f lavfi -i nullsrc=size=64x64 -frames:v 1 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD129 -filter_hw_device va -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -vf format=p010le,hwupload -c:v hevc_vaapi -profile:v main10 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD129 -filter_hw_device va -f lavfi -i testsrc2=size=1280x720:rate=30 -frames:v 30 -vf format=p010le,hwupload -c:v av1_vaapi -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD129 -filter_hw_device va -hwaccel vaapi -hwaccel_output_format vaapi -i $SAMPLES/h264.mkv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD129 -filter_hw_device va -hwaccel vaapi -hwaccel_output_format vaapi -i $SAMPLES/hevc10.mkv -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device vaapi=va:/dev/dri/renderD129 -filter_hw_device va -hwaccel vaapi -hwaccel_output_format vaapi -i $SAMPLES/hevc10.mkv -vf scale_vaapi=w=640:h=360:format=p010 -c:v hevc_vaapi -profile:v main10 -f null -
+ffmpeg -hide_banner -nostdin -v warning -init_hw_device drm=dr:/dev/dri/renderD129 -init_hw_device vulkan=vk@dr -f lavfi -i nullsrc=size=64x64 -frames:v 1 -f null -
