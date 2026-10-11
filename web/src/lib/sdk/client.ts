@@ -61,6 +61,439 @@ export type RetryParkedEventRequest = {
     eventId: string;
     handler: string;
 };
+export type AgentOffline = {
+    agent: string;
+    since: string;
+};
+export type AgentOnline = {
+    agent: string;
+    hostname: string;
+};
+export type AttentionChanged = {
+    count: number;
+    item: string;
+    kind: string;
+    open: boolean;
+    ref: string;
+};
+export type CoverageSettled = {
+    mediaFile: string;
+    missing: string[] | null;
+    satisfied: string[] | null;
+    title: string;
+};
+export type Quality = {
+    id: number;
+    name: string;
+    resolution: number;
+    revision: number;
+    source: string;
+};
+export type CutoffMet = {
+    cfScore: number;
+    episodes: string[] | null;
+    file: string;
+    origin: string;
+    quality: Quality;
+    title: string;
+};
+export type DownloadFile = {
+    path: string;
+    size: number;
+};
+export type DownloadCompleted = {
+    cfScore: number;
+    contentPath: string;
+    download: string;
+    episodes: string[] | null;
+    files: DownloadFile[] | null;
+    quality: Quality;
+    releaseName: string;
+    seedingMode: string;
+    title: string;
+};
+export type DownloadFailed = {
+    download: string;
+    reason: string;
+    title: string;
+};
+export type DownloadProgressed = {
+    download: string;
+    eta: number;
+    progress: number;
+    ratio: number;
+    speedBps: number;
+    state: string;
+};
+export type EpisodeMove = {
+    episode: string;
+    fromNo: number;
+    fromSeason: number;
+    toNo: number;
+    toSeason: number;
+};
+export type EpisodeGroupChanged = {
+    groupId: string;
+    moves: EpisodeMove[] | null;
+    title: string;
+};
+export type EpisodeRef = {
+    episode: string;
+    "number": number;
+    season: number;
+};
+export type EpisodesAnnounced = {
+    episodes: EpisodeRef[] | null;
+    title: string;
+};
+export type ExternalIDs = {
+    imdb?: string;
+    tmdb: number;
+    tvdb?: string;
+};
+export type FileDeleted = {
+    episodes: EpisodeRef[] | null;
+    mediaFile: string;
+    path: string;
+    reason: string;
+    title: string;
+};
+export type Stream = {
+    bitDepth: number;
+    bitrateKbps: number;
+    channels: number;
+    codec: string;
+    "default": boolean;
+    forced: boolean;
+    image: boolean;
+    index: number;
+    kind: string;
+    language: string;
+};
+export type MediaInfo = {
+    bitrateKbps: number;
+    container: string;
+    duration: number;
+    hdr: string;
+    height: number;
+    streams: Stream[] | null;
+    width: number;
+};
+export type Sidecar = {
+    forced: boolean;
+    language: string;
+    path: string;
+    sdh: boolean;
+};
+export type FileImported = {
+    download: string | null;
+    episodes: EpisodeRef[] | null;
+    mediaFile: string;
+    mediaInfo: MediaInfo;
+    origin: string;
+    osHash: string;
+    path: string;
+    quality: Quality;
+    releaseName: string;
+    replaces: string | null;
+    sidecars: Sidecar[] | null;
+    size: number;
+    title: string;
+};
+export type FileTranscoded = {
+    mediaFile: string;
+    newSize: number;
+    oldSize: number;
+    path: string;
+};
+export type FolderFound = {
+    kind: string;
+    parsedTitle: string;
+    path: string;
+    tmdbHint: number | null;
+    year: number | null;
+};
+export type ImportFailed = {
+    download: string;
+    reason: string;
+    retryable: boolean;
+};
+export type IssueActionRequested = {
+    action: string;
+    episode: string | null;
+    issue: string;
+    title: string;
+};
+export type IssueCommented = {
+    author: string;
+    issue: string;
+    reporter: string;
+};
+export type IssueReported = {
+    episode: string | null;
+    issue: string;
+    kind: string;
+    title: string;
+    user: string;
+};
+export type IssueResolved = {
+    by: string;
+    issue: string;
+    reporter: string;
+};
+export type ItemAvailable = {
+    episodes: string[] | null;
+    jellyfinItem: string;
+    title: string;
+};
+export type JobFailed = {
+    final: boolean;
+    job: string;
+    kind: string;
+    mediaFile: string;
+    reason: string;
+};
+export type JobProgressed = {
+    eta: number;
+    job: string;
+    mediaFile: string;
+    progress: number;
+    speed: number;
+    stage: string;
+};
+export type JobQueued = {
+    job: string;
+    kind: string;
+    mediaFile: string;
+    origin: string;
+    title: string;
+};
+export type JobStarted = {
+    agent: string;
+    attempt: number;
+    job: string;
+    kind: string;
+    mediaFile: string;
+};
+export type WantedLanguage = {
+    forced: boolean;
+    hearingImpaired: boolean;
+    language: string;
+};
+export type LanguagesChanged = {
+    languages: WantedLanguage[] | null;
+    title: string | null;
+};
+export type MonitoringChanged = {
+    added: string[] | null;
+    movie: boolean | null;
+    removed: string[] | null;
+    requestId: string | null;
+    title: string;
+};
+export type NotificationCreated = {
+    kind: string;
+    link: string;
+    notification: string;
+    title: string;
+    user: string;
+};
+export type ProfileChanged = {
+    "from": string;
+    title: string;
+    to: string;
+};
+export type Rejection = {
+    message: string;
+    reason: string;
+    temporary: boolean;
+};
+export type ReleaseDecision = {
+    cfScore: number;
+    formats: string[] | null;
+    freeleech: boolean;
+    indexer: string;
+    infoHash: string;
+    name: string;
+    publishedAt: string;
+    quality: Quality;
+    rank: number;
+    rejections: Rejection[] | null;
+    release: string;
+    seeders: number;
+    sizeBytes: number;
+};
+export type ReleaseGrabbed = {
+    cfScore: number;
+    download: string;
+    episodes: string[] | null;
+    indexer: string;
+    infoHash: string;
+    "override": boolean;
+    quality: Quality;
+    release: string;
+    title: string;
+    trigger: string;
+};
+export type ReleaseRejected = {
+    blockedFile: string | null;
+    indexer: string;
+    infoHash: string;
+    next: string | null;
+    reason: string;
+    release: string;
+    title: string;
+};
+export type RequestApproved = {
+    approvedBy: string;
+    auto: boolean;
+    kind: string;
+    profile: string;
+    request: string;
+    scope: string;
+    seasons: number[] | null;
+    tmdb: number;
+    user: string;
+};
+export type RequestAvailable = {
+    request: string;
+    title: string;
+    user: string;
+};
+export type RequestCreated = {
+    kind: string;
+    request: string;
+    scope: string;
+    seasons: number[] | null;
+    tmdb: number;
+    user: string;
+};
+export type RequestDeclined = {
+    reason: string;
+    request: string;
+    user: string;
+};
+export type RunAgentJob = {
+    kind: string;
+    language: string;
+    mediaFile: string;
+    model: string;
+};
+export type ScanFolderMatched = {
+    folder: string;
+    title: string;
+};
+export type SearchCompleted = {
+    accepted: number;
+    failedIndexers: string[] | null;
+    grabbed: string | null;
+    outcome: string;
+    search: string;
+    title: string;
+    total: number;
+};
+export type SearchResultsReceived = {
+    indexer: string;
+    message: string;
+    releases: ReleaseDecision[] | null;
+    search: string;
+    status: string;
+};
+export type SearchStarted = {
+    episodes: string[] | null;
+    indexers: string[] | null;
+    interactive: boolean;
+    search: string;
+    title: string;
+    trigger: string;
+};
+export type ServiceHealthChanged = {
+    error: string;
+    healthy: boolean;
+    service: string;
+};
+export type SubtitleAdded = {
+    forced: boolean;
+    language: string;
+    mediaFile: string;
+    replaces: boolean;
+    sdh: boolean;
+    source: string;
+    synced: boolean;
+};
+export type SubtitleMissing = {
+    forced: boolean;
+    language: string;
+    mediaFile: string;
+    reason: string;
+};
+export type TitleAddFailed = {
+    kind: string;
+    reason: string;
+    requestId: string | null;
+    tmdb: number;
+};
+export type TitleAdded = {
+    external: ExternalIDs;
+    kind: string;
+    monitored: string[] | null;
+    origin: string;
+    profile: string;
+    released: boolean;
+    requestId: string | null;
+    requestedBy: string | null;
+    scanFolder: string;
+    title: string;
+};
+export type TitleRemoved = {
+    deleteFiles: boolean;
+    title: string;
+};
+export type TranscodeSkipped = {
+    detail: string;
+    mediaFile: string;
+    reason: string;
+};
+export type TranscodeStats = {
+    agent: string;
+    bitDepth: number;
+    droppedAudio: number[] | null;
+    droppedSubs: number[] | null;
+    durationSec: number;
+    encoder: string;
+    newSize: number;
+    oldSize: number;
+    videoCodec: string;
+    vmafMean: number | null;
+};
+export type TranscodeSwapRejected = {
+    job: string;
+    mediaFile: string;
+    reason: string;
+};
+export type TranscodeVerified = {
+    job: string;
+    mediaFile: string;
+    sha256: string;
+    sourceETag: string;
+    stagedPath: string;
+    stats: TranscodeStats;
+};
+export type UserCreated = {
+    role: string;
+    source: string;
+    user: string;
+};
+export type WantedReleased = {
+    episodes: string[] | null;
+    title: string;
+};
+export type WhisperCompleted = {
+    job: string;
+    language: string;
+    mediaFile: string;
+    stagedPath: string;
+};
 export type UnknownInterface = any;
 /**
  * Report that the server is up

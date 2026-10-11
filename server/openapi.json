@@ -1,6 +1,67 @@
 {
 	"components": {
 		"schemas": {
+			"AgentOffline": {
+				"description": "AgentOffline schema",
+				"properties": {
+					"agent": {
+						"type": "string"
+					},
+					"since": {
+						"format": "date-time",
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent",
+					"since"
+				],
+				"type": "object"
+			},
+			"AgentOnline": {
+				"description": "AgentOnline schema",
+				"properties": {
+					"agent": {
+						"type": "string"
+					},
+					"hostname": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent",
+					"hostname"
+				],
+				"type": "object"
+			},
+			"AttentionChanged": {
+				"description": "AttentionChanged schema",
+				"properties": {
+					"count": {
+						"type": "integer"
+					},
+					"item": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"open": {
+						"type": "boolean"
+					},
+					"ref": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"count",
+					"item",
+					"kind",
+					"open",
+					"ref"
+				],
+				"type": "object"
+			},
 			"BackupResponse": {
 				"description": "BackupResponse schema",
 				"properties": {
@@ -24,6 +85,302 @@
 					"kind",
 					"name",
 					"size"
+				],
+				"type": "object"
+			},
+			"CoverageSettled": {
+				"description": "CoverageSettled schema",
+				"properties": {
+					"mediaFile": {
+						"type": "string"
+					},
+					"missing": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"satisfied": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"mediaFile",
+					"missing",
+					"satisfied",
+					"title"
+				],
+				"type": "object"
+			},
+			"CutoffMet": {
+				"description": "CutoffMet schema",
+				"properties": {
+					"cfScore": {
+						"type": "integer"
+					},
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"file": {
+						"type": "string"
+					},
+					"origin": {
+						"type": "string"
+					},
+					"quality": {
+						"$ref": "#/components/schemas/Quality"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"cfScore",
+					"episodes",
+					"file",
+					"origin",
+					"quality",
+					"title"
+				],
+				"type": "object"
+			},
+			"DownloadCompleted": {
+				"description": "DownloadCompleted schema",
+				"properties": {
+					"cfScore": {
+						"type": "integer"
+					},
+					"contentPath": {
+						"type": "string"
+					},
+					"download": {
+						"type": "string"
+					},
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"files": {
+						"items": {
+							"$ref": "#/components/schemas/DownloadFile"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"quality": {
+						"$ref": "#/components/schemas/Quality"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"seedingMode": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"cfScore",
+					"contentPath",
+					"download",
+					"episodes",
+					"files",
+					"quality",
+					"releaseName",
+					"seedingMode",
+					"title"
+				],
+				"type": "object"
+			},
+			"DownloadFailed": {
+				"description": "DownloadFailed schema",
+				"properties": {
+					"download": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"download",
+					"reason",
+					"title"
+				],
+				"type": "object"
+			},
+			"DownloadFile": {
+				"properties": {
+					"path": {
+						"type": "string"
+					},
+					"size": {
+						"format": "int64",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"path",
+					"size"
+				],
+				"type": "object"
+			},
+			"DownloadProgressed": {
+				"description": "DownloadProgressed schema",
+				"properties": {
+					"download": {
+						"type": "string"
+					},
+					"eta": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"progress": {
+						"format": "double",
+						"type": "number"
+					},
+					"ratio": {
+						"format": "double",
+						"type": "number"
+					},
+					"speedBps": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"state": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"download",
+					"eta",
+					"progress",
+					"ratio",
+					"speedBps",
+					"state"
+				],
+				"type": "object"
+			},
+			"EpisodeGroupChanged": {
+				"description": "EpisodeGroupChanged schema",
+				"properties": {
+					"groupId": {
+						"type": "string"
+					},
+					"moves": {
+						"items": {
+							"$ref": "#/components/schemas/EpisodeMove"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"groupId",
+					"moves",
+					"title"
+				],
+				"type": "object"
+			},
+			"EpisodeMove": {
+				"properties": {
+					"episode": {
+						"type": "string"
+					},
+					"fromNo": {
+						"type": "integer"
+					},
+					"fromSeason": {
+						"type": "integer"
+					},
+					"toNo": {
+						"type": "integer"
+					},
+					"toSeason": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"episode",
+					"fromNo",
+					"fromSeason",
+					"toNo",
+					"toSeason"
+				],
+				"type": "object"
+			},
+			"EpisodeRef": {
+				"properties": {
+					"episode": {
+						"type": "string"
+					},
+					"number": {
+						"type": "integer"
+					},
+					"season": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"episode",
+					"number",
+					"season"
+				],
+				"type": "object"
+			},
+			"EpisodesAnnounced": {
+				"description": "EpisodesAnnounced schema",
+				"properties": {
+					"episodes": {
+						"items": {
+							"$ref": "#/components/schemas/EpisodeRef"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodes",
+					"title"
 				],
 				"type": "object"
 			},
@@ -51,6 +408,190 @@
 				"required": [
 					"name",
 					"reason"
+				],
+				"type": "object"
+			},
+			"ExternalIDs": {
+				"properties": {
+					"imdb": {
+						"type": "string"
+					},
+					"tmdb": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"tvdb": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"tmdb"
+				],
+				"type": "object"
+			},
+			"FileDeleted": {
+				"description": "FileDeleted schema",
+				"properties": {
+					"episodes": {
+						"items": {
+							"$ref": "#/components/schemas/EpisodeRef"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodes",
+					"mediaFile",
+					"path",
+					"reason",
+					"title"
+				],
+				"type": "object"
+			},
+			"FileImported": {
+				"description": "FileImported schema",
+				"properties": {
+					"download": {
+						"nullable": true,
+						"type": "string"
+					},
+					"episodes": {
+						"items": {
+							"$ref": "#/components/schemas/EpisodeRef"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"mediaInfo": {
+						"$ref": "#/components/schemas/MediaInfo"
+					},
+					"origin": {
+						"type": "string"
+					},
+					"osHash": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"quality": {
+						"$ref": "#/components/schemas/Quality"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"replaces": {
+						"nullable": true,
+						"type": "string"
+					},
+					"sidecars": {
+						"items": {
+							"$ref": "#/components/schemas/Sidecar"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"size": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"download",
+					"episodes",
+					"mediaFile",
+					"mediaInfo",
+					"origin",
+					"osHash",
+					"path",
+					"quality",
+					"releaseName",
+					"replaces",
+					"sidecars",
+					"size",
+					"title"
+				],
+				"type": "object"
+			},
+			"FileTranscoded": {
+				"description": "FileTranscoded schema",
+				"properties": {
+					"mediaFile": {
+						"type": "string"
+					},
+					"newSize": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"oldSize": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"path": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"mediaFile",
+					"newSize",
+					"oldSize",
+					"path"
+				],
+				"type": "object"
+			},
+			"FolderFound": {
+				"description": "FolderFound schema",
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"parsedTitle": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"tmdbHint": {
+						"format": "int64",
+						"nullable": true,
+						"type": "integer"
+					},
+					"year": {
+						"nullable": true,
+						"type": "integer"
+					}
+				},
+				"required": [
+					"kind",
+					"parsedTitle",
+					"path",
+					"tmdbHint",
+					"year"
 				],
 				"type": "object"
 			},
@@ -101,6 +642,400 @@
 				],
 				"type": "object"
 			},
+			"ImportFailed": {
+				"description": "ImportFailed schema",
+				"properties": {
+					"download": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"retryable": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"download",
+					"reason",
+					"retryable"
+				],
+				"type": "object"
+			},
+			"IssueActionRequested": {
+				"description": "IssueActionRequested schema",
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"episode": {
+						"nullable": true,
+						"type": "string"
+					},
+					"issue": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"action",
+					"episode",
+					"issue",
+					"title"
+				],
+				"type": "object"
+			},
+			"IssueCommented": {
+				"description": "IssueCommented schema",
+				"properties": {
+					"author": {
+						"type": "string"
+					},
+					"issue": {
+						"type": "string"
+					},
+					"reporter": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"author",
+					"issue",
+					"reporter"
+				],
+				"type": "object"
+			},
+			"IssueReported": {
+				"description": "IssueReported schema",
+				"properties": {
+					"episode": {
+						"nullable": true,
+						"type": "string"
+					},
+					"issue": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"user": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episode",
+					"issue",
+					"kind",
+					"title",
+					"user"
+				],
+				"type": "object"
+			},
+			"IssueResolved": {
+				"description": "IssueResolved schema",
+				"properties": {
+					"by": {
+						"type": "string"
+					},
+					"issue": {
+						"type": "string"
+					},
+					"reporter": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"by",
+					"issue",
+					"reporter"
+				],
+				"type": "object"
+			},
+			"ItemAvailable": {
+				"description": "ItemAvailable schema",
+				"properties": {
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"jellyfinItem": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodes",
+					"jellyfinItem",
+					"title"
+				],
+				"type": "object"
+			},
+			"JobFailed": {
+				"description": "JobFailed schema",
+				"properties": {
+					"final": {
+						"type": "boolean"
+					},
+					"job": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"final",
+					"job",
+					"kind",
+					"mediaFile",
+					"reason"
+				],
+				"type": "object"
+			},
+			"JobProgressed": {
+				"description": "JobProgressed schema",
+				"properties": {
+					"eta": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"job": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"progress": {
+						"format": "double",
+						"type": "number"
+					},
+					"speed": {
+						"format": "double",
+						"type": "number"
+					},
+					"stage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"eta",
+					"job",
+					"mediaFile",
+					"progress",
+					"speed",
+					"stage"
+				],
+				"type": "object"
+			},
+			"JobQueued": {
+				"description": "JobQueued schema",
+				"properties": {
+					"job": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"origin": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"job",
+					"kind",
+					"mediaFile",
+					"origin",
+					"title"
+				],
+				"type": "object"
+			},
+			"JobStarted": {
+				"description": "JobStarted schema",
+				"properties": {
+					"agent": {
+						"type": "string"
+					},
+					"attempt": {
+						"type": "integer"
+					},
+					"job": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent",
+					"attempt",
+					"job",
+					"kind",
+					"mediaFile"
+				],
+				"type": "object"
+			},
+			"LanguagesChanged": {
+				"description": "LanguagesChanged schema",
+				"properties": {
+					"languages": {
+						"items": {
+							"$ref": "#/components/schemas/WantedLanguage"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"title": {
+						"nullable": true,
+						"type": "string"
+					}
+				},
+				"required": [
+					"languages",
+					"title"
+				],
+				"type": "object"
+			},
+			"MediaInfo": {
+				"properties": {
+					"bitrateKbps": {
+						"type": "integer"
+					},
+					"container": {
+						"type": "string"
+					},
+					"duration": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"hdr": {
+						"type": "string"
+					},
+					"height": {
+						"type": "integer"
+					},
+					"streams": {
+						"items": {
+							"$ref": "#/components/schemas/Stream"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"width": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"bitrateKbps",
+					"container",
+					"duration",
+					"hdr",
+					"height",
+					"streams",
+					"width"
+				],
+				"type": "object"
+			},
+			"MonitoringChanged": {
+				"description": "MonitoringChanged schema",
+				"properties": {
+					"added": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"movie": {
+						"nullable": true,
+						"type": "boolean"
+					},
+					"removed": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"requestId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"added",
+					"movie",
+					"removed",
+					"requestId",
+					"title"
+				],
+				"type": "object"
+			},
+			"NotificationCreated": {
+				"description": "NotificationCreated schema",
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"link": {
+						"type": "string"
+					},
+					"notification": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"user": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kind",
+					"link",
+					"notification",
+					"title",
+					"user"
+				],
+				"type": "object"
+			},
 			"ParkedEventResponse": {
 				"description": "ParkedEventResponse schema",
 				"properties": {
@@ -138,6 +1073,367 @@
 				],
 				"type": "object"
 			},
+			"ProfileChanged": {
+				"description": "ProfileChanged schema",
+				"properties": {
+					"from": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"to": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"from",
+					"title",
+					"to"
+				],
+				"type": "object"
+			},
+			"Quality": {
+				"properties": {
+					"id": {
+						"type": "integer"
+					},
+					"name": {
+						"type": "string"
+					},
+					"resolution": {
+						"type": "integer"
+					},
+					"revision": {
+						"type": "integer"
+					},
+					"source": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"resolution",
+					"revision",
+					"source"
+				],
+				"type": "object"
+			},
+			"Rejection": {
+				"properties": {
+					"message": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"temporary": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"message",
+					"reason",
+					"temporary"
+				],
+				"type": "object"
+			},
+			"ReleaseDecision": {
+				"properties": {
+					"cfScore": {
+						"type": "integer"
+					},
+					"formats": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"freeleech": {
+						"type": "boolean"
+					},
+					"indexer": {
+						"type": "string"
+					},
+					"infoHash": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"publishedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"quality": {
+						"$ref": "#/components/schemas/Quality"
+					},
+					"rank": {
+						"type": "integer"
+					},
+					"rejections": {
+						"items": {
+							"$ref": "#/components/schemas/Rejection"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"release": {
+						"type": "string"
+					},
+					"seeders": {
+						"type": "integer"
+					},
+					"sizeBytes": {
+						"format": "int64",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"cfScore",
+					"formats",
+					"freeleech",
+					"indexer",
+					"infoHash",
+					"name",
+					"publishedAt",
+					"quality",
+					"rank",
+					"rejections",
+					"release",
+					"seeders",
+					"sizeBytes"
+				],
+				"type": "object"
+			},
+			"ReleaseGrabbed": {
+				"description": "ReleaseGrabbed schema",
+				"properties": {
+					"cfScore": {
+						"type": "integer"
+					},
+					"download": {
+						"type": "string"
+					},
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"indexer": {
+						"type": "string"
+					},
+					"infoHash": {
+						"type": "string"
+					},
+					"override": {
+						"type": "boolean"
+					},
+					"quality": {
+						"$ref": "#/components/schemas/Quality"
+					},
+					"release": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"trigger": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"cfScore",
+					"download",
+					"episodes",
+					"indexer",
+					"infoHash",
+					"override",
+					"quality",
+					"release",
+					"title",
+					"trigger"
+				],
+				"type": "object"
+			},
+			"ReleaseRejected": {
+				"description": "ReleaseRejected schema",
+				"properties": {
+					"blockedFile": {
+						"nullable": true,
+						"type": "string"
+					},
+					"indexer": {
+						"type": "string"
+					},
+					"infoHash": {
+						"type": "string"
+					},
+					"next": {
+						"nullable": true,
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"release": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"blockedFile",
+					"indexer",
+					"infoHash",
+					"next",
+					"reason",
+					"release",
+					"title"
+				],
+				"type": "object"
+			},
+			"RequestApproved": {
+				"description": "RequestApproved schema",
+				"properties": {
+					"approvedBy": {
+						"type": "string"
+					},
+					"auto": {
+						"type": "boolean"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"profile": {
+						"type": "string"
+					},
+					"request": {
+						"type": "string"
+					},
+					"scope": {
+						"type": "string"
+					},
+					"seasons": {
+						"items": {
+							"type": "integer"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"tmdb": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"user": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"approvedBy",
+					"auto",
+					"kind",
+					"profile",
+					"request",
+					"scope",
+					"seasons",
+					"tmdb",
+					"user"
+				],
+				"type": "object"
+			},
+			"RequestAvailable": {
+				"description": "RequestAvailable schema",
+				"properties": {
+					"request": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"user": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"request",
+					"title",
+					"user"
+				],
+				"type": "object"
+			},
+			"RequestCreated": {
+				"description": "RequestCreated schema",
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"request": {
+						"type": "string"
+					},
+					"scope": {
+						"type": "string"
+					},
+					"seasons": {
+						"items": {
+							"type": "integer"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"tmdb": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"user": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kind",
+					"request",
+					"scope",
+					"seasons",
+					"tmdb",
+					"user"
+				],
+				"type": "object"
+			},
+			"RequestDeclined": {
+				"description": "RequestDeclined schema",
+				"properties": {
+					"reason": {
+						"type": "string"
+					},
+					"request": {
+						"type": "string"
+					},
+					"user": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"reason",
+					"request",
+					"user"
+				],
+				"type": "object"
+			},
 			"RestoreResponse": {
 				"description": "RestoreResponse schema",
 				"properties": {
@@ -163,6 +1459,636 @@
 				"required": [
 					"eventId",
 					"handler"
+				],
+				"type": "object"
+			},
+			"RunAgentJob": {
+				"description": "RunAgentJob schema",
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"language": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kind",
+					"language",
+					"mediaFile",
+					"model"
+				],
+				"type": "object"
+			},
+			"ScanFolderMatched": {
+				"description": "ScanFolderMatched schema",
+				"properties": {
+					"folder": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"folder",
+					"title"
+				],
+				"type": "object"
+			},
+			"SearchCompleted": {
+				"description": "SearchCompleted schema",
+				"properties": {
+					"accepted": {
+						"type": "integer"
+					},
+					"failedIndexers": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"grabbed": {
+						"nullable": true,
+						"type": "string"
+					},
+					"outcome": {
+						"type": "string"
+					},
+					"search": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"total": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"accepted",
+					"failedIndexers",
+					"grabbed",
+					"outcome",
+					"search",
+					"title",
+					"total"
+				],
+				"type": "object"
+			},
+			"SearchResultsReceived": {
+				"description": "SearchResultsReceived schema",
+				"properties": {
+					"indexer": {
+						"type": "string"
+					},
+					"message": {
+						"type": "string"
+					},
+					"releases": {
+						"items": {
+							"$ref": "#/components/schemas/ReleaseDecision"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"search": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"indexer",
+					"message",
+					"releases",
+					"search",
+					"status"
+				],
+				"type": "object"
+			},
+			"SearchStarted": {
+				"description": "SearchStarted schema",
+				"properties": {
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"indexers": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"interactive": {
+						"type": "boolean"
+					},
+					"search": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"trigger": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodes",
+					"indexers",
+					"interactive",
+					"search",
+					"title",
+					"trigger"
+				],
+				"type": "object"
+			},
+			"ServiceHealthChanged": {
+				"description": "ServiceHealthChanged schema",
+				"properties": {
+					"error": {
+						"type": "string"
+					},
+					"healthy": {
+						"type": "boolean"
+					},
+					"service": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"error",
+					"healthy",
+					"service"
+				],
+				"type": "object"
+			},
+			"Sidecar": {
+				"properties": {
+					"forced": {
+						"type": "boolean"
+					},
+					"language": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"sdh": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"forced",
+					"language",
+					"path",
+					"sdh"
+				],
+				"type": "object"
+			},
+			"Stream": {
+				"properties": {
+					"bitDepth": {
+						"type": "integer"
+					},
+					"bitrateKbps": {
+						"type": "integer"
+					},
+					"channels": {
+						"type": "integer"
+					},
+					"codec": {
+						"type": "string"
+					},
+					"default": {
+						"type": "boolean"
+					},
+					"forced": {
+						"type": "boolean"
+					},
+					"image": {
+						"type": "boolean"
+					},
+					"index": {
+						"type": "integer"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"language": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"bitDepth",
+					"bitrateKbps",
+					"channels",
+					"codec",
+					"default",
+					"forced",
+					"image",
+					"index",
+					"kind",
+					"language"
+				],
+				"type": "object"
+			},
+			"SubtitleAdded": {
+				"description": "SubtitleAdded schema",
+				"properties": {
+					"forced": {
+						"type": "boolean"
+					},
+					"language": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"replaces": {
+						"type": "boolean"
+					},
+					"sdh": {
+						"type": "boolean"
+					},
+					"source": {
+						"type": "string"
+					},
+					"synced": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"forced",
+					"language",
+					"mediaFile",
+					"replaces",
+					"sdh",
+					"source",
+					"synced"
+				],
+				"type": "object"
+			},
+			"SubtitleMissing": {
+				"description": "SubtitleMissing schema",
+				"properties": {
+					"forced": {
+						"type": "boolean"
+					},
+					"language": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"forced",
+					"language",
+					"mediaFile",
+					"reason"
+				],
+				"type": "object"
+			},
+			"TitleAddFailed": {
+				"description": "TitleAddFailed schema",
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"requestId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"tmdb": {
+						"format": "int64",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"kind",
+					"reason",
+					"requestId",
+					"tmdb"
+				],
+				"type": "object"
+			},
+			"TitleAdded": {
+				"description": "TitleAdded schema",
+				"properties": {
+					"external": {
+						"$ref": "#/components/schemas/ExternalIDs"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"monitored": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"origin": {
+						"type": "string"
+					},
+					"profile": {
+						"type": "string"
+					},
+					"released": {
+						"type": "boolean"
+					},
+					"requestId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"requestedBy": {
+						"nullable": true,
+						"type": "string"
+					},
+					"scanFolder": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"external",
+					"kind",
+					"monitored",
+					"origin",
+					"profile",
+					"released",
+					"requestId",
+					"requestedBy",
+					"scanFolder",
+					"title"
+				],
+				"type": "object"
+			},
+			"TitleRemoved": {
+				"description": "TitleRemoved schema",
+				"properties": {
+					"deleteFiles": {
+						"type": "boolean"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"deleteFiles",
+					"title"
+				],
+				"type": "object"
+			},
+			"TranscodeSkipped": {
+				"description": "TranscodeSkipped schema",
+				"properties": {
+					"detail": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"detail",
+					"mediaFile",
+					"reason"
+				],
+				"type": "object"
+			},
+			"TranscodeStats": {
+				"properties": {
+					"agent": {
+						"type": "string"
+					},
+					"bitDepth": {
+						"type": "integer"
+					},
+					"droppedAudio": {
+						"items": {
+							"type": "integer"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"droppedSubs": {
+						"items": {
+							"type": "integer"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"durationSec": {
+						"format": "double",
+						"type": "number"
+					},
+					"encoder": {
+						"type": "string"
+					},
+					"newSize": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"oldSize": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"videoCodec": {
+						"type": "string"
+					},
+					"vmafMean": {
+						"format": "double",
+						"nullable": true,
+						"type": "number"
+					}
+				},
+				"required": [
+					"agent",
+					"bitDepth",
+					"droppedAudio",
+					"droppedSubs",
+					"durationSec",
+					"encoder",
+					"newSize",
+					"oldSize",
+					"videoCodec",
+					"vmafMean"
+				],
+				"type": "object"
+			},
+			"TranscodeSwapRejected": {
+				"description": "TranscodeSwapRejected schema",
+				"properties": {
+					"job": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"job",
+					"mediaFile",
+					"reason"
+				],
+				"type": "object"
+			},
+			"TranscodeVerified": {
+				"description": "TranscodeVerified schema",
+				"properties": {
+					"job": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"sha256": {
+						"type": "string"
+					},
+					"sourceETag": {
+						"type": "string"
+					},
+					"stagedPath": {
+						"type": "string"
+					},
+					"stats": {
+						"$ref": "#/components/schemas/TranscodeStats"
+					}
+				},
+				"required": [
+					"job",
+					"mediaFile",
+					"sha256",
+					"sourceETag",
+					"stagedPath",
+					"stats"
+				],
+				"type": "object"
+			},
+			"UserCreated": {
+				"description": "UserCreated schema",
+				"properties": {
+					"role": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string"
+					},
+					"user": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"role",
+					"source",
+					"user"
+				],
+				"type": "object"
+			},
+			"WantedLanguage": {
+				"properties": {
+					"forced": {
+						"type": "boolean"
+					},
+					"hearingImpaired": {
+						"type": "boolean"
+					},
+					"language": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"forced",
+					"hearingImpaired",
+					"language"
+				],
+				"type": "object"
+			},
+			"WantedReleased": {
+				"description": "WantedReleased schema",
+				"properties": {
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodes",
+					"title"
+				],
+				"type": "object"
+			},
+			"WhisperCompleted": {
+				"description": "WhisperCompleted schema",
+				"properties": {
+					"job": {
+						"type": "string"
+					},
+					"language": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"stagedPath": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"job",
+					"language",
+					"mediaFile",
+					"stagedPath"
 				],
 				"type": "object"
 			},
