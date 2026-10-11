@@ -62,6 +62,44 @@
 				],
 				"type": "object"
 			},
+			"AttentionItemResponse": {
+				"description": "AttentionItemResponse schema",
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"openedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"ref": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"titleId": {
+						"nullable": true,
+						"type": "string"
+					}
+				},
+				"required": [
+					"action",
+					"id",
+					"kind",
+					"openedAt",
+					"ref",
+					"text",
+					"titleId"
+				],
+				"type": "object"
+			},
 			"BackupResponse": {
 				"description": "BackupResponse schema",
 				"properties": {
@@ -639,6 +677,55 @@
 				},
 				"required": [
 					"status"
+				],
+				"type": "object"
+			},
+			"HistoryEntryResponse": {
+				"description": "HistoryEntryResponse schema",
+				"properties": {
+					"at": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"detail": {
+						"type": "string"
+					},
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"severity": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"titleId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"titleName": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"at",
+					"detail",
+					"episodes",
+					"eventId",
+					"severity",
+					"text",
+					"titleId",
+					"titleName",
+					"type"
 				],
 				"type": "object"
 			},
@@ -1238,6 +1325,53 @@
 				],
 				"type": "object"
 			},
+			"PipelineRowResponse": {
+				"description": "PipelineRowResponse schema",
+				"properties": {
+					"detail": {
+						"type": "string"
+					},
+					"downloadId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"episodeId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"failed": {
+						"type": "boolean"
+					},
+					"stage": {
+						"type": "string"
+					},
+					"subs": {
+						"$ref": "#/components/schemas/SubsChipResponse"
+					},
+					"titleId": {
+						"type": "string"
+					},
+					"transcode": {
+						"$ref": "#/components/schemas/TranscodeChipResponse"
+					},
+					"updatedAt": {
+						"format": "date-time",
+						"type": "string"
+					}
+				},
+				"required": [
+					"detail",
+					"downloadId",
+					"episodeId",
+					"failed",
+					"stage",
+					"subs",
+					"titleId",
+					"transcode",
+					"updatedAt"
+				],
+				"type": "object"
+			},
 			"ProfileChanged": {
 				"description": "ProfileChanged schema",
 				"properties": {
@@ -1255,6 +1389,23 @@
 					"from",
 					"title",
 					"to"
+				],
+				"type": "object"
+			},
+			"ProjectionUpdated": {
+				"description": "ProjectionUpdated schema",
+				"properties": {
+					"projection": {
+						"type": "string"
+					},
+					"title": {
+						"nullable": true,
+						"type": "string"
+					}
+				},
+				"required": [
+					"projection",
+					"title"
 				],
 				"type": "object"
 			},
@@ -1878,6 +2029,31 @@
 				],
 				"type": "object"
 			},
+			"SubsChipResponse": {
+				"properties": {
+					"missing": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"satisfied": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"state": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"missing",
+					"satisfied",
+					"state"
+				],
+				"type": "object"
+			},
 			"SubtitleAdded": {
 				"description": "SubtitleAdded schema",
 				"properties": {
@@ -1935,6 +2111,46 @@
 					"language",
 					"mediaFile",
 					"reason"
+				],
+				"type": "object"
+			},
+			"TimelineEntryResponse": {
+				"description": "TimelineEntryResponse schema",
+				"properties": {
+					"at": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"detail": {
+						"type": "string"
+					},
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"severity": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"at",
+					"detail",
+					"episodes",
+					"eventId",
+					"severity",
+					"text",
+					"type"
 				],
 				"type": "object"
 			},
@@ -2033,6 +2249,31 @@
 				"required": [
 					"deleteFiles",
 					"title"
+				],
+				"type": "object"
+			},
+			"TranscodeChipResponse": {
+				"properties": {
+					"jobId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"savedPercent": {
+						"nullable": true,
+						"type": "integer"
+					},
+					"state": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"jobId",
+					"reason",
+					"savedPercent",
+					"state"
 				],
 				"type": "object"
 			},
@@ -2635,6 +2876,342 @@
 				]
 			}
 		},
+		"/api/activity/attention": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).attention`\n\n---\n\n",
+				"operationId": "getAttention",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/AttentionItemResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Open attention items, oldest first (admin)",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/history": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).history`\n\n---\n\n",
+				"operationId": "getHistory",
+				"parameters": [
+					{
+						"description": "Only entries at this severity or above: INFO, WARN or ERROR",
+						"in": "query",
+						"name": "severity",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Only entries strictly older than this RFC 3339 time",
+						"in": "query",
+						"name": "before",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "At most this many entries (default 50, max 200)",
+						"in": "query",
+						"name": "limit",
+						"schema": {
+							"type": "integer"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/HistoryEntryResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "The global history, newest first (admin)",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/pipeline": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).pipeline`\n\n---\n\n",
+				"operationId": "getPipeline",
+				"parameters": [
+					{
+						"description": "One title's rows, movies first then episodes in season/number order",
+						"in": "query",
+						"name": "title",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "The least-advanced row of each title, for library grids",
+						"in": "query",
+						"name": "titles",
+						"schema": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						}
+					},
+					{
+						"description": "Rows searching, downloading, importing or transcoding",
+						"in": "query",
+						"name": "active",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/PipelineRowResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Pipeline rows: one title's rows, each listed title's summary row, or the active rows",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/timeline": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).timeline`\n\n---\n\n",
+				"operationId": "getTimeline",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "query",
+						"name": "title",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Only entries strictly older than this RFC 3339 time",
+						"in": "query",
+						"name": "before",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "At most this many entries (default 50, max 200)",
+						"in": "query",
+						"name": "limit",
+						"schema": {
+							"type": "integer"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/TimelineEntryResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "A title's timeline, newest first",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
 		"/api/health": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/platform/httpserver.(*HealthController).Register.func1`\n\n---\n\n",
@@ -2978,6 +3555,9 @@
 	"tags": [
 		{
 			"name": "acquisition"
+		},
+		{
+			"name": "activity"
 		},
 		{
 			"name": "api"

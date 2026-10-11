@@ -82,6 +82,57 @@ export type UpdateIndexerRequest = {
     seedRatio?: number;
     seedingOverride: string;
 };
+export type AttentionItemResponse = {
+    action: string;
+    id: string;
+    kind: string;
+    openedAt: string;
+    ref: string;
+    text: string;
+    titleId: string | null;
+};
+export type HistoryEntryResponse = {
+    at: string;
+    detail: string;
+    episodes: string[];
+    eventId: string;
+    severity: string;
+    text: string;
+    titleId: string | null;
+    titleName: string;
+    "type": string;
+};
+export type SubsChipResponse = {
+    missing: string[];
+    satisfied: string[];
+    state: string;
+};
+export type TranscodeChipResponse = {
+    jobId: string | null;
+    reason: string;
+    savedPercent: number | null;
+    state: string;
+};
+export type PipelineRowResponse = {
+    detail: string;
+    downloadId: string | null;
+    episodeId: string | null;
+    failed: boolean;
+    stage: string;
+    subs: SubsChipResponse;
+    titleId: string;
+    transcode: TranscodeChipResponse;
+    updatedAt: string;
+};
+export type TimelineEntryResponse = {
+    at: string;
+    detail: string;
+    episodes: string[];
+    eventId: string;
+    severity: string;
+    text: string;
+    "type": string;
+};
 export type HealthResponse = {
     status: string;
 };
@@ -348,6 +399,10 @@ export type ProfileChanged = {
     "from": string;
     title: string;
     to: string;
+};
+export type ProjectionUpdated = {
+    projection: string;
+    title: string | null;
 };
 export type Rejection = {
     message: string;
@@ -655,6 +710,114 @@ export function updateIndexer(id: number, updateIndexerRequest: UpdateIndexerReq
             Accept: accept
         })
     })));
+}
+/**
+ * Open attention items, oldest first (admin)
+ */
+export function getAttention({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AttentionItemResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/activity/attention", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * The global history, newest first (admin)
+ */
+export function getHistory({ severity, before, limit, accept }: {
+    severity?: string;
+    before?: string;
+    limit?: number;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: HistoryEntryResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/activity/history${QS.query(QS.explode({
+        severity,
+        before,
+        limit
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Pipeline rows: one title's rows, each listed title's summary row, or the active rows
+ */
+export function getPipeline({ title, titles, active, accept }: {
+    title?: string;
+    titles?: string[];
+    active?: boolean;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: PipelineRowResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/activity/pipeline${QS.query(QS.explode({
+        title,
+        titles,
+        active
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * A title's timeline, newest first
+ */
+export function getTimeline(title: string, { before, limit, accept }: {
+    before?: string;
+    limit?: number;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TimelineEntryResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/activity/timeline${QS.query(QS.explode({
+        title,
+        before,
+        limit
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
 }
 /**
  * Report that the server is up
