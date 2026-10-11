@@ -227,6 +227,43 @@ export type HistoryEntryResponse = {
     titleName: string;
     "type": string;
 };
+export type NotificationKindResponse = {
+    kind: string;
+    label: string;
+    optIn: boolean;
+    scope: string;
+};
+export type NotificationUrlResponse = {
+    createdAt: string;
+    id: string;
+    kinds: string[];
+    label: string;
+    lastError: string;
+    lastSentAt: string | null;
+    maskedUrl: string;
+};
+export type NotificationUrlRequest = {
+    kinds: string[] | null;
+    label: string;
+    url: string;
+};
+export type NotificationUrlChangeRequest = {
+    kinds: string[] | null;
+    label?: string;
+};
+export type NotificationResponse = {
+    body: string;
+    createdAt: string;
+    id: string;
+    kind: string;
+    link: string;
+    read: boolean;
+    title: string;
+};
+export type NotificationListResponse = {
+    notifications: NotificationResponse[];
+    unreadCount: number;
+};
 export type SubsChipResponse = {
     missing: string[];
     satisfied: string[];
@@ -1558,6 +1595,219 @@ export function getHistory({ severity, before, limit, accept }: {
         limit
     }))}`, {
         ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * The notification kinds your role may subscribe a URL to
+ */
+export function listNotificationKinds({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: NotificationKindResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/activity/notification-kinds", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Your notification URLs, masked
+ */
+export function listNotificationUrls({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: NotificationUrlResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/activity/notification-urls", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Add a shoutrrr URL (at most 10 per user)
+ */
+export function addNotificationUrl(notificationUrlRequest: NotificationUrlRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: NotificationUrlResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/activity/notification-urls", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: notificationUrlRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Delete a notification URL
+ */
+export function deleteNotificationUrl(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/activity/notification-urls/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change a URL's label or event kinds
+ */
+export function updateNotificationUrl(id: string, notificationUrlChangeRequest: NotificationUrlChangeRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: NotificationUrlResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/activity/notification-urls/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: notificationUrlChangeRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Send a test message to a URL now
+ */
+export function testNotificationUrl(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/activity/notification-urls/${encodeURIComponent(id)}/test`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Your in-app notifications, newest first, and how many are unread
+ */
+export function listNotifications({ unread, before, limit, accept }: {
+    unread?: boolean;
+    before?: string;
+    limit?: number;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: NotificationListResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/activity/notifications${QS.query(QS.explode({
+        unread,
+        before,
+        limit
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Mark all your notifications read
+ */
+export function markAllNotificationsRead({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/activity/notifications/read-all", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Mark one of your notifications read
+ */
+export function markNotificationRead(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/activity/notifications/${encodeURIComponent(id)}/read`, {
+        ...opts,
+        method: "POST",
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept
         })

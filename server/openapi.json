@@ -1944,6 +1944,174 @@
 				],
 				"type": "object"
 			},
+			"NotificationKindResponse": {
+				"description": "NotificationKindResponse schema",
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"label": {
+						"type": "string"
+					},
+					"optIn": {
+						"type": "boolean"
+					},
+					"scope": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kind",
+					"label",
+					"optIn",
+					"scope"
+				],
+				"type": "object"
+			},
+			"NotificationListResponse": {
+				"description": "NotificationListResponse schema",
+				"properties": {
+					"notifications": {
+						"items": {
+							"$ref": "#/components/schemas/NotificationResponse"
+						},
+						"type": "array"
+					},
+					"unreadCount": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"notifications",
+					"unreadCount"
+				],
+				"type": "object"
+			},
+			"NotificationResponse": {
+				"properties": {
+					"body": {
+						"type": "string"
+					},
+					"createdAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"link": {
+						"type": "string"
+					},
+					"read": {
+						"type": "boolean"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"body",
+					"createdAt",
+					"id",
+					"kind",
+					"link",
+					"read",
+					"title"
+				],
+				"type": "object"
+			},
+			"NotificationURLChangeRequest": {
+				"description": "NotificationURLChangeRequest schema",
+				"properties": {
+					"kinds": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"label": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kinds"
+				],
+				"type": "object"
+			},
+			"NotificationURLRequest": {
+				"description": "NotificationURLRequest schema",
+				"properties": {
+					"kinds": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"label": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kinds",
+					"label",
+					"url"
+				],
+				"type": "object"
+			},
+			"NotificationURLResponse": {
+				"description": "NotificationURLResponse schema",
+				"properties": {
+					"createdAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"kinds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"label": {
+						"type": "string"
+					},
+					"lastError": {
+						"type": "string"
+					},
+					"lastSentAt": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"maskedUrl": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"createdAt",
+					"id",
+					"kinds",
+					"label",
+					"lastError",
+					"lastSentAt",
+					"maskedUrl"
+				],
+				"type": "object"
+			},
 			"OpenSubtitlesConnection": {
 				"properties": {
 					"password": {
@@ -5893,6 +6061,648 @@
 					}
 				},
 				"summary": "The global history, newest first (admin)",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/notification-kinds": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notificationKinds`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listNotificationKinds",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/NotificationKindResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "The notification kinds your role may subscribe a URL to",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/notification-urls": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notificationURLs`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listNotificationUrls",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/NotificationURLResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Your notification URLs, masked",
+				"tags": [
+					"api",
+					"activity"
+				]
+			},
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).addNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "addNotificationUrl",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/NotificationURLRequest"
+							}
+						}
+					},
+					"description": "Request body for activity.NotificationURLRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotificationURLResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Add a shoutrrr URL (at most 10 per user)",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/notification-urls/{id}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).deleteNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "deleteNotificationUrl",
+				"parameters": [
+					{
+						"description": "ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Delete a notification URL",
+				"tags": [
+					"api",
+					"activity"
+				]
+			},
+			"patch": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).updateNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateNotificationUrl",
+				"parameters": [
+					{
+						"description": "ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/NotificationURLChangeRequest"
+							}
+						}
+					},
+					"description": "Request body for activity.NotificationURLChangeRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotificationURLResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change a URL's label or event kinds",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/notification-urls/{id}/test": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).testNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "testNotificationUrl",
+				"parameters": [
+					{
+						"description": "ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Send a test message to a URL now",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/notifications": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notifications`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listNotifications",
+				"parameters": [
+					{
+						"description": "Only unread notifications",
+						"in": "query",
+						"name": "unread",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"description": "Only entries strictly older than this RFC 3339 time",
+						"in": "query",
+						"name": "before",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "At most this many entries (default 50, max 200)",
+						"in": "query",
+						"name": "limit",
+						"schema": {
+							"type": "integer"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotificationListResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Your in-app notifications, newest first, and how many are unread",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/notifications/read-all": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).markAllRead`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "markAllNotificationsRead",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Mark all your notifications read",
+				"tags": [
+					"api",
+					"activity"
+				]
+			}
+		},
+		"/api/activity/notifications/{id}/read": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).markRead`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "markNotificationRead",
+				"parameters": [
+					{
+						"description": "ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Mark one of your notifications read",
 				"tags": [
 					"api",
 					"activity"
