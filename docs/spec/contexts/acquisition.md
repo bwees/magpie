@@ -34,7 +34,7 @@ Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md
 | `quality_groups` | `id` (≥1000), `profile_id`, `name`, member quality IDs (equal rank inside a group) |
 | `custom_formats` | `id`, `name`, `trash_id?`, `include_when_renaming=false`, `specs` (JSON: kind, negate, required, value) |
 | `profile_format_scores` | `profile_id`, `format_id`, `score`, `user_override bool` |
-| `indexers` | `prowlarr_id`, `name`, `caps` (search modes, ID params, categories), `status`, `priority`, `min_seeders`, `seeding_mode_override?`, `seed_ratio?`, `seed_time?`, `last_ok_at` |
+| `indexers` | `prowlarr_id`, `name`, `privacy` (`PUBLIC` \| `SEMI_PRIVATE` \| `PRIVATE`), `caps` (JSON: search modes, ID params, categories), `status` (`OK` \| `FAILING` \| `GONE`), `last_error`, `failing_since?`, `average_response_ms`, `priority` (default 25), `min_seeders` (default 1), `seeding_mode_override` (`USE_GLOBAL` \| `SEED_UNTIL_GOALS` \| `DONT_SEED`, default `USE_GLOBAL`), `seed_ratio?`, `seed_days?` (null = the global goal), `last_ok_at?`, `synced_at` |
 | `searches` | `id`, `title_id`, `episode_ids`, `trigger` (`RSS` \| `AUTO` \| `USER_AUTO` \| `INTERACTIVE` \| `REGRAB`), `started_at`, `completed_at`, counts. Results are not persisted. |
 | `pending_releases` | `id`, `title_id`, `episode_ids`, release snapshot, `publish_at`, `reason` (delay) |
 | `blocklist` | `title_id`, `info_hash`, `release_name`, `indexer`, `reason` (`BLOCKED_FILE` \| `METADATA_TIMEOUT` \| `STALLED` \| `IMPORT_FAILED` \| `DOWNLOAD_FAILED` \| `USER` \| `ISSUE` \| `MIGRATED`), `at`, `expires_at?` (null = permanent) |
@@ -215,8 +215,12 @@ Idempotency: every handler records `event.ID` in `processed_events` within the s
 ```go
 // ports.go — implemented by internal/adapters/prowlarr
 type Prowlarr interface {
-    // Indexers lists enabled indexers with Torznab caps. Called hourly and on demand.
+    // Indexers lists enabled torrent indexers with Torznab caps (/{id}/api?t=caps) and Prowlarr's view of
+    // their health (indexerstatus, indexerstats). Called hourly and on demand. An indexer whose caps call
+    // returns a Torznab <error> comes back with nil Caps and Health.Error set; it doesn't fail the list.
     Indexers(ctx context.Context) ([]ProwlarrIndexer, error)
+    // WebURL is Prowlarr's own UI ("" when no connection is set up), for the "Open Prowlarr" link.
+    WebURL(ctx context.Context) (string, error)
     // Search queries ONE indexer's Torznab endpoint (/{id}/api). Never the aggregate search.
     // The query carries ID params the indexer supports, else a title query; ctx carries the 60 s timeout.
     Search(ctx context.Context, indexerID int, q TorznabQuery) ([]TorznabItem, error)
@@ -271,7 +275,9 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 | GET | `/downloads` · DELETE `/downloads/{id}?deleteData=` | Queue view; remove |
 | GET/POST/PUT/DELETE | `/profiles`, `/custom-formats` | Profile and CF CRUD; `POST /profiles/from-preset` |
 | POST | `/trash/sync` · GET `/trash/profiles` | Manual TRaSH sync; list guide profiles |
-| GET · PUT | `/indexers` · `/indexers/{id}` | List (from Prowlarr) and per-indexer settings |
+| GET · PUT | `/indexers` · `/indexers/{id}` | List (from Prowlarr, gone ones left out, with the last sync error and Prowlarr's URL) and per-indexer settings |
+| POST | `/indexers/sync` | Pull the list from Prowlarr now; 502 `prowlarr-unavailable` / `prowlarr-unauthorized` on failure |
+| GET · PUT | `/indexer-options` | Sync interval, search timeout and result cache (apply to every indexer) |
 | GET · DELETE | `/blocklist` · `/blocklist/{id}` | View and remove |
 | GET · PUT | `/settings` | Blocked patterns, metadata timeout, delay, settle window, seeding defaults, search-on-add |
 
@@ -279,7 +285,13 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 
 ### Indexers (Prowlarr)
 
-- **Indexer list:** pulled from Prowlarr hourly and on demand. New indexers get default settings; removed ones are marked gone, and their history is kept. Indexers are configured only in Prowlarr; Magpie stores priority, minimum seeders, seeding override and goals.
+- **Indexer list:** pulled from Prowlarr hourly (setting), once at startup, and on demand. Indexers are configured only in Prowlarr; Magpie stores priority, minimum seeders, seeding override and goals.
+  - Only enabled torrent indexers are listed. Disabled and usenet indexers count as removed.
+  - New indexers get default settings (priority 25, minimum seeders 1, `USE_GLOBAL`).
+  - Listed indexers get fresh name, privacy, caps and average response. Magpie's settings are never touched by a sync.
+  - Removed ones are marked `GONE`; the row and its settings stay, and come back if the indexer returns.
+  - A failed pull (Prowlarr unreachable, bad API key) changes no rows; the error is shown on the Indexers page.
+- **Health:** an indexer is `FAILING` while Prowlarr has backed it off after repeated failures (`disabledTill` in the future) or its caps call returns a Torznab `<error>`. Its last error and failing-since time are shown; its last known caps are kept. `last_ok_at` is the last sync (later also search) where it was healthy.
 - **Fan-out:** a search queries every enabled indexer whose caps cover the media kind, in parallel, one goroutine per indexer. Each result goes out as `SearchResultsReceived` as soon as that indexer answers.
 - **Query tiers per indexer:**
   1. ID search with whatever the caps support: `tmdbid`, `imdbid`, `tvdbid` (from `catalog.Reader` external IDs).
@@ -483,3 +495,9 @@ The check is on by default and can be turned off in settings.
 31. **Resolution preset:** given the `1080p` preset, when `FileImported` brings Bluray 1080p with CF 0, then `CutoffMet` is published; a WEB 2160p release is rejected `QUALITY_NOT_ALLOWED`; between two 1080p releases with CF 1700 (WEB) and 300 (Bluray) the WEB one ranks first.
 32. **SearchCompleted outcome:** given an AUTO search with no accepted releases, then `SearchCompleted{Outcome: NOTHING_ACCEPTED}`; given a delay profile holding the best release, then `Outcome: PENDING_DELAY`; given a grab, then `Outcome: GRABBED` with `Grabbed` set.
 33. **ProfileChanged:** given a Title moved from profile `2160p` to `1080p` with a WEB 1080p file, when `ProfileChanged` arrives, then `CutoffMet` is published once.
+34. **Indexer sync:**
+    - Given Prowlarr lists a new indexer, when the sync runs, then it is stored with priority 25, minimum seeders 1, override `USE_GLOBAL`, status `OK` and its caps.
+    - Given an indexer with user priority 7, when Prowlarr reports new caps, then the caps are updated and the priority stays 7.
+    - Given an indexer missing from Prowlarr's list, then its row is kept with status `GONE` and its settings; it is left out of `GET /indexers`. When it reappears, it is `OK` with the same settings.
+    - Given Prowlarr backs an indexer off and its caps call answers `<error code="429">`, then it is `FAILING` with that error and its last known caps are kept. A healthy sync clears the error.
+    - Given Prowlarr is unreachable, when the sync runs, then no row changes and the Indexers page shows the error.

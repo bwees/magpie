@@ -97,10 +97,14 @@ Owner: **Acquisition**. The list is read-only from Prowlarr ([ticket 22](../../.
 | Setting | Default | Validation |
 |---|---|---|
 | Per-indexer priority | 25 | 1–50 (lower is preferred) |
+| Per-indexer minimum seeders | 1 | 0–100 |
 | Per-indexer after-download override | Use global | `USE_GLOBAL` \| `SEED_UNTIL_GOALS` \| `DONT_SEED` |
-| Per-indexer seeding goal | use global: ratio 2.0 or 14 days, whichever first | ratio 0–100, days 0–365 |
+| Per-indexer seeding goal | use global: ratio 2.0 or 14 days, whichever first | ratio 0–100, days 0–365; empty = global |
 | Search timeout per indexer | 60 s | 10–120 s |
-| Result cache | 30 min | 0–120 min |
+| Result cache | 30 min | 0–120 min (0 = off) |
+| Indexer list sync | 1 h | 15 min–24 h |
+
+The per-indexer rows live on each indexer (`PUT /api/acquisition/indexers/{id}`); the last three are one setting, `acquisition.indexers` (`GET/PUT /api/acquisition/indexer-options`).
 
 ## Downloads
 

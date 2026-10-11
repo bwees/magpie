@@ -113,7 +113,7 @@ web/                           SvelteKit SPA
 | Pending (delay) releases | Acquisition | ticker | 1 min |
 | Seeding goals | Acquisition | ticker | 5 min |
 | RSS sync per indexer | Acquisition | backlite periodic | 15 min |
-| Prowlarr indexer list | Acquisition | backlite periodic | 1 h + on demand |
+| Prowlarr indexer list | Acquisition | backlite periodic | 1 h + at startup + on demand |
 | Missing backlog sweep | Acquisition | backlite periodic | daily, spread across the day |
 | Cutoff-unmet sweep | Acquisition | backlite periodic | weekly, spread |
 | TRaSH sync | Acquisition | backlite periodic | daily |
