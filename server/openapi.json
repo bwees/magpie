@@ -1345,6 +1345,22 @@
 				],
 				"type": "object"
 			},
+			"GrabRequest": {
+				"description": "GrabRequest schema",
+				"properties": {
+					"override": {
+						"type": "boolean"
+					},
+					"releaseId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"override",
+					"releaseId"
+				],
+				"type": "object"
+			},
 			"HTTPError": {
 				"description": "HTTPError schema",
 				"properties": {
@@ -2670,6 +2686,28 @@
 				],
 				"type": "object"
 			},
+			"QualityBucketResponse": {
+				"properties": {
+					"meetsCutoff": {
+						"type": "boolean"
+					},
+					"name": {
+						"type": "string"
+					},
+					"qualityIds": {
+						"items": {
+							"type": "integer"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"meetsCutoff",
+					"name",
+					"qualityIds"
+				],
+				"type": "object"
+			},
 			"QualityGroupResponse": {
 				"properties": {
 					"id": {
@@ -3371,6 +3409,109 @@
 				],
 				"type": "object"
 			},
+			"SearchIndexerResponse": {
+				"properties": {
+					"message": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"message",
+					"name",
+					"status"
+				],
+				"type": "object"
+			},
+			"SearchProfileResponse": {
+				"properties": {
+					"buckets": {
+						"items": {
+							"$ref": "#/components/schemas/QualityBucketResponse"
+						},
+						"type": "array"
+					},
+					"cutoff": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"penalizedFormats": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"buckets",
+					"cutoff",
+					"id",
+					"name",
+					"penalizedFormats"
+				],
+				"type": "object"
+			},
+			"SearchResponse": {
+				"description": "SearchResponse schema",
+				"properties": {
+					"cancelled": {
+						"type": "boolean"
+					},
+					"completed": {
+						"type": "boolean"
+					},
+					"indexers": {
+						"items": {
+							"$ref": "#/components/schemas/SearchIndexerResponse"
+						},
+						"type": "array"
+					},
+					"profile": {
+						"$ref": "#/components/schemas/SearchProfileResponse"
+					},
+					"releases": {
+						"items": {
+							"$ref": "#/components/schemas/ReleaseDecision"
+						},
+						"type": "array"
+					},
+					"searchId": {
+						"type": "string"
+					},
+					"startedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"trigger": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"cancelled",
+					"completed",
+					"indexers",
+					"profile",
+					"releases",
+					"searchId",
+					"startedAt",
+					"title",
+					"trigger"
+				],
+				"type": "object"
+			},
 			"SearchResultsReceived": {
 				"description": "SearchResultsReceived schema",
 				"properties": {
@@ -3598,6 +3739,31 @@
 				},
 				"required": [
 					"signedOut"
+				],
+				"type": "object"
+			},
+			"StartSearchRequest": {
+				"description": "StartSearchRequest schema",
+				"properties": {
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"interactive": {
+						"type": "boolean"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"interactive",
+					"title"
 				],
 				"type": "object"
 			},
@@ -5854,6 +6020,301 @@
 					}
 				},
 				"summary": "Radarr's 30 qualities, used for movies and TV",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/searches": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).start`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "startSearch",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/StartSearchRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.StartSearchRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SearchResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Start an interactive search; results stream on the live topic search:\u003cid\u003e (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/searches/{id}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).cancel`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "cancelSearch",
+				"parameters": [
+					{
+						"description": "Search ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Cancel a search's in-flight indexer queries (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).get`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getSearch",
+				"parameters": [
+					{
+						"description": "Search ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SearchResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "A search's cached state, for reconnect and refresh (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/searches/{id}/grab": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).grab`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "grabRelease",
+				"parameters": [
+					{
+						"description": "Search ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/GrabRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.GrabRequest",
+					"required": true
+				},
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Grab a release from the search's cached results; override grabs a rejected one (admin)",
 				"tags": [
 					"api",
 					"acquisition"

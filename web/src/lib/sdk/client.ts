@@ -179,6 +179,70 @@ export type ProfileResponse = {
 export type FromPresetRequest = {
     preset: string;
 };
+export type StartSearchRequest = {
+    episodes?: string[] | null;
+    interactive: boolean;
+    title: string;
+};
+export type SearchIndexerResponse = {
+    message: string;
+    name: string;
+    status: string;
+};
+export type QualityBucketResponse = {
+    meetsCutoff: boolean;
+    name: string;
+    qualityIds: number[];
+};
+export type SearchProfileResponse = {
+    buckets: QualityBucketResponse[];
+    cutoff: string;
+    id: string;
+    name: string;
+    penalizedFormats: string[];
+};
+export type Quality = {
+    id: number;
+    name: string;
+    resolution: number;
+    revision: number;
+    source: string;
+};
+export type Rejection = {
+    message: string;
+    reason: string;
+    temporary: boolean;
+};
+export type ReleaseDecision = {
+    cfScore: number;
+    formats: string[] | null;
+    freeleech: boolean;
+    indexer: string;
+    infoHash: string;
+    name: string;
+    publishedAt: string;
+    quality: Quality;
+    rank: number;
+    rejections: Rejection[] | null;
+    release: string;
+    seeders: number;
+    sizeBytes: number;
+};
+export type SearchResponse = {
+    cancelled: boolean;
+    completed: boolean;
+    indexers: SearchIndexerResponse[];
+    profile: SearchProfileResponse;
+    releases: ReleaseDecision[];
+    searchId: string;
+    startedAt: string;
+    title: string;
+    trigger: string;
+};
+export type GrabRequest = {
+    "override": boolean;
+    releaseId: string;
+};
 export type AcquisitionSettingsResponse = {
     defaultDelayMinutes: number;
     defaultProfileId: string;
@@ -686,13 +750,6 @@ export type CoverageSettled = {
     satisfied: string[] | null;
     title: string;
 };
-export type Quality = {
-    id: number;
-    name: string;
-    resolution: number;
-    revision: number;
-    source: string;
-};
 export type CutoffMet = {
     cfScore: number;
     episodes: string[] | null;
@@ -910,26 +967,6 @@ export type ProfileChanged = {
 export type ProjectionUpdated = {
     projection: string;
     title: string | null;
-};
-export type Rejection = {
-    message: string;
-    reason: string;
-    temporary: boolean;
-};
-export type ReleaseDecision = {
-    cfScore: number;
-    formats: string[] | null;
-    freeleech: boolean;
-    indexer: string;
-    infoHash: string;
-    name: string;
-    publishedAt: string;
-    quality: Quality;
-    rank: number;
-    rejections: Rejection[] | null;
-    release: string;
-    seeders: number;
-    sizeBytes: number;
 };
 export type ReleaseGrabbed = {
     cfScore: number;
@@ -1498,6 +1535,99 @@ export function listQualities({ accept }: {
             Accept: accept
         })
     }));
+}
+/**
+ * Start an interactive search; results stream on the live topic search:<id> (admin)
+ */
+export function startSearch(startSearchRequest: StartSearchRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: SearchResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/searches", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: startSearchRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Cancel a search's in-flight indexer queries (admin)
+ */
+export function cancelSearch(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/searches/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * A search's cached state, for reconnect and refresh (admin)
+ */
+export function getSearch(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SearchResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/searches/${encodeURIComponent(id)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Grab a release from the search's cached results; override grabs a rejected one (admin)
+ */
+export function grabRelease(id: string, grabRequest: GrabRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/searches/${encodeURIComponent(id)}/grab`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: grabRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
 }
 /**
  * Default profile, delay, settle window and TRaSH sync (admin)
