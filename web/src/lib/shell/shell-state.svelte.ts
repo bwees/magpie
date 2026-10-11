@@ -21,7 +21,6 @@ export class ShellState {
 	readonly #isMobile = new IsMobile();
 
 	sidebarOpen = $state(readSidebarExpanded());
-	hasUnreadNotifications = $state(false);
 	badges = $state<Record<BadgeSource, number>>({
 		[BadgeSource.ATTENTION]: 0,
 		[BadgeSource.PENDING_REQUESTS]: 0,

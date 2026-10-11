@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import Bell from '@lucide/svelte/icons/bell';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import SearchOverlay from '$lib/catalog/SearchOverlay.svelte';
 	import TopSearch from '$lib/catalog/TopSearch.svelte';
-	import { Button } from '$lib/components/ui/button';
 	import { getLive, LiveStatus } from '$lib/live/live-client.svelte';
+	import NotificationBell from '$lib/notifications/NotificationBell.svelte';
 	import AvatarMenu from './AvatarMenu.svelte';
 	import { getShell } from './shell-state.svelte';
 
@@ -48,12 +47,7 @@
 				<TopSearch {search} />
 			{/if}
 
-			<Button variant="ghost" size="icon" class="relative rounded-full" aria-label="Notifications">
-				<Bell class="size-4" />
-				{#if shell.hasUnreadNotifications}
-					<span class="absolute top-2 right-2 size-2 rounded-full bg-primary"></span>
-				{/if}
-			</Button>
+			<NotificationBell />
 
 			<AvatarMenu />
 		</div>
