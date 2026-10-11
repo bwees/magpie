@@ -106,6 +106,21 @@ export class TitlePage {
 		}
 	}
 
+	async setProfile(profileId: string): Promise<void> {
+		const title = this.title;
+		if (!title || title.profileId === profileId) {
+			return;
+		}
+		const previous = title.profileId;
+		title.profileId = profileId;
+		try {
+			this.title = await this.#api.update(this.id, { profileId });
+		} catch (error) {
+			title.profileId = previous;
+			toast.error(apiErrorMessage(error, 'Could not change the quality profile.'));
+		}
+	}
+
 	/** Refetches when Catalog changes this Title or the live socket asks for a refetch. */
 	watch(live: LiveConnection): () => void {
 		const refetchIfMine = (message: LiveMessage) => {

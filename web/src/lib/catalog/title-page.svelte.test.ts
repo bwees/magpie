@@ -86,6 +86,20 @@ describe('TitlePage', () => {
 		expect(page.title?.monitored).toBe(true);
 	});
 
+	it('writes a new quality profile through the title update and reverts on failure', async () => {
+		const api = new FakeApi();
+		api.stored = conclave({ profileId: 'p1080' });
+		const page = new TitlePage(TITLE_ID, api);
+		await page.load();
+
+		await page.setProfile('p2160');
+		expect(api.stored.profileId).toBe('p2160');
+
+		api.failUpdate = true;
+		await page.setProfile('p720');
+		expect(page.title?.profileId).toBe('p2160');
+	});
+
 	it('removes the title with the chosen deleteFiles flag', async () => {
 		const api = new FakeApi();
 		const page = new TitlePage(TITLE_ID, api);

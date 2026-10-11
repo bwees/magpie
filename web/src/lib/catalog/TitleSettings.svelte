@@ -2,6 +2,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
 	import { Switch } from '$lib/components/ui/switch';
+	import ProfileSelect from '$lib/settings/quality/ProfileSelect.svelte';
 	import type { TitlePage } from './title-page.svelte';
 
 	let { page, onRemoved }: { page: TitlePage; onRemoved: () => void } = $props();
@@ -15,6 +16,14 @@
 
 {#if page.title}
 	<div class="grid max-w-lg gap-6">
+		<div class="grid gap-1.5">
+			<label for="title-profile" class="text-sm font-medium">Quality profile</label>
+			<ProfileSelect
+				id="title-profile"
+				value={page.title.profileId}
+				onChange={(profileId) => page.setProfile(profileId)}
+			/>
+		</div>
 		<div class="flex items-center justify-between gap-4">
 			<div>
 				<label for="title-monitored" class="text-sm font-medium">Monitored</label>
