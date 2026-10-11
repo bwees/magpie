@@ -46,6 +46,8 @@ const (
 
 	pathSeason    = "n"
 	pathEpisodeID = "episodeId"
+	pathKind      = "kind"
+	pathTmdbID    = "tmdbId"
 
 	TypeTitleNotFound       problem.Type = "urn:magpie:problem:title-not-found"
 	TypeSeasonNotFound      problem.Type = "urn:magpie:problem:season-not-found"
@@ -227,6 +229,18 @@ type DiscoverItemResponse struct {
 	TitleID *domain.TitleID `json:"titleId"`
 }
 
+type DiscoverSeasonResponse struct {
+	Number       int  `json:"number" validate:"required"`
+	EpisodeCount int  `json:"episodeCount" validate:"required"`
+	Monitored    bool `json:"monitored" validate:"required"`
+}
+
+type DiscoverDetailResponse struct {
+	DiscoverItemResponse
+	// Seasons is empty for movies.
+	Seasons []DiscoverSeasonResponse `json:"seasons" validate:"required"`
+}
+
 type DiscoverResponse struct {
 	// Trending is true when the query was empty and the items are TMDB's trending titles this week.
 	Trending bool                   `json:"trending" validate:"required"`
@@ -354,6 +368,13 @@ func (c *Controller) Register(server *fuego.Server) {
 		fuego.OptionSummary("Search TMDB, or list this week's trending titles for an empty query"),
 		fuego.OptionTags(tagCatalog),
 		fuego.OptionQuery(queryQ, "Search text; empty for trending"),
+	)
+	fuego.Get(api, "/discover/{kind}/{tmdbId}", c.discoverDetail,
+		fuego.OptionOperationID("getDiscoverDetail"),
+		fuego.OptionSummary("One movie or series with its seasons, from the library when tracked, else from TMDB"),
+		fuego.OptionTags(tagCatalog),
+		fuego.OptionPath(pathKind, "MOVIE or SERIES"),
+		fuego.OptionPath(pathTmdbID, "TMDB ID"),
 	)
 	fuego.Get(api, "/settings", c.getSettings,
 		fuego.OptionOperationID("getCatalogSettings"),
@@ -638,19 +659,51 @@ func (c *Controller) discover(ctx fuego.ContextNoBody) (DiscoverResponse, error)
 	}
 	response := DiscoverResponse{Trending: strings.TrimSpace(query) == "", Items: make([]DiscoverItemResponse, 0, len(items))}
 	for _, item := range items {
-		entry := DiscoverItemResponse{
-			TmdbID:    item.Item.ID,
-			Kind:      item.Item.Kind,
-			Name:      item.Item.Name,
-			Year:      item.Item.Year,
-			Overview:  item.Item.Overview,
-			InLibrary: item.Title != nil,
-			TitleID:   item.Title,
-		}
-		if item.PosterURL != "" {
-			entry.PosterURL = &item.PosterURL
-		}
-		response.Items = append(response.Items, entry)
+		response.Items = append(response.Items, discoverItemResponse(item))
+	}
+	return response, nil
+}
+
+func discoverItemResponse(item DiscoverItem) DiscoverItemResponse {
+	entry := DiscoverItemResponse{
+		TmdbID:    item.Item.ID,
+		Kind:      item.Item.Kind,
+		Name:      item.Item.Name,
+		Year:      item.Item.Year,
+		Overview:  item.Item.Overview,
+		InLibrary: item.Title != nil,
+		TitleID:   item.Title,
+	}
+	if item.PosterURL != "" {
+		entry.PosterURL = &item.PosterURL
+	}
+	return entry
+}
+
+func (c *Controller) discoverDetail(ctx fuego.ContextNoBody) (DiscoverDetailResponse, error) {
+	kind := domain.MediaKind(ctx.PathParam(pathKind))
+	if !slices.Contains(mediaKinds, kind) {
+		return DiscoverDetailResponse{}, badRequest("kind must be MOVIE or SERIES")
+	}
+	tmdbID, err := strconv.ParseInt(ctx.PathParam(pathTmdbID), 10, 64)
+	if err != nil || tmdbID <= 0 {
+		return DiscoverDetailResponse{}, badRequest("tmdbId must be a positive number")
+	}
+	detail, err := c.service.DiscoverDetail(ctx.Context(), kind, domain.TmdbID(tmdbID))
+	switch {
+	case errors.Is(err, ErrTmdbNotFound):
+		return DiscoverDetailResponse{}, problem.New(TypeTitleNotFound, http.StatusNotFound, "TMDB has no such title")
+	case isTmdbError(err):
+		return DiscoverDetailResponse{}, problem.New(TypeTmdbUnavailable, http.StatusServiceUnavailable, "TMDB is unavailable: "+err.Error())
+	case err != nil:
+		return DiscoverDetailResponse{}, err
+	}
+	response := DiscoverDetailResponse{DiscoverItemResponse: discoverItemResponse(detail.DiscoverItem), Seasons: make([]DiscoverSeasonResponse, 0, len(detail.Seasons))}
+	if detail.View != nil {
+		response.PosterURL = titleResponse(*detail.View).Images.Poster
+	}
+	for _, season := range detail.Seasons {
+		response.Seasons = append(response.Seasons, DiscoverSeasonResponse{Number: season.Number, EpisodeCount: season.Episodes, Monitored: season.Monitored})
 	}
 	return response, nil
 }

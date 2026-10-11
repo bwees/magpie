@@ -618,6 +618,56 @@
 				},
 				"type": "object"
 			},
+			"DiscoverDetailResponse": {
+				"description": "DiscoverDetailResponse schema",
+				"properties": {
+					"inLibrary": {
+						"type": "boolean"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"overview": {
+						"type": "string"
+					},
+					"posterUrl": {
+						"nullable": true,
+						"type": "string"
+					},
+					"seasons": {
+						"items": {
+							"$ref": "#/components/schemas/DiscoverSeasonResponse"
+						},
+						"type": "array"
+					},
+					"titleId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"tmdbId": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"year": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"inLibrary",
+					"kind",
+					"name",
+					"overview",
+					"posterUrl",
+					"seasons",
+					"titleId",
+					"tmdbId",
+					"year"
+				],
+				"type": "object"
+			},
 			"DiscoverItemResponse": {
 				"properties": {
 					"inLibrary": {
@@ -676,6 +726,25 @@
 				"required": [
 					"items",
 					"trending"
+				],
+				"type": "object"
+			},
+			"DiscoverSeasonResponse": {
+				"properties": {
+					"episodeCount": {
+						"type": "integer"
+					},
+					"monitored": {
+						"type": "boolean"
+					},
+					"number": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"episodeCount",
+					"monitored",
+					"number"
 				],
 				"type": "object"
 			},
@@ -7217,6 +7286,86 @@
 					}
 				},
 				"summary": "Search TMDB, or list this week's trending titles for an empty query",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/discover/{kind}/{tmdbId}": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).discoverDetail`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getDiscoverDetail",
+				"parameters": [
+					{
+						"description": "MOVIE or SERIES",
+						"in": "path",
+						"name": "kind",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "TMDB ID",
+						"in": "path",
+						"name": "tmdbId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DiscoverDetailResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "One movie or series with its seasons, from the library when tracked, else from TMDB",
 				"tags": [
 					"api",
 					"catalog"

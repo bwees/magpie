@@ -280,6 +280,7 @@ Routes under `/api/catalog`. Schemas come from fuego's OpenAPI.
 - `DELETE /titles/{id}?deleteFiles=bool` remove a Title (admin).
 - `GET /images/{titleId}/{kind}?w=` serve a cached image, resized. `w` rounds up to 92, 154, 185, 342, 500, 780 or 1280; no `w`, or one wider than the image, serves the cached file.
 - `GET /discover?q=` TMDB search, each item marked `inLibrary` (with its `titleId`); an empty `q` returns TMDB trending this week (`trending: true`). TMDB failures answer `503` with problem type `tmdb-unavailable`.
+- `GET /discover/{kind}/{tmdbId}` one movie or series as a discover item plus its `seasons` (`number`, `episodeCount`, `monitored`), for request rows and the request scope picker. A tracked Title is read from the library (cached poster, its seasons); anything else from TMDB (`404` if TMDB has no such ID).
 - `GET /settings`, `PUT /settings` metadata language, release region (admin). The TMDB key is platform connection config (`/api/platform/connections`).
 - `GET /languages` the global wanted languages, ordered, plus `available`: the ISO 639-1 codes and English names a list may hold. `PUT /languages {languages}` replaces the list (admin): at least one language, each a known ISO 639-1 code, no duplicates, else `400 invalid-wanted-languages`. Shown in Settings → Subtitles and the setup wizard.
 - `PUT /titles/{id}/languages {languages}` set a Title's override, or clear it with `null` (admin). Same validation. `TitleResponse.languagesOverride` is `null` when the Title uses the global list.

@@ -314,6 +314,22 @@ export type DiscoverResponse = {
     items: DiscoverItemResponse[];
     trending: boolean;
 };
+export type DiscoverSeasonResponse = {
+    episodeCount: number;
+    monitored: boolean;
+    "number": number;
+};
+export type DiscoverDetailResponse = {
+    inLibrary: boolean;
+    kind: string;
+    name: string;
+    overview: string;
+    posterUrl: string | null;
+    seasons: DiscoverSeasonResponse[];
+    titleId: string | null;
+    tmdbId: number;
+    year: number;
+};
 export type String = string;
 export type LanguageOptionResponse = {
     code: string;
@@ -1958,6 +1974,28 @@ export function discoverTitles({ q, accept }: {
     }>(`/api/catalog/discover${QS.query(QS.explode({
         q
     }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * One movie or series with its seasons, from the library when tracked, else from TMDB
+ */
+export function getDiscoverDetail(kind: string, tmdbId: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: DiscoverDetailResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/discover/${encodeURIComponent(kind)}/${encodeURIComponent(tmdbId)}`, {
         ...opts,
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept

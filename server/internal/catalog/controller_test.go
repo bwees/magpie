@@ -6,6 +6,7 @@ import (
 	"image"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -164,6 +165,30 @@ func TestDiscoverMarksLibraryTitlesAndListsTrendingForAnEmptyQuery(t *testing.T)
 	found := decodeJSON[catalog.DiscoverResponse](t, h.request(http.MethodGet, discoverPath+"?q=conclave", nil, requester))
 	if found.Trending || len(found.Items) != 1 || !found.Items[0].InLibrary || found.Items[0].TitleID == nil || *found.Items[0].TitleID != title.ID {
 		t.Errorf("search = %+v", found)
+	}
+}
+
+func TestDiscoverDetailReadsTheLibraryOrTmdb(t *testing.T) {
+	h := newHarness(t)
+	title := addMovie(t, h, conclave())
+	putSeries(h, severanceSeries(airedSeasons()...))
+
+	tracked := decodeJSON[catalog.DiscoverDetailResponse](t, h.request(http.MethodGet, discoverPath+"/MOVIE/"+strconv.Itoa(int(conclaveTmdb)), nil, requester))
+	wantPoster := imagesPath + string(title.ID) + "/" + api.ImageKindPoster
+	if !tracked.InLibrary || tracked.Name != "Conclave" || tracked.PosterURL == nil || *tracked.PosterURL != wantPoster || len(tracked.Seasons) != 0 {
+		t.Errorf("tracked movie = %+v", tracked)
+	}
+
+	series := decodeJSON[catalog.DiscoverDetailResponse](t, h.request(http.MethodGet, discoverPath+"/SERIES/"+strconv.Itoa(int(severanceTmdb)), nil, requester))
+	if series.InLibrary || series.Name != "Severance" || len(series.Seasons) != len(airedSeasons()) || series.Seasons[1].EpisodeCount != episodesPerSeas {
+		t.Errorf("series from TMDB = %+v", series)
+	}
+
+	if rec := h.request(http.MethodGet, discoverPath+"/SERIES/1", nil, requester); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown TMDB ID = %d, want 404", rec.Code)
+	}
+	if rec := h.request(http.MethodGet, discoverPath+"/PERSON/1", nil, requester); rec.Code != http.StatusBadRequest {
+		t.Errorf("unknown kind = %d, want 400", rec.Code)
 	}
 }
 

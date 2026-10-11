@@ -640,6 +640,87 @@ func (s *Service) Discover(ctx context.Context, query string) ([]DiscoverItem, e
 	return results, nil
 }
 
+// DiscoverSeason is one season a request's scope picker offers.
+type DiscoverSeason struct {
+	Number    int
+	Episodes  int
+	Monitored bool
+}
+
+// DiscoverDetail is one movie or series as request rows and the request scope picker show it.
+type DiscoverDetail struct {
+	DiscoverItem
+	// View is set when the Title is tracked; its cached poster is used instead of TMDB's.
+	View    *TitleView
+	Seasons []DiscoverSeason
+}
+
+// DiscoverDetail reads a tracked Title from the library, and anything else from TMDB.
+func (s *Service) DiscoverDetail(ctx context.Context, kind domain.MediaKind, id domain.TmdbID) (DiscoverDetail, error) {
+	conn := s.db.Read(ctx)
+	row, err := s.repo.titleByTmdb(conn, kind, id)
+	if err == nil {
+		return s.trackedDetail(conn, row)
+	}
+	if !errors.Is(err, api.ErrNotFound) {
+		return DiscoverDetail{}, err
+	}
+	meta, err := metadataSetting.Get(ctx, s.settings)
+	if err != nil {
+		return DiscoverDetail{}, err
+	}
+	detail := DiscoverDetail{Seasons: []DiscoverSeason{}}
+	var poster string
+	if kind == domain.MediaKindMovie {
+		movie, err := s.tmdb.Movie(ctx, id, meta.Language)
+		if err != nil {
+			return DiscoverDetail{}, err
+		}
+		detail.Item = TmdbSearchItem{ID: id, Kind: kind, Name: movie.Title, OriginalName: movie.OriginalTitle, Year: yearOf(movie.ReleaseDate), Overview: movie.Overview}
+		poster = movie.Images.Poster
+	} else {
+		series, err := s.tmdb.Series(ctx, id, meta.Language)
+		if err != nil {
+			return DiscoverDetail{}, err
+		}
+		detail.Item = TmdbSearchItem{ID: id, Kind: kind, Name: series.Name, OriginalName: series.OriginalName, Year: yearOf(series.FirstAirDate), Overview: series.Overview}
+		poster = series.Images.Poster
+		for _, season := range series.Seasons {
+			detail.Seasons = append(detail.Seasons, DiscoverSeason{Number: season.Number, Episodes: season.EpisodeCount})
+		}
+	}
+	if poster != "" {
+		detail.PosterURL = s.tmdb.ImageURL(poster, discoverPosterSize)
+	}
+	return detail, nil
+}
+
+func (s *Service) trackedDetail(conn *gorm.DB, row titleRow) (DiscoverDetail, error) {
+	view, err := s.view(conn, domain.TitleID(row.ID))
+	if err != nil {
+		return DiscoverDetail{}, err
+	}
+	detail := DiscoverDetail{
+		DiscoverItem: DiscoverItem{
+			Item:  TmdbSearchItem{ID: view.External.Tmdb, Kind: view.Kind, Name: view.Name, OriginalName: view.OriginalName, Year: view.Year, Overview: view.Overview},
+			Title: &view.ID,
+		},
+		View:    &view,
+		Seasons: make([]DiscoverSeason, 0, len(view.Seasons)),
+	}
+	for _, season := range view.Seasons {
+		detail.Seasons = append(detail.Seasons, DiscoverSeason{Number: season.Number, Episodes: len(season.Episodes), Monitored: season.Monitored})
+	}
+	return detail, nil
+}
+
+func yearOf(date *time.Time) int {
+	if date == nil {
+		return 0
+	}
+	return date.Year()
+}
+
 func (s *Service) Settings(ctx context.Context) (MetadataSettings, error) {
 	return metadataSetting.Get(ctx, s.settings)
 }
