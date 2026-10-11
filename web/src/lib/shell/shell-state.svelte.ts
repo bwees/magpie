@@ -1,7 +1,7 @@
 import { createContext } from 'svelte';
 import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 import { SIDEBAR_COOKIE_NAME } from '$lib/components/ui/sidebar/constants';
-import { BadgeSource, navItemFor, type NavItem } from '$lib/navigation/nav';
+import { BadgeSource, NavAction, navItemFor, type NavItem } from '$lib/navigation/nav';
 
 export enum ToastPosition {
 	DESKTOP = 'bottom-right',
@@ -33,6 +33,17 @@ export class ShellState {
 
 	get toastPosition(): ToastPosition {
 		return this.isMobile ? ToastPosition.PHONE : ToastPosition.DESKTOP;
+	}
+
+	/** The phone search overlay; the Search tab opens it. */
+	searchOpen = $state(false);
+
+	run(action: NavAction): void {
+		switch (action) {
+			case NavAction.SEARCH:
+				this.searchOpen = true;
+				break;
+		}
 	}
 
 	badgeFor(item: NavItem): number {

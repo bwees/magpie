@@ -5,13 +5,15 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { Separator } from '$lib/components/ui/separator';
-	import { filterSections, sectionFor, settingsPath } from '$lib/settings/sections';
+	import { getSession } from '$lib/session/session.svelte';
+	import { filterSections, sectionFor, sectionsFor, settingsPath } from '$lib/settings/sections';
 	import { cn } from '$lib/utils';
 
 	let { children }: { children: Snippet } = $props();
 
+	const session = getSession();
 	let query = $state('');
-	const sections = $derived(filterSections(query));
+	const sections = $derived(filterSections(query, sectionsFor(session.isAdmin)));
 	const current = $derived(sectionFor(page.url.pathname));
 </script>
 

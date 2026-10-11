@@ -83,10 +83,17 @@ export function sectionFor(pathname: string): SectionSpec | undefined {
 	);
 }
 
+/** Requesters see only their own notification settings. */
+export function sectionsFor(admin: boolean): SectionSpec[] {
+	return admin
+		? SETTINGS_SECTIONS
+		: SETTINGS_SECTIONS.filter((spec) => spec.section === SettingsSection.NOTIFICATIONS);
+}
+
 /** Sections whose name or keywords contain every word of query, in catalogue order. */
-export function filterSections(query: string): SectionSpec[] {
+export function filterSections(query: string, sections = SETTINGS_SECTIONS): SectionSpec[] {
 	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-	return SETTINGS_SECTIONS.filter((spec) => {
+	return sections.filter((spec) => {
 		const haystack = `${spec.label} ${spec.keywords}`.toLowerCase();
 		return words.every((word) => haystack.includes(word));
 	});

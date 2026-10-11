@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { BOTTOM_TABS, NAV_ITEMS, SIDEBAR_GROUPS, navItemFor } from './nav';
+import {
+	BOTTOM_TABS,
+	NAV_ITEMS,
+	NOTIFICATION_SETTINGS_PATH,
+	SEARCH_TAB,
+	SIDEBAR_GROUPS,
+	bottomTabsFor,
+	isActionTab,
+	isAdminOnly,
+	navItemFor,
+	sidebarGroupsFor
+} from './nav';
+
+describe('isAdminOnly', () => {
+	it('keeps the library, activity and settings for admins', () => {
+		for (const path of ['/movies', '/tv/12', '/activity', '/settings', '/settings/users']) {
+			expect(isAdminOnly(path)).toBe(true);
+		}
+	});
+
+	it('leaves Home, Requests, title pages and notification settings to everyone', () => {
+		for (const path of ['/', '/requests', '/titles/42', NOTIFICATION_SETTINGS_PATH]) {
+			expect(isAdminOnly(path)).toBe(false);
+		}
+	});
+});
 
 describe('navItemFor', () => {
 	it('matches each nav route exactly', () => {
@@ -28,6 +53,17 @@ describe('navigation layout', () => {
 			['Library', ['Movies', 'TV']],
 			['System', ['Activity', 'Settings']]
 		]);
+	});
+
+	it('gives requesters Home and Requests, with Search between them on phones', () => {
+		expect(sidebarGroupsFor(false).flatMap((group) => group.items.map((i) => i.label))).toEqual([
+			'Home',
+			'Requests'
+		]);
+		expect(bottomTabsFor(false).map((tab) => tab.label)).toEqual(['Home', 'Search', 'Requests']);
+		expect(bottomTabsFor(false).filter(isActionTab)).toEqual([SEARCH_TAB]);
+		expect(sidebarGroupsFor(true)).toBe(SIDEBAR_GROUPS);
+		expect(bottomTabsFor(true)).toBe(BOTTOM_TABS);
 	});
 
 	it('puts five tabs on phones and leaves Settings to the avatar menu', () => {

@@ -1,10 +1,11 @@
 <script lang="ts">
+	import Bell from '@lucide/svelte/icons/bell';
 	import User from '@lucide/svelte/icons/user';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Info from '@lucide/svelte/icons/info';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { NAV_ITEMS, Route } from '$lib/navigation/nav';
+	import { NAV_ITEMS, NOTIFICATION_SETTINGS_PATH, Route } from '$lib/navigation/nav';
 	import { getSession } from '$lib/session/session.svelte';
 	import { getShell } from './shell-state.svelte';
 
@@ -22,7 +23,21 @@
 		</Avatar.Root>
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end" class="w-44">
-		{#if shell.isMobile}
+		{#if session.user}
+			<DropdownMenu.Label class="truncate">{session.user.displayName}</DropdownMenu.Label>
+			<DropdownMenu.Separator />
+		{/if}
+		{#if !session.isAdmin}
+			<DropdownMenu.Item>
+				{#snippet child({ props })}
+					<a href={NOTIFICATION_SETTINGS_PATH} {...props}>
+						<Bell />
+						Notifications
+					</a>
+				{/snippet}
+			</DropdownMenu.Item>
+			<DropdownMenu.Separator />
+		{:else if shell.isMobile}
 			<DropdownMenu.Item>
 				{#snippet child({ props })}
 					<a href={settings.route} {...props}>
@@ -31,10 +46,6 @@
 					</a>
 				{/snippet}
 			</DropdownMenu.Item>
-			<DropdownMenu.Separator />
-		{/if}
-		{#if session.user}
-			<DropdownMenu.Label class="truncate">{session.user.displayName}</DropdownMenu.Label>
 			<DropdownMenu.Separator />
 		{/if}
 		<DropdownMenu.Item>

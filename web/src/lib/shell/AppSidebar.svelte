@@ -2,10 +2,13 @@
 	import { page } from '$app/state';
 	import Bird from '@lucide/svelte/icons/bird';
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import { ownsPath, Route, SIDEBAR_GROUPS } from '$lib/navigation/nav';
+	import { ownsPath, Route, sidebarGroupsFor } from '$lib/navigation/nav';
+	import { getSession } from '$lib/session/session.svelte';
 	import { getShell } from './shell-state.svelte';
 
 	const shell = getShell();
+	const session = getSession();
+	const groups = $derived(sidebarGroupsFor(session.isAdmin));
 </script>
 
 <Sidebar.Root collapsible="icon">
@@ -29,7 +32,7 @@
 	</Sidebar.Header>
 
 	<Sidebar.Content>
-		{#each SIDEBAR_GROUPS as group (group.label)}
+		{#each groups as group (group.label)}
 			<Sidebar.Group>
 				<Sidebar.GroupLabel>{group.label}</Sidebar.GroupLabel>
 				<Sidebar.Menu>

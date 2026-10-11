@@ -8,6 +8,7 @@ import {
 	signOut
 } from '$lib/sdk';
 import type { MeResponse } from '$lib/sdk';
+import { isAdminOnly } from '$lib/navigation/nav';
 
 export enum SessionStatus {
 	LOADING = 'LOADING',
@@ -15,6 +16,12 @@ export enum SessionStatus {
 	SIGNED_OUT = 'SIGNED_OUT',
 	SETUP_REQUIRED = 'SETUP_REQUIRED',
 	ERROR = 'ERROR'
+}
+
+/** Mirrors the Go `api.Role` values. */
+export enum Role {
+	ADMIN = 'ADMIN',
+	REQUESTER = 'REQUESTER'
 }
 
 /** Pages shown without the app shell. */
@@ -33,11 +40,13 @@ export function isAuthRoute(pathname: string): boolean {
 /**
  * Where a visitor on pathname must go, or undefined to stay. The wizard is reachable only while no admin
  * exists, or right after the admin was created in this tab; once left, it can't be reopened.
+ * Requesters are sent home from admin-only pages.
  */
 export function redirectFor(
 	status: SessionStatus,
 	pathname: string,
-	wizardActive: boolean
+	wizardActive: boolean,
+	admin: boolean
 ): string | undefined {
 	switch (status) {
 		case SessionStatus.SETUP_REQUIRED:
@@ -47,6 +56,7 @@ export function redirectFor(
 		case SessionStatus.SIGNED_IN:
 			if (pathname === AuthRoute.SIGN_IN) return HOME;
 			if (pathname === AuthRoute.SETUP && !wizardActive) return HOME;
+			if (!admin && isAdminOnly(pathname)) return HOME;
 			return undefined;
 		default:
 			return undefined;
@@ -89,8 +99,12 @@ export class SessionState {
 		}
 	}
 
+	get isAdmin(): boolean {
+		return this.user?.role === Role.ADMIN;
+	}
+
 	redirectFor(pathname: string): string | undefined {
-		return redirectFor(this.status, pathname, this.wizardActive);
+		return redirectFor(this.status, pathname, this.wizardActive, this.isAdmin);
 	}
 
 	#failed(error: unknown): void {

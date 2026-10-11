@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	filterSections,
 	sectionFor,
+	sectionsFor,
 	SETTINGS_SECTIONS,
 	SettingsSection,
 	settingsPath
@@ -21,6 +22,13 @@ describe('filterSections', () => {
 
 	it('needs every word to match', () => {
 		expect(filterSections('jellyfin roles').map((s) => s.section)).toEqual([SettingsSection.USERS]);
+	});
+});
+
+describe('sectionsFor', () => {
+	it('gives admins every section and requesters only Notifications', () => {
+		expect(sectionsFor(true)).toEqual(SETTINGS_SECTIONS);
+		expect(sectionsFor(false).map((s) => s.section)).toEqual([SettingsSection.NOTIFICATIONS]);
 	});
 });
 
