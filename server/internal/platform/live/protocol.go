@@ -1,7 +1,11 @@
 // Package live forwards bus events to browsers over one WebSocket per tab, with resume after reconnect.
 package live
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	acquisitionapi "magpie/internal/acquisition/api"
+)
 
 // LiveMessage is one server-to-browser frame.
 type LiveMessage struct {
@@ -44,6 +48,6 @@ const (
 
 // searchTopicEvents go only to sockets subscribed to their search's topic.
 var searchTopicEvents = map[string]bool{
-	"acquisition.SearchResultsReceived": true,
-	"acquisition.SearchCompleted":       true,
+	acquisitionapi.TypeSearchResultsReceived: true,
+	acquisitionapi.TypeSearchCompleted:       true,
 }

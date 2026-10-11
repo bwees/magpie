@@ -6,68 +6,80 @@ import (
 	"slices"
 
 	"magpie/internal/domain"
+	identityapi "magpie/internal/identity/api"
+	requestsapi "magpie/internal/requests/api"
 )
 
-// IdentityReader is the part of identity.Reader the role filter needs. Ticket 03 backs it with the real api.
-type IdentityReader interface {
-	IsAdmin(ctx context.Context, user domain.UserID) (bool, error)
-}
-
-// RequestsReader is the part of requests.Reader the role filter needs. Ticket 03 backs it with the real api.
-type RequestsReader interface {
-	RequestOwner(ctx context.Context, request domain.RequestID) (domain.UserID, error)
-	// Requesters returns the users with a non-declined request for the title.
-	Requesters(ctx context.Context, title domain.TitleID) ([]domain.UserID, error)
-}
-
-// RoleFilter passes everything to admins. A requester gets events naming them or one of their requests;
-// an event that names no user or request reaches them only when it is about a title they requested.
-// Lookup errors deny.
+// RoleFilter passes everything to admins and nothing to disabled users. A requester gets events naming
+// them or one of their requests; an event that names no user or request reaches them only when it is
+// about a title they requested. With ViewOthersRequests, every request's events and every requested
+// title's events reach them too, but other users' notifications still don't. Lookup errors deny.
 type RoleFilter struct {
-	Identity IdentityReader
-	Requests RequestsReader
+	// Identity resolves the viewer's role and toggles. Without it the principal's own flags are used.
+	Identity identityapi.Reader
+	Requests requestsapi.Reader
+}
+
+type viewerAccess struct {
+	admin              bool
+	disabled           bool
+	viewOthersRequests bool
 }
 
 func (f RoleFilter) Allows(ctx context.Context, viewer domain.Principal, s scope) bool {
-	admin, err := f.isAdmin(ctx, viewer)
+	access, err := f.access(ctx, viewer)
 	if err != nil {
 		slog.WarnContext(ctx, "live role check failed", "user", viewer.User, "error", err)
 		return false
 	}
-	if admin {
+	switch {
+	case access.disabled:
+		return false
+	case access.admin:
 		return true
-	}
-	if len(s.users) > 0 || len(s.requests) > 0 {
+	case len(s.requests) > 0 && access.viewOthersRequests:
+		return true
+	case len(s.users) > 0 || len(s.requests) > 0:
 		return slices.Contains(s.users, viewer.User) || f.ownsAny(ctx, viewer.User, s.requests)
+	default:
+		return f.requestedAny(ctx, viewer.User, s.titles, access.viewOthersRequests)
 	}
-	return f.requestedAny(ctx, viewer.User, s.titles)
 }
 
-func (f RoleFilter) isAdmin(ctx context.Context, viewer domain.Principal) (bool, error) {
+func (f RoleFilter) access(ctx context.Context, viewer domain.Principal) (viewerAccess, error) {
 	if f.Identity == nil {
-		return viewer.Admin, nil
+		return viewerAccess{admin: viewer.Admin, viewOthersRequests: viewer.Permissions.ViewOthersRequests}, nil
 	}
-	return f.Identity.IsAdmin(ctx, viewer.User)
+	user, err := f.Identity.User(ctx, viewer.User)
+	if err != nil {
+		return viewerAccess{}, err
+	}
+	return viewerAccess{
+		admin:              user.IsAdmin(),
+		disabled:           user.Disabled,
+		viewOthersRequests: user.Permissions.ViewOthersRequests,
+	}, nil
 }
 
 func (f RoleFilter) ownsAny(ctx context.Context, user domain.UserID, requests []domain.RequestID) bool {
 	if f.Requests == nil {
 		return false
 	}
-	for _, request := range requests {
-		owner, err := f.Requests.RequestOwner(ctx, request)
+	for _, id := range requests {
+		request, err := f.Requests.Request(ctx, id)
 		if err != nil {
-			slog.WarnContext(ctx, "live request lookup failed", "request", request, "error", err)
+			slog.WarnContext(ctx, "live request lookup failed", "request", id, "error", err)
 			continue
 		}
-		if owner == user {
+		if request.User == user {
 			return true
 		}
 	}
 	return false
 }
 
-func (f RoleFilter) requestedAny(ctx context.Context, user domain.UserID, titles []domain.TitleID) bool {
+// requestedAny reports whether user requested any of titles, or, with anyRequester, whether anyone did.
+func (f RoleFilter) requestedAny(ctx context.Context, user domain.UserID, titles []domain.TitleID, anyRequester bool) bool {
 	if f.Requests == nil {
 		return false
 	}
@@ -77,7 +89,7 @@ func (f RoleFilter) requestedAny(ctx context.Context, user domain.UserID, titles
 			slog.WarnContext(ctx, "live requesters lookup failed", "title", title, "error", err)
 			continue
 		}
-		if slices.Contains(requesters, user) {
+		if slices.Contains(requesters, user) || (anyRequester && len(requesters) > 0) {
 			return true
 		}
 	}

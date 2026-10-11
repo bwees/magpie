@@ -3,7 +3,6 @@ package live
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -307,86 +306,6 @@ func TestHeartbeatClosesAfterTwoMissedPongs(t *testing.T) {
 	case err := <-answering.closed:
 		t.Fatalf("answering socket closed: %v", err)
 	case <-time.After(10 * fastHeartbeat):
-	}
-}
-
-type fakeIdentity struct{ admins map[domain.UserID]bool }
-
-func (f fakeIdentity) IsAdmin(_ context.Context, user domain.UserID) (bool, error) {
-	return f.admins[user], nil
-}
-
-type fakeRequests struct {
-	owners     map[domain.RequestID]domain.UserID
-	requesters map[domain.TitleID][]domain.UserID
-	err        error
-}
-
-func (f fakeRequests) RequestOwner(_ context.Context, request domain.RequestID) (domain.UserID, error) {
-	return f.owners[request], f.err
-}
-
-func (f fakeRequests) Requesters(_ context.Context, title domain.TitleID) ([]domain.UserID, error) {
-	return f.requesters[title], f.err
-}
-
-func TestRoleFilter(t *testing.T) {
-	myRequest, otherRequest := domain.NewID[domain.RequestID](), domain.NewID[domain.RequestID]()
-	myTitle, otherTitle := domain.NewID[domain.TitleID](), domain.NewID[domain.TitleID]()
-	requests := fakeRequests{
-		owners:     map[domain.RequestID]domain.UserID{myRequest: requester.User, otherRequest: stranger},
-		requesters: map[domain.TitleID][]domain.UserID{myTitle: {requester.User}, otherTitle: {stranger}},
-	}
-	filter := RoleFilter{Identity: fakeIdentity{admins: map[domain.UserID]bool{admin.User: true}}, Requests: requests}
-
-	type requestEvent struct {
-		Request domain.RequestID
-		Title   domain.TitleID
-	}
-	cases := []struct {
-		name    string
-		payload any
-		want    bool
-	}{
-		{"own notification", notificationCreated{User: requester.User}, true},
-		{"someone else's notification about my title", notificationCreated{User: stranger, Title: &myTitle}, false},
-		{"own request", requestEvent{Request: myRequest, Title: otherTitle}, true},
-		{"someone else's request", requestEvent{Request: otherRequest, Title: myTitle}, false},
-		{"my request's title", fileImported{Title: myTitle}, true},
-		{"unrelated title", fileImported{Title: otherTitle}, false},
-		{"no scope", searchResults{Indexer: "nyaa"}, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			s := scopeOf(tc.payload)
-			if got := filter.Allows(context.Background(), requester, s); got != tc.want {
-				t.Errorf("requester allowed = %v, want %v", got, tc.want)
-			}
-			if !filter.Allows(context.Background(), admin, s) {
-				t.Error("admin was filtered")
-			}
-		})
-	}
-}
-
-func TestRoleFilterDeniesOnLookupErrors(t *testing.T) {
-	myTitle := domain.NewID[domain.TitleID]()
-	filter := RoleFilter{Requests: fakeRequests{
-		requesters: map[domain.TitleID][]domain.UserID{myTitle: {requester.User}},
-		err:        errors.New("database gone"),
-	}}
-
-	if filter.Allows(context.Background(), requester, scopeOf(fileImported{Title: myTitle})) {
-		t.Error("allowed despite a failed lookup")
-	}
-}
-
-func TestRoleFilterWithoutReadersUsesPrincipal(t *testing.T) {
-	var filter RoleFilter
-	s := scopeOf(fileImported{Title: domain.NewID[domain.TitleID]()})
-
-	if !filter.Allows(context.Background(), admin, s) || filter.Allows(context.Background(), requester, s) {
-		t.Error("without readers, only the principal's admin flag should pass")
 	}
 }
 

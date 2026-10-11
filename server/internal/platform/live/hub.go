@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"magpie/internal/domain"
+	identityapi "magpie/internal/identity/api"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/problem"
+	requestsapi "magpie/internal/requests/api"
 
 	"github.com/coder/websocket"
 	"go.uber.org/fx"
@@ -78,8 +80,8 @@ type Params struct {
 	Lifecycle fx.Lifecycle
 	Env       config.Env
 	Bus       *bus.Bus
-	Identity  IdentityReader `optional:"true"`
-	Requests  RequestsReader `optional:"true"`
+	Identity  identityapi.Reader `optional:"true"`
+	Requests  requestsapi.Reader `optional:"true"`
 }
 
 func NewHub(p Params) *Hub {
