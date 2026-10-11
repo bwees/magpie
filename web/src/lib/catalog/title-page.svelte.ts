@@ -4,7 +4,11 @@ import {
 	apiErrorMessage,
 	getTitle,
 	removeTitle,
+	updateEpisode,
+	updateSeason,
 	updateTitle,
+	type EpisodeResponse,
+	type SeasonResponse,
 	type TitleResponse,
 	type UpdateTitleRequest
 } from '$lib/sdk';
@@ -22,10 +26,25 @@ export enum PageStatus {
 
 const NOT_FOUND_STATUS = 404;
 
+export enum MediaKind {
+	MOVIE = 'MOVIE',
+	SERIES = 'SERIES'
+}
+
+/** Switches on the Title itself. */
+enum TitleFlag {
+	MONITORED = 'monitored',
+	MONITOR_FUTURE_SEASONS = 'monitorFutureSeasons'
+}
+
 /** Catalog events that change what the title page shows. */
 export enum TitleChangeEvent {
 	MONITORING_CHANGED = 'catalog.MonitoringChanged',
 	PROFILE_CHANGED = 'catalog.ProfileChanged',
+	EPISODES_ANNOUNCED = 'catalog.EpisodesAnnounced',
+	EPISODE_GROUP_CHANGED = 'catalog.EpisodeGroupChanged',
+	LANGUAGES_CHANGED = 'catalog.LanguagesChanged',
+	WANTED_RELEASED = 'catalog.WantedReleased',
 	TITLE_REMOVED = 'catalog.TitleRemoved'
 }
 
@@ -38,6 +57,8 @@ interface TitleEvent {
 export interface TitleApi {
 	get(id: string): Promise<TitleResponse>;
 	update(id: string, change: UpdateTitleRequest): Promise<TitleResponse>;
+	updateSeason(id: string, season: number, monitored: boolean): Promise<TitleResponse>;
+	updateEpisode(id: string, episodeId: string, monitored: boolean): Promise<TitleResponse>;
 	remove(id: string, deleteFiles: boolean): Promise<unknown>;
 	tint(posterUrl: string): Promise<string | undefined>;
 }
@@ -45,11 +66,21 @@ export interface TitleApi {
 export const CATALOG_TITLE_API: TitleApi = {
 	get: (id) => getTitle(id),
 	update: (id, change) => updateTitle(id, change),
+	updateSeason: (id, season, monitored) => updateSeason(id, String(season), { monitored }),
+	updateEpisode: (id, episodeId, monitored) => updateEpisode(id, episodeId, { monitored }),
 	remove: (id, deleteFiles) => removeTitle(id, { deleteFiles }),
 	tint: posterTint
 };
 
-/** One Title's page: loading, the optimistic Monitored switch and removal. */
+/** Every episode's flag, to put the switches back when the server refuses a change. */
+function monitoringOf(seasons: SeasonResponse[]): Map<Monitorable, boolean> {
+	const items: Monitorable[] = seasons.flatMap((season) => [season, ...season.episodes]);
+	return new Map(items.map((item) => [item, item.monitored]));
+}
+
+type Monitorable = SeasonResponse | EpisodeResponse;
+
+/** One Title's page: loading, the optimistic Monitored switches and removal. */
 export class TitlePage {
 	status = $state(PageStatus.LOADING);
 	title = $state<TitleResponse | undefined>();
@@ -69,6 +100,15 @@ export class TitlePage {
 
 	get posterUrl(): string | undefined {
 		return sizedImage(this.title?.images.poster, ImageWidth.POSTER);
+	}
+
+	get isSeries(): boolean {
+		return this.title?.kind === MediaKind.SERIES;
+	}
+
+	/** Shows a Title the server just returned for a change made elsewhere on the page. */
+	replace(title: TitleResponse): void {
+		this.title = title;
 	}
 
 	async load(): Promise<void> {
@@ -92,16 +132,59 @@ export class TitlePage {
 		}
 	}
 
-	async setMonitored(monitored: boolean): Promise<void> {
+	setMonitored(monitored: boolean): Promise<void> {
+		return this.#setFlag(TitleFlag.MONITORED, monitored);
+	}
+
+	/** Whether seasons TMDB announces later start monitored. */
+	setMonitorFutureSeasons(monitored: boolean): Promise<void> {
+		return this.#setFlag(TitleFlag.MONITOR_FUTURE_SEASONS, monitored);
+	}
+
+	async #setFlag(flag: TitleFlag, value: boolean): Promise<void> {
 		const title = this.title;
 		if (!title) {
 			return;
 		}
-		title.monitored = monitored;
+		title[flag] = value;
 		try {
-			this.title = await this.#api.update(this.id, { monitored });
+			this.title = await this.#api.update(this.id, { [flag]: value });
 		} catch (error) {
-			title.monitored = !monitored;
+			title[flag] = !value;
+			toast.error(apiErrorMessage(error, 'Could not change monitoring.'));
+		}
+	}
+
+	/** Monitors or unmonitors a season and all its episodes at once; the server confirms. */
+	setSeasonMonitored(number: number, monitored: boolean): Promise<void> {
+		const season = this.title?.seasons.find((s) => s.number === number);
+		if (!season) return Promise.resolve();
+		return this.#changeMonitoring([season, ...season.episodes], monitored, () =>
+			this.#api.updateSeason(this.id, number, monitored)
+		);
+	}
+
+	setEpisodeMonitored(episodeId: string, monitored: boolean): Promise<void> {
+		const episode = this.title?.seasons
+			.flatMap((season) => season.episodes)
+			.find((e) => e.id === episodeId);
+		if (!episode) return Promise.resolve();
+		return this.#changeMonitoring([episode], monitored, () =>
+			this.#api.updateEpisode(this.id, episodeId, monitored)
+		);
+	}
+
+	async #changeMonitoring(
+		items: Monitorable[],
+		monitored: boolean,
+		send: () => Promise<TitleResponse>
+	): Promise<void> {
+		const before = monitoringOf(this.title?.seasons ?? []);
+		items.forEach((item) => (item.monitored = monitored));
+		try {
+			this.title = await send();
+		} catch (error) {
+			before.forEach((flag, item) => (item.monitored = flag));
 			toast.error(apiErrorMessage(error, 'Could not change monitoring.'));
 		}
 	}

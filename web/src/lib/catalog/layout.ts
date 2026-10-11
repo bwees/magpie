@@ -5,6 +5,7 @@ export enum SearchLayout {
 }
 
 export enum TitleTab {
+	EPISODES = 'EPISODES',
 	TIMELINE = 'TIMELINE',
 	FILES = 'FILES',
 	SETTINGS = 'SETTINGS'

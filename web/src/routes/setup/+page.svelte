@@ -6,6 +6,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import WantedLanguagesStep from '$lib/catalog/WantedLanguagesStep.svelte';
 	import ConnectionFields from '$lib/connections/ConnectionFields.svelte';
 	import HealthBadge from '$lib/connections/HealthBadge.svelte';
 	import { LoadStatus } from '$lib/load-status';
@@ -132,6 +133,12 @@
 				</Card.Footer>
 			{:else if step.kind === StepKind.QUALITY_PRESET}
 				<QualityPresetStep
+					isLast={wizard.isLast}
+					onDone={() => wizard.complete()}
+					onSkip={() => wizard.skip()}
+				/>
+			{:else if step.kind === StepKind.LANGUAGES}
+				<WantedLanguagesStep
 					isLast={wizard.isLast}
 					onDone={() => wizard.complete()}
 					onSkip={() => wizard.skip()}

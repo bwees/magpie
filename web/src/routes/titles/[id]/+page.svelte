@@ -8,6 +8,7 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import Timeline from '$lib/activity/Timeline.svelte';
+	import EpisodesTab from '$lib/catalog/EpisodesTab.svelte';
 	import TitleHero from '$lib/catalog/TitleHero.svelte';
 	import TitleSettings from '$lib/catalog/TitleSettings.svelte';
 	import { TIMELINE_COLUMN_QUERY, TitleTab } from '$lib/catalog/layout';
@@ -19,19 +20,25 @@
 	const live = getLive();
 
 	const title = $derived(new TitlePage(page.params.id ?? ''));
-	let tab = $state(wide.current ? TitleTab.FILES : TitleTab.TIMELINE);
+	/** The tab the user picked; until then the page opens on its default tab. */
+	let picked = $state<TitleTab | undefined>();
+	const defaultTab = $derived(
+		title.isSeries ? TitleTab.EPISODES : wide.current ? TitleTab.FILES : TitleTab.TIMELINE
+	);
+	const tab = $derived(picked ?? defaultTab);
 
 	$effect(() => {
 		const current = title;
 		return untrack(() => {
+			picked = undefined;
 			void current.load();
 			return current.watch(live);
 		});
 	});
 
 	$effect(() => {
-		if (wide.current && tab === TitleTab.TIMELINE) {
-			tab = TitleTab.FILES;
+		if (wide.current && picked === TitleTab.TIMELINE) {
+			picked = undefined;
 		}
 	});
 </script>
@@ -65,12 +72,24 @@
 		<TitleHero title={title.title} posterUrl={title.posterUrl} tint={title.tint} />
 
 		<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_340px]">
-			<Tabs.Root bind:value={tab} class="min-w-0">
+			<Tabs.Root
+				value={tab}
+				onValueChange={(value) => (picked = value as TitleTab)}
+				class="min-w-0"
+			>
 				<Tabs.List>
+					{#if title.isSeries}
+						<Tabs.Trigger value={TitleTab.EPISODES}>Episodes</Tabs.Trigger>
+					{/if}
 					<Tabs.Trigger value={TitleTab.TIMELINE} class="lg:hidden">Timeline</Tabs.Trigger>
 					<Tabs.Trigger value={TitleTab.FILES}>Files</Tabs.Trigger>
 					<Tabs.Trigger value={TitleTab.SETTINGS}>Settings</Tabs.Trigger>
 				</Tabs.List>
+				{#if title.isSeries}
+					<Tabs.Content value={TitleTab.EPISODES} class="pt-4">
+						<EpisodesTab page={title} />
+					</Tabs.Content>
+				{/if}
 				<Tabs.Content value={TitleTab.TIMELINE} class="pt-4 lg:hidden">
 					<Timeline titleId={title.id} />
 				</Tabs.Content>

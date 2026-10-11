@@ -19,6 +19,7 @@ export enum StepKind {
 	ACCOUNT = 'ACCOUNT',
 	CONNECTION = 'CONNECTION',
 	QUALITY_PRESET = 'QUALITY_PRESET',
+	LANGUAGES = 'LANGUAGES',
 	/** Owned by a later slice, which replaces the placeholder. */
 	COMING_SOON = 'COMING_SOON'
 }
@@ -87,8 +88,9 @@ export const WIZARD_STEPS: StepSpec[] = [
 	{
 		step: WizardStep.WANTED_LANGUAGES,
 		label: 'Wanted languages',
-		description: 'Which subtitle and audio languages to keep.',
-		kind: StepKind.COMING_SOON
+		description:
+			'Subtitles are found for these languages, and transcodes keep their audio and subtitle tracks. The first is most wanted.',
+		kind: StepKind.LANGUAGES
 	},
 	{
 		step: WizardStep.OPENSUBTITLES,
