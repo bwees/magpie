@@ -1,6 +1,8 @@
 package httpserver
 
 import (
+	"net/http"
+
 	"github.com/go-fuego/fuego"
 	"go.uber.org/fx"
 )
@@ -20,6 +22,16 @@ func AsController(constructor any) any {
 type controllers struct {
 	fx.In
 	All []Controller `group:"controllers"`
+}
+
+const middlewaresGroup = `group:"http_middlewares"`
+
+// Middleware wraps every request the server handles, such as Identity's session middleware.
+type Middleware func(http.Handler) http.Handler
+
+// AsMiddleware provides constructor's Middleware to the server.
+func AsMiddleware(constructor any) any {
+	return fx.Annotate(constructor, fx.ResultTags(middlewaresGroup))
 }
 
 const schemasGroupName = "openapi_schemas"

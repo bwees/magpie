@@ -59,11 +59,12 @@ type Params struct {
 	Env         config.Env
 	Mode        Mode
 	Controllers controllers
-	Schemas     []Schemas `group:"openapi_schemas"`
+	Middlewares []Middleware `group:"http_middlewares"`
+	Schemas     []Schemas    `group:"openapi_schemas"`
 }
 
 func New(p Params) *fuego.Server {
-	server := Build(p.Env, p.Mode, p.Controllers.All)
+	server := Build(p.Env, p.Mode, p.Controllers.All, p.Middlewares...)
 	for _, schemas := range p.Schemas {
 		RegisterSchemas(server, schemas...)
 	}
@@ -83,8 +84,9 @@ func New(p Params) *fuego.Server {
 	return server
 }
 
-// Build creates the server with every controller's routes registered under /api.
-func Build(env config.Env, mode Mode, all []Controller) *fuego.Server {
+// Build creates the server with every controller's routes registered under /api. Middlewares wrap every
+// route, the API not-found handler and the SPA, in the order given.
+func Build(env config.Env, mode Mode, all []Controller, middlewares ...Middleware) *fuego.Server {
 	server := fuego.NewServer(
 		fuego.WithLoggingMiddleware(fuego.LoggingConfig{DisableRequest: true, DisableResponse: true}),
 		fuego.WithSerializer(fuego.SendJSON),
@@ -113,6 +115,10 @@ func Build(env config.Env, mode Mode, all []Controller) *fuego.Server {
 		}
 		return nil
 	})
+
+	for _, middleware := range middlewares {
+		fuego.Use(server, middleware)
+	}
 
 	api := fuego.Group(server, APIPrefix)
 	for _, controller := range all {
