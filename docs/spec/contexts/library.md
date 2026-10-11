@@ -39,7 +39,7 @@ Decisions: [04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md), 
 package api // internal/library/api
 
 type Reader interface {
-	// FilesForTitle returns the current media files of a title, newest first.
+	// FilesForTitle returns the current media files of a title, newest first. No files → empty slice.
 	FilesForTitle(ctx context.Context, title domain.TitleID) ([]MediaFile, error)
 	// FileForEpisode returns the file covering an episode, or ErrNotFound.
 	FileForEpisode(ctx context.Context, ep domain.EpisodeID) (MediaFile, error)
@@ -49,10 +49,10 @@ type Reader interface {
 	// and a staging directory on the same filesystem. Transcode serves these bytes to agents
 	// itself and writes the uploaded result into StagingDir; it never touches Path.
 	SourceForProcessing(ctx context.Context, id domain.MediaFileID) (ProcessingSource, error)
-	// AvailableEpisodes reports which of the given episodes Jellyfin has confirmed.
+	// AvailableEpisodes returns the title's episodes whose files Jellyfin has confirmed (empty for a movie).
 	AvailableEpisodes(ctx context.Context, title domain.TitleID) ([]domain.EpisodeID, error)
-	// Coverage returns per-title file coverage for the TV page: episodes with a file and
-	// episodes Jellyfin confirmed. Titles without files return zero counts, not ErrNotFound.
+	// Coverage returns per-title file coverage for the TV page, one entry per input title in input order:
+	// episodes with a file and episodes Jellyfin confirmed. Titles without files return zero counts, not ErrNotFound.
 	Coverage(ctx context.Context, titles []domain.TitleID) ([]TitleCoverage, error)
 }
 
@@ -126,7 +126,7 @@ type FolderFound struct { Path string; Kind domain.MediaKind; ParsedTitle string
 type TranscodeSwapRejected struct { Job domain.JobID; MediaFile domain.MediaFileID; Reason SwapRejectReason } // SOURCE_CHANGED | HASH_MISMATCH | PROBE_FAILED | FILE_GONE
 ```
 
-- All of these are durable. `FileImported` is published in the same transaction that inserts the `media_files` row. Aggregate key: title ID.
+- All of these are durable. `FileImported` is published in the same transaction that inserts the `media_files` row. Aggregate key: title ID; events without a title use their own subject (`ImportFailed` → download ID, `FileTranscoded` and `TranscodeSwapRejected` → media file ID, `FolderFound` → folder path).
 - `FileDeleted` is the **only** cleanup signal for a removed file, whatever the reason. Consumers (Acquisition, Subtitles, Transcode) never infer deletion from `FileImported.Replaces`.
 
 ## Events and commands consumed
@@ -149,14 +149,14 @@ type FileSystem interface {
 	Hardlink(src, dst string) error
 	Copy(ctx context.Context, src, dst string) error
 	Move(src, dst string) error                  // rename, or copy+delete across devices
-	Rename(src, dst string) error                // must be atomic; same device only
+	Rename(src, dst string) error                // must be atomic; ErrCrossDevice across devices
 	Remove(path string) error
 	MkdirAll(path string) error
 	Walk(root string, fn func(path string, info FileInfo) error) error
 }
 
 type MediaProber interface {
-	// Probe runs ffprobe. probesize 50 MB, retried at 150 MB with longer analyzeduration.
+	// Probe runs ffprobe. probesize 50 MB, retried at 150 MB with longer analyzeduration. ErrProbeFailed if unreadable.
 	Probe(ctx context.Context, path string) (MediaInfo, error)
 }
 
@@ -168,14 +168,18 @@ type Hasher interface {
 type JellyfinLibrary interface {
 	// RefreshPath calls POST /Library/Media/Updated for one path.
 	RefreshPath(ctx context.Context, path string) error
-	// FindByPath returns the Jellyfin item for an exact file path, or ErrNotFound.
+	// FindByPath returns the Jellyfin item for an exact file path, or ErrItemNotFound.
 	FindByPath(ctx context.Context, path string) (JellyfinItem, error)
 	// Changes streams LibraryChanged websocket messages (item IDs added/updated/removed).
 	Changes(ctx context.Context) (<-chan LibraryChange, error)
 	// ItemsSince lists items changed since t (GET /Items with minDateLastSaved), for reconcile.
 	ItemsSince(ctx context.Context, t time.Time) ([]JellyfinItem, error)
 }
+
+var ErrCrossDevice, ErrProbeFailed, ErrItemNotFound, ErrJellyfinUnavailable error
 ```
+
+- `MediaInfo` (streams, duration, HDR format, bitrate, size) lives in `library/api`; `FileInfo`, `JellyfinItem` and `LibraryChange` are spelled out in `internal/library/ports.go`.
 
 - Every Jellyfin request sends only `Authorization: MediaBrowser Token="…"`. The legacy headers are disabled by default on Jellyfin 12 ([08](../../../.scratch/v1-spec/issues/08-requests-and-jellyfin.md)).
 - The release-name parser is a pure shared package, `internal/platform/parse` (no state, no I/O). Acquisition and Library both use it; Library uses it to map season-pack files to episodes.
