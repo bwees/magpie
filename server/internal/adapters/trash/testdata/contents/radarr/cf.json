@@ -1,0 +1,11 @@
+[
+  { "name": "1080p.json", "path": "docs/json/radarr/cf/1080p.json", "type": "file" },
+  { "name": "br-disk.json", "path": "docs/json/radarr/cf/br-disk.json", "type": "file" },
+  { "name": "freeleech.json", "path": "docs/json/radarr/cf/freeleech.json", "type": "file" },
+  { "name": "language-not-original.json", "path": "docs/json/radarr/cf/language-not-original.json", "type": "file" },
+  { "name": "remux-tier-01.json", "path": "docs/json/radarr/cf/remux-tier-01.json", "type": "file" },
+  { "name": "unsupported-except-language.json", "path": "docs/json/radarr/cf/unsupported-except-language.json", "type": "file" },
+  { "name": "web-tier-01.json", "path": "docs/json/radarr/cf/web-tier-01.json", "type": "file" },
+  { "name": "README.md", "path": "docs/json/radarr/cf/README.md", "type": "file" },
+  { "name": "drafts", "path": "docs/json/radarr/cf/drafts", "type": "dir" }
+]

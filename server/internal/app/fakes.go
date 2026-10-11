@@ -7,6 +7,7 @@ import (
 	activityfakes "magpie/internal/activity/fakes"
 	"magpie/internal/adapters/prowlarr"
 	"magpie/internal/adapters/tmdb"
+	"magpie/internal/adapters/trash"
 	"magpie/internal/catalog"
 	"magpie/internal/identity"
 	identityfakes "magpie/internal/identity/fakes"
@@ -29,7 +30,7 @@ var PortFakes = fx.Provide(
 	fx.Annotate(tmdb.New, fx.As(new(catalog.TMDB))),
 	fx.Annotate(prowlarr.NewFromSettings, fx.As(new(acquisition.Prowlarr))),
 	fx.Annotate(acquisitionfakes.NewQBittorrent, fx.As(new(acquisition.QBittorrent))),
-	fx.Annotate(acquisitionfakes.NewTrashGuides, fx.As(new(acquisition.TrashGuides))),
+	fx.Annotate(trash.New, fx.As(new(acquisition.TrashGuides))),
 	fx.Annotate(libraryfakes.NewFileSystem, fx.As(fx.Self()), fx.As(new(library.FileSystem))),
 	fx.Annotate(libraryfakes.NewMediaProber, fx.As(new(library.MediaProber))),
 	fx.Annotate(libraryfakes.NewHasher, fx.As(new(library.Hasher))),

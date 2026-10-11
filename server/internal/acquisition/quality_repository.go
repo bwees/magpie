@@ -435,11 +435,6 @@ func deleteFormat(tx *gorm.DB, id api.CustomFormatID) error {
 	return nil
 }
 
-func formatScoresOf(conn *gorm.DB, profile domain.ProfileID) ([]formatScoreRow, error) {
-	var rows []formatScoreRow
-	return rows, conn.Where("profile_id = ?", profile).Find(&rows).Error
-}
-
 // TrashGuideProfile is a TRaSH guide profile as of the last sync.
 type TrashGuideProfile struct {
 	App      TrashApp

@@ -1,0 +1,15 @@
+{
+  "trash_id": "00000000000000000000000000000000",
+  "trash_scores": { "default": -10000 },
+  "name": "Not English (hand-written: exceptLanguage is not supported)",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Not English",
+      "implementation": "LanguageSpecification",
+      "negate": false,
+      "required": false,
+      "fields": { "value": 1, "exceptLanguage": true }
+    }
+  ]
+}

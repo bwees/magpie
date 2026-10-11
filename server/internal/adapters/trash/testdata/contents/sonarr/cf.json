@@ -1,0 +1,6 @@
+[
+  { "name": "hd-bluray-tier-01.json", "path": "docs/json/sonarr/cf/hd-bluray-tier-01.json", "type": "file" },
+  { "name": "internal.json", "path": "docs/json/sonarr/cf/internal.json", "type": "file" },
+  { "name": "remux-tier-01.json", "path": "docs/json/sonarr/cf/remux-tier-01.json", "type": "file" },
+  { "name": "season-pack.json", "path": "docs/json/sonarr/cf/season-pack.json", "type": "file" }
+]

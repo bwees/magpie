@@ -27,6 +27,7 @@ var Module = fx.Module(string(owner.Acquisition),
 		jobs.AsPeriodic(newIndexerSyncPeriodic),
 	),
 	fx.Invoke(syncIndexersOnStart),
+	qualityOptions,
 )
 
 // Migrations is Acquisition's goose directory, for tests that open a database without the app.

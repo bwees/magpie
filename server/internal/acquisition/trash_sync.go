@@ -42,21 +42,20 @@ type TrashSyncService struct {
 	repo   *QualityRepository
 	store  *settings.Store
 	guides TrashGuides
-	queue  jobs.Enqueuer
 	now    func() time.Time
 }
 
-func NewTrashSyncService(d *db.DB, repo *QualityRepository, store *settings.Store, guides TrashGuides, queue jobs.Enqueuer) *TrashSyncService {
-	return &TrashSyncService{db: d, repo: repo, store: store, guides: guides, queue: queue, now: time.Now}
+func NewTrashSyncService(d *db.DB, repo *QualityRepository, store *settings.Store, guides TrashGuides) *TrashSyncService {
+	return &TrashSyncService{db: d, repo: repo, store: store, guides: guides, now: time.Now}
 }
 
 func (s *TrashSyncService) Status(ctx context.Context) (TrashSyncState, error) {
 	return trashSyncStateKey.Get(ctx, s.store)
 }
 
-// RequestSync queues a sync. It runs as a job because fetching the guides outlasts a request.
-func (s *TrashSyncService) RequestSync(ctx context.Context) error {
-	return s.queue.Enqueue(ctx, trashSyncTask{})
+// RequestTrashSync queues a sync. It runs as a job because fetching the guides outlasts a request.
+func RequestTrashSync(ctx context.Context, q jobs.Enqueuer) error {
+	return q.Enqueue(ctx, trashSyncTask{})
 }
 
 func (s *TrashSyncService) GuideProfiles(ctx context.Context) ([]TrashGuideProfile, error) {

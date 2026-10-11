@@ -107,7 +107,7 @@ func TestEvaluateRanksQualityByProfileOrderWithGroupsEqual(t *testing.T) {
 	rank := func(name string) Evaluation { return Evaluate(movie(t, name), sp) }
 	web2160, web1080, rip1080, bluray, hdtv := rank(webDL2160p), rank(webDL1080p), rank(webRip1080p), rank(bluray1080p), rank(hdtv1080p)
 
-	if !(web2160.QualityRank > web1080.QualityRank && web1080.QualityRank > bluray.QualityRank && bluray.QualityRank > hdtv.QualityRank) {
+	if web2160.QualityRank <= web1080.QualityRank || web1080.QualityRank <= bluray.QualityRank || bluray.QualityRank <= hdtv.QualityRank {
 		t.Errorf("ranks 2160p=%d web1080p=%d bluray=%d hdtv=%d, want profile order", web2160.QualityRank, web1080.QualityRank, bluray.QualityRank, hdtv.QualityRank)
 	}
 	if web1080.QualityRank != rip1080.QualityRank {

@@ -91,17 +91,16 @@ func (s *QualityService) CreateProfile(ctx context.Context, p api.Profile) (api.
 	return s.writeProfile(ctx, p)
 }
 
-// UpdateProfile replaces a profile. A format score that differs from the format's TRaSH score is a
-// user override, which TRaSH sync leaves alone; setting it back to TRaSH's value clears that.
+// UpdateProfile replaces a profile; its preset and TRaSH link stay as stored. A format score that
+// differs from the format's TRaSH score is a user override, which TRaSH sync leaves alone; setting
+// it back to TRaSH's value clears that.
 func (s *QualityService) UpdateProfile(ctx context.Context, p api.Profile) (api.Profile, error) {
 	err := s.db.Write(ctx, func(tx *gorm.DB) error {
-		found, err := profileExists(tx, p.ID)
+		stored, err := loadProfile(tx, p.ID)
 		if err != nil {
 			return err
 		}
-		if !found {
-			return api.ErrNotFound
-		}
+		p.Preset, p.TrashProfileID, p.TrashScoreSet = stored.Preset, stored.TrashProfileID, stored.TrashScoreSet
 		return s.saveValidProfile(tx, &p)
 	})
 	if err != nil {

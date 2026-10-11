@@ -76,7 +76,7 @@ func newTrashFixture(t *testing.T) trashFixture {
 	return trashFixture{
 		guides:  guides,
 		quality: NewQualityService(d, repo, store),
-		sync:    NewTrashSyncService(d, repo, store, guides, nil),
+		sync:    NewTrashSyncService(d, repo, store, guides),
 	}
 }
 

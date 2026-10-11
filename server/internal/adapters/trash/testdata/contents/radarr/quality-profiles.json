@@ -1,0 +1,4 @@
+[
+  { "name": "sqp-1-1080p.json", "path": "docs/json/radarr/quality-profiles/sqp-1-1080p.json", "type": "file" },
+  { "name": "web-1080p.json", "path": "docs/json/radarr/quality-profiles/web-1080p.json", "type": "file" }
+]
