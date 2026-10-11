@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { TitleResponse } from '$lib/sdk';
+	import { ProfileOptions } from '$lib/settings/quality/profile-options.svelte';
 	import StageBar from '$lib/activity/StageBar.svelte';
 	import PosterImage from './PosterImage.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -14,6 +16,13 @@
 		`linear-gradient(120deg, rgb(${tint ?? DEFAULT_TINT} / 0.75), rgb(${tint ?? DEFAULT_TINT} / 0.25) 55%, var(--card))`
 	);
 	const chip = 'rounded-md bg-white/15 px-2 py-0.5';
+
+	const profiles = new ProfileOptions();
+	const profileName = $derived(profiles.name(title.profileId));
+
+	onMount(() => {
+		profiles.load();
+	});
 	const placeholderAction = 'Searching arrives with Acquisition';
 </script>
 
@@ -37,6 +46,9 @@
 			<div class="mt-3 flex flex-wrap gap-2 text-xs">
 				{#if title.year}
 					<span class={chip}>{title.year}</span>
+				{/if}
+				{#if profileName}
+					<span class={chip}>{profileName}</span>
 				{/if}
 				{#if title.requestedBy}
 					<span class={chip}>Requested</span>
