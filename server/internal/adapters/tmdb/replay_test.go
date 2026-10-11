@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	testAPIKey     = "0123456789abcdef0123456789abcdef"
-	fixtureDir     = "testdata"
+	replayAPIKey   = "0123456789abcdef0123456789abcdef"
+	replayDir      = "testdata"
 	headerJSONType = "application/json;charset=utf-8"
 	headerRetry    = "Retry-After"
 )
@@ -70,7 +70,7 @@ func (r *replay) serve(w http.ResponseWriter, req *http.Request) {
 	if next.fixture == "" {
 		return
 	}
-	body, err := os.ReadFile(filepath.Join(fixtureDir, next.fixture))
+	body, err := os.ReadFile(filepath.Join(replayDir,next.fixture))
 	if err != nil {
 		r.t.Errorf("reading fixture: %v", err)
 		return

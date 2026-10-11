@@ -32,7 +32,7 @@ func date(t *testing.T, value string) time.Time {
 
 func TestMovieMapsDetailsReleaseDatesExternalIDsAndImages(t *testing.T) {
 	r := newReplay(t, map[string][]response{"/movie/974576": {ok("movie_974576.json")}})
-	movie, err := newTestClient(r, testAPIKey, &sleeps{}).Movie(context.Background(), conclave, metadataLang)
+	movie, err := newTestClient(r, replayAPIKey, &sleeps{}).Movie(context.Background(), conclave, metadataLang)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestMovieMapsDetailsReleaseDatesExternalIDsAndImages(t *testing.T) {
 	}
 
 	query := r.requests()[0].URL.Query()
-	if query.Get("api_key") != testAPIKey || query.Get("language") != metadataLang {
+	if query.Get("api_key") != replayAPIKey || query.Get("language") != metadataLang {
 		t.Errorf("query = %v", query)
 	}
 	if query.Get("append_to_response") != "release_dates,external_ids,images,alternative_titles" {
@@ -95,7 +95,7 @@ func TestSeriesSeasonAndEpisodeGroups(t *testing.T) {
 		"/tv/95396/episode_groups":            {ok("tv_95396_episode_groups.json")},
 		"/tv/episode_group/" + productionList: {ok("episode_group_64a1f6ae8c0a48013b6c2bd0.json")},
 	})
-	client := newTestClient(r, testAPIKey, &sleeps{})
+	client := newTestClient(r, replayAPIKey, &sleeps{})
 	ctx := context.Background()
 
 	series, err := client.Series(ctx, severance, metadataLang)
@@ -139,7 +139,7 @@ func TestSeriesSeasonAndEpisodeGroups(t *testing.T) {
 
 func TestSearchReturnsMoviesAndSeriesWithoutPeople(t *testing.T) {
 	r := newReplay(t, map[string][]response{"/search/multi": {ok("search_multi_dune.json")}})
-	page, err := newTestClient(r, testAPIKey, &sleeps{}).Search(context.Background(), "dune", 1)
+	page, err := newTestClient(r, replayAPIKey, &sleeps{}).Search(context.Background(), "dune", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestSearchReturnsMoviesAndSeriesWithoutPeople(t *testing.T) {
 
 func TestTrendingReturnsMoviesAndSeries(t *testing.T) {
 	r := newReplay(t, map[string][]response{"/trending/all/week": {ok("trending_all_week.json")}})
-	items, err := newTestClient(r, testAPIKey, &sleeps{}).Trending(context.Background(), catalog.TmdbTrendingWeek)
+	items, err := newTestClient(r, replayAPIKey, &sleeps{}).Trending(context.Background(), catalog.TmdbTrendingWeek)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestTrendingReturnsMoviesAndSeries(t *testing.T) {
 func TestChangesFollowsEveryPage(t *testing.T) {
 	r := newReplay(t, map[string][]response{"/movie/changes": {ok("movie_changes_page1.json"), ok("movie_changes_page2.json")}})
 	since := time.Date(2026, 10, 4, 15, 30, 0, 0, time.UTC)
-	ids, err := newTestClient(r, testAPIKey, &sleeps{}).Changes(context.Background(), domain.MediaKindMovie, since)
+	ids, err := newTestClient(r, replayAPIKey, &sleeps{}).Changes(context.Background(), domain.MediaKindMovie, since)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestChangesFollowsEveryPage(t *testing.T) {
 
 func TestFindByTvdbID(t *testing.T) {
 	r := newReplay(t, map[string][]response{"/find/371980": {ok("find_tvdb_371980.json")}})
-	found, err := newTestClient(r, testAPIKey, &sleeps{}).Find(context.Background(), catalog.TmdbFindTvdb, "371980")
+	found, err := newTestClient(r, replayAPIKey, &sleeps{}).Find(context.Background(), catalog.TmdbFindTvdb, "371980")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestFindByTvdbID(t *testing.T) {
 
 func TestImageDownloadsFromTheImageHost(t *testing.T) {
 	r := newReplay(t, map[string][]response{imagePathPrefix + "/w780/poster.jpg": {ok("poster.jpg")}})
-	body, err := newTestClient(r, testAPIKey, &sleeps{}).Image(context.Background(), "/poster.jpg", "w780")
+	body, err := newTestClient(r, replayAPIKey, &sleeps{}).Image(context.Background(), "/poster.jpg", "w780")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestTooManyRequestsRetriesHonouringRetryAfter(t *testing.T) {
 	r := newReplay(t, map[string][]response{"/movie/974576": {limited, limitedNoHeader, ok("movie_974576.json")}})
 	s := &sleeps{}
 
-	movie, err := newTestClient(r, testAPIKey, s).Movie(context.Background(), conclave, metadataLang)
+	movie, err := newTestClient(r, replayAPIKey, s).Movie(context.Background(), conclave, metadataLang)
 	if err != nil {
 		t.Fatalf("Movie after two 429s: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestTooManyRequestsGivesUpAfterFiveRetries(t *testing.T) {
 	r := newReplay(t, map[string][]response{"/movie/974576": {{status: http.StatusTooManyRequests, fixture: "error_429.json"}}})
 	s := &sleeps{}
 
-	_, err := newTestClient(r, testAPIKey, s).Movie(context.Background(), conclave, metadataLang)
+	_, err := newTestClient(r, replayAPIKey, s).Movie(context.Background(), conclave, metadataLang)
 	if !errors.Is(err, catalog.ErrTmdbUnavailable) {
 		t.Fatalf("err = %v, want ErrTmdbUnavailable", err)
 	}
@@ -283,7 +283,7 @@ func TestBackoffDoublesUpToThirtySeconds(t *testing.T) {
 
 func TestServerErrorsRetryLikeRateLimits(t *testing.T) {
 	r := newReplay(t, map[string][]response{"/movie/974576": {{status: http.StatusBadGateway}, ok("movie_974576.json")}})
-	if _, err := newTestClient(r, testAPIKey, &sleeps{}).Movie(context.Background(), conclave, metadataLang); err != nil {
+	if _, err := newTestClient(r, replayAPIKey, &sleeps{}).Movie(context.Background(), conclave, metadataLang); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -301,7 +301,7 @@ func TestStatusErrorsMapToPortSentinels(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newReplay(t, map[string][]response{"/movie/974576": {{status: tc.status, fixture: tc.file}}})
-			_, err := newTestClient(r, testAPIKey, &sleeps{}).Movie(context.Background(), conclave, metadataLang)
+			_, err := newTestClient(r, replayAPIKey, &sleeps{}).Movie(context.Background(), conclave, metadataLang)
 			if !errors.Is(err, tc.want) {
 				t.Errorf("err = %v, want %v", err, tc.want)
 			}
