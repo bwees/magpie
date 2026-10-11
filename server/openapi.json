@@ -1365,9 +1365,7 @@
 					"episodeId",
 					"failed",
 					"stage",
-					"subs",
 					"titleId",
-					"transcode",
 					"updatedAt"
 				],
 				"type": "object"

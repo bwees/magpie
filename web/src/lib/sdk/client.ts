@@ -119,9 +119,9 @@ export type PipelineRowResponse = {
     episodeId: string | null;
     failed: boolean;
     stage: string;
-    subs: SubsChipResponse;
+    subs?: SubsChipResponse;
     titleId: string;
-    transcode: TranscodeChipResponse;
+    transcode?: TranscodeChipResponse;
     updatedAt: string;
 };
 export type TimelineEntryResponse = {

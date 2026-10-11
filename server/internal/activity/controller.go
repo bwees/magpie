@@ -66,8 +66,8 @@ type PipelineRowResponse struct {
 	Failed     bool                   `json:"failed" validate:"required"`
 	Detail     string                 `json:"detail" validate:"required"`
 	DownloadID *string                `json:"downloadId"`
-	Subs       *SubsChipResponse      `json:"subs"`
-	Transcode  *TranscodeChipResponse `json:"transcode"`
+	Subs       *SubsChipResponse      `json:"subs,omitempty"`
+	Transcode  *TranscodeChipResponse `json:"transcode,omitempty"`
 	UpdatedAt  time.Time              `json:"updatedAt" validate:"required"`
 }
 
