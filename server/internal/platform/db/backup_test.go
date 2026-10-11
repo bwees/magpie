@@ -18,6 +18,7 @@ func TestBackupNamesRoundTrip(t *testing.T) {
 		BackupKindDaily:        "magpie-2026-10-11.db",
 		BackupKindPreMigration: "magpie-pre-migration-20261011T030000Z.db",
 		BackupKindPreRestore:   "magpie-pre-restore-20261011T030000Z.db",
+		BackupKindManual:       "magpie-manual-20261011T030000Z.db",
 	}
 	for kind, want := range cases {
 		name := BackupName(kind, backupDay)

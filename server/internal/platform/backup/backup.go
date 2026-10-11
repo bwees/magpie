@@ -96,6 +96,11 @@ func (s *Service) Daily(ctx context.Context) (db.Backup, error) {
 	return backup, db.PruneBackups(s.backupDir, db.BackupKindDaily, cfg.Keep)
 }
 
+// Manual snapshots the database now. The newest manual backups are kept, like pre-migration ones.
+func (s *Service) Manual(ctx context.Context) (db.Backup, error) {
+	return s.db.Snapshot(ctx, s.backupDir, db.BackupKindManual, s.now())
+}
+
 func (s *Service) List() ([]db.Backup, error) {
 	return db.ListBackups(s.backupDir)
 }

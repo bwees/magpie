@@ -138,6 +138,9 @@ func TestEndpointsAreAdminOnly(t *testing.T) {
 			if rec := do(handler, http.MethodGet, "/api/platform/backups"); rec.Code != tc.want {
 				t.Errorf("list status = %d, want %d", rec.Code, tc.want)
 			}
+			if rec := do(handler, http.MethodPost, "/api/platform/backups"); rec.Code != tc.want {
+				t.Errorf("back up now status = %d, want %d", rec.Code, tc.want)
+			}
 			if rec := do(handler, http.MethodPost, "/api/platform/backups/magpie-2026-10-11.db/restore"); rec.Code != tc.want {
 				t.Errorf("restore status = %d, want %d", rec.Code, tc.want)
 			}
@@ -145,6 +148,24 @@ func TestEndpointsAreAdminOnly(t *testing.T) {
 	}
 	if f.restarter.restarts != 0 {
 		t.Error("a non-admin triggered a restart")
+	}
+}
+
+func TestAdminBacksUpNow(t *testing.T) {
+	f := newFixture(t)
+	handler := serve(t, f.service, &domain.Principal{User: domain.NewID[domain.UserID](), Admin: true})
+
+	rec := do(handler, http.MethodPost, "/api/platform/backups")
+	var created BackupResponse
+	if err := json.NewDecoder(rec.Body).Decode(&created); err != nil || rec.Code != http.StatusCreated {
+		t.Fatalf("back up now: %d %v", rec.Code, err)
+	}
+	if created.Kind != db.BackupKindManual || created.Size == 0 {
+		t.Errorf("created %+v, want a manual backup", created)
+	}
+	backups, err := f.service.List()
+	if err != nil || len(backups) != 1 || backups[0].Name != created.Name {
+		t.Errorf("listed %+v, %v; want the manual backup", backups, err)
 	}
 }
 

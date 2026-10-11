@@ -44,6 +44,12 @@ func (c *Controller) Register(api *fuego.Server) {
 		fuego.OptionSummary("List database backups, newest first (admin)"),
 		fuego.OptionTags(tagPlatform),
 	)
+	fuego.Post(api, "/platform/backups", c.create,
+		fuego.OptionOperationID("createBackup"),
+		fuego.OptionSummary("Back up the database now (admin)"),
+		fuego.OptionTags(tagPlatform),
+		fuego.OptionDefaultStatusCode(http.StatusCreated),
+	)
 	fuego.Post(api, "/platform/backups/{name}/restore", c.restore,
 		fuego.OptionOperationID("restoreBackup"),
 		fuego.OptionSummary("Restore a backup and restart the server (admin)"),
@@ -66,6 +72,17 @@ func (c *Controller) list(ctx fuego.ContextNoBody) ([]BackupResponse, error) {
 		response = append(response, BackupResponse(b))
 	}
 	return response, nil
+}
+
+func (c *Controller) create(ctx fuego.ContextNoBody) (BackupResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return BackupResponse{}, err
+	}
+	backup, err := c.service.Manual(ctx.Context())
+	if err != nil {
+		return BackupResponse{}, err
+	}
+	return BackupResponse(backup), nil
 }
 
 func (c *Controller) restore(ctx fuego.ContextNoBody) (RestoreResponse, error) {

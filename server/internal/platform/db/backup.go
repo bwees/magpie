@@ -21,12 +21,14 @@ const (
 	BackupKindDaily        BackupKind = "DAILY"
 	BackupKindPreMigration BackupKind = "PRE_MIGRATION"
 	BackupKindPreRestore   BackupKind = "PRE_RESTORE"
+	// BackupKindManual is an admin's "Back up now".
+	BackupKindManual BackupKind = "MANUAL"
 )
 
 const (
 	BackupDirName = "backups"
 
-	// Pre-migration and pre-restore snapshots are kept as many as the default daily retention.
+	// Pre-migration, pre-restore and manual snapshots are kept as many as the default daily retention.
 	SnapshotsKept = 7
 
 	backupPrefix    = "magpie-"
@@ -44,6 +46,7 @@ var kindInfix = map[BackupKind]string{
 	BackupKindDaily:        "",
 	BackupKindPreMigration: "pre-migration-",
 	BackupKindPreRestore:   "pre-restore-",
+	BackupKindManual:       "manual-",
 }
 
 var (
@@ -77,7 +80,7 @@ func ParseBackupName(name string) (BackupKind, bool) {
 		return "", false
 	}
 	stem := strings.TrimSuffix(strings.TrimPrefix(name, backupPrefix), backupExt)
-	for _, kind := range []BackupKind{BackupKindPreMigration, BackupKindPreRestore} {
+	for _, kind := range []BackupKind{BackupKindPreMigration, BackupKindPreRestore, BackupKindManual} {
 		if stamp, ok := strings.CutPrefix(stem, kindInfix[kind]); ok {
 			_, err := time.Parse(timestampLayout, stamp)
 			return kind, err == nil
