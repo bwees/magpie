@@ -86,7 +86,7 @@ func (p *HealthProbe) ensureCategory(ctx context.Context, conn settings.QBittorr
 	}
 	var categories map[string]json.RawMessage
 	if err := json.Unmarshal(body, &categories); err != nil {
-		return fmt.Errorf("qBittorrent categories: %w", err)
+		return fmt.Errorf("unreadable qBittorrent categories: %w", err)
 	}
 	if _, ok := categories[conn.Category]; ok {
 		return nil
@@ -112,7 +112,7 @@ func (p *HealthProbe) call(ctx context.Context, conn settings.QBittorrentConnect
 	}
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("qBittorrent unreachable: %w", err)
+		return nil, fmt.Errorf("can't reach qBittorrent: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
@@ -121,9 +121,9 @@ func (p *HealthProbe) call(ctx context.Context, conn settings.QBittorrentConnect
 	}
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		return nil, fmt.Errorf("qBittorrent rejected the API key (%s)", resp.Status)
+		return nil, fmt.Errorf("the qBittorrent API key was rejected (%s)", resp.Status)
 	case resp.StatusCode != http.StatusOK:
-		return nil, fmt.Errorf("qBittorrent %s %s: %s", method, path, resp.Status)
+		return nil, fmt.Errorf("unexpected qBittorrent response to %s %s: %s", method, path, resp.Status)
 	}
 	return body, nil
 }
