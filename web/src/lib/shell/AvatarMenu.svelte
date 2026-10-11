@@ -4,9 +4,11 @@
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { NAV_ITEMS } from '$lib/navigation/nav';
+	import { getSession } from '$lib/session/session.svelte';
 	import { getShell } from './shell-state.svelte';
 
 	const shell = getShell();
+	const session = getSession();
 	const settings = NAV_ITEMS.SETTINGS;
 </script>
 
@@ -30,7 +32,11 @@
 			</DropdownMenu.Item>
 			<DropdownMenu.Separator />
 		{/if}
-		<DropdownMenu.Item disabled>
+		{#if session.user}
+			<DropdownMenu.Label class="truncate">{session.user.displayName}</DropdownMenu.Label>
+			<DropdownMenu.Separator />
+		{/if}
+		<DropdownMenu.Item onclick={() => session.signOut()}>
 			<LogOut />
 			Sign out
 		</DropdownMenu.Item>
