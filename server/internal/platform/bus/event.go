@@ -35,6 +35,11 @@ func NewEvent(eventType, aggregateID string, payload any) Event {
 	}
 }
 
+// EventOf wraps an api message, taking its type and aggregate ID from the message itself.
+func EventOf(m domain.Message) Event {
+	return NewEvent(m.Type(), m.AggregateID(), m)
+}
+
 // Decode returns the payload as T, whether it is still the struct or was read back as JSON.
 func Decode[T any](ev Event) (T, error) {
 	var payload T
