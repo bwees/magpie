@@ -36,15 +36,18 @@ Decisions:
 
 | Table | Key fields |
 |---|---|
-| `agents` | `id` (stable, agent-chosen ULID persisted on the agent volume), `hostname`, `version`, `ffmpeg_version`, `mode` (`DOWNLOAD_FIRST` \| `DIRECT_READ`), `slots_override`, `online`, `last_seen_at`, `scratch_free_bytes`, `throughput_bps` (EWMA), `draining` |
-| `agent_devices` | `agent_id`, `device_id` (e.g. `cuda:0`, `/dev/dri/renderD128`), `vendor`, `name`, `driver`, `max_sessions` (NVIDIA GeForce 12, others unset), `healthy`, `tested_at` |
-| `device_capabilities` | `agent_id`, `device_id`, `capability` (`ENC_HEVC_10`, `ENC_AV1_10`, `DEC_H264_8`, … `WHISPER_VULKAN`), `ok`, `error` |
+| `agents` | `id` (stable, agent-chosen ULID persisted on the agent volume), `hostname`, `version`, `ffmpeg_version`, `reported_mode` (the agent's local default from `Hello`), `mode_override` (`DOWNLOAD_FIRST` \| `DIRECT_READ`; wins when set), `slots_override`, `online`, `last_seen_at`, `scratch_free_bytes`, `throughput_bps` (EWMA), `draining` |
+| `agent_devices` | `agent_id`, `device_id` (e.g. `cuda:0`, `/dev/dri/renderD128`), `vendor`, `name`, `driver`, `max_sessions` (NVIDIA GeForce 12, others unset), `healthy`, `retest_at` (set while unhealthy), `tested_at` |
+| `device_capabilities` | `agent_id`, `device_id`, `capability` (`ENC_HEVC_10`, `ENC_AV1_10`, `DEC_H264_8`, … `WHISPER_VULKAN`), `ok`, `error`, `tested_at` |
 | `eligible_files` | `media_file_id`, `title_id`, `origin` (`DOWNLOAD` \| `LIBRARY_SCAN` \| `MIGRATION`, from `CutoffMet.Origin`), `cutoff_met_at` |
 | `jobs` | `id`, `kind` (`TRANSCODE` \| `WHISPER`), `media_file_id`, `state`, `priority`, `attempt`, `not_before`, `agent_id`, `device_id`, `lease_expires_at`, `source_etag`, `source_size`, `spec` (JSON `JobSpec`), `result` (JSON), `excluded_agents` |
 | `job_attempts` | `job_id`, `attempt`, `agent_id`, `outcome`, `error`, `started_at`, `ended_at` |
 | `exclusions` | `scope` (`TITLE` \| `ROOT_FOLDER`), `ref` |
 | `skips` | `media_file_id`, `reason`, `policy_hash`. A file isn't re-evaluated until the policy changes. |
 | `transcode_settings` | singleton (see [Behaviour › Policy](#policy)) |
+
+- Tables carry the `transcode_` prefix like every context's (`transcode_agents`, `transcode_agent_devices`, `transcode_device_capabilities`, …).
+- The agent settings (`transfer_cap`, `default_slots_per_gpu`) live in the platform settings store under the key `transcode.agents`, not in `transcode_settings`.
 
 The calibration table (`preset × encoder → params`) ships as a versioned file in the server binary and isn't user data.
 
@@ -217,10 +220,10 @@ Admin UI (session auth, Admin role):
 | POST | `/api/transcode/jobs/{id}/cancel` | Cancel a job |
 | POST | `/api/transcode/jobs/{id}/retry` | Re-queue a `FAILED` / `NOT_WORTH_IT` job and clear the skip |
 | GET | `/api/transcode/agents` | Agents, devices, capabilities |
-| PATCH | `/api/transcode/agents/{id}` | `slots_override`, `mode`, `draining` |
-| POST | `/api/transcode/agents/{id}/retest` | Ask the agent to re-run capability tests |
+| PATCH | `/api/transcode/agents/{id}` | `slots_override` (0–8, null = default), `mode`, `draining`. All three are sent together. `400` out of range, `404` unknown agent. |
+| POST | `/api/transcode/agents/{id}/retest` | Ask the agent to re-run capability tests. `202`; `409` when the agent isn't connected. |
 | GET, PUT | `/api/transcode/settings` | Target, preset, caps, thresholds, transfer cap, default slots |
-| GET | `/api/transcode/secret` | The shared secret from `MAGPIE_AGENT_SECRET`, masked, for the copy button. No rotate endpoint; rotating = change the env and restart. |
+| GET | `/api/transcode/secret` | `{configured, masked, secret}`: the shared secret from `MAGPIE_AGENT_SECRET`, masked for display and in full for the copy button. No rotate endpoint; rotating = change the env and restart. |
 | PUT, DELETE | `/api/transcode/exclusions/{scope}/{ref}` | Exclude or include a title or root folder |
 | POST | `/api/transcode/backlog/sweep` | Re-evaluate every eligible and skipped file against the current policy |
 
@@ -240,7 +243,8 @@ All agent HTTP endpoints return `409 Conflict` unless the job is currently lease
 ### Auth
 
 - Every request and the WebSocket upgrade send `Authorization: Bearer <shared secret>` and `X-Magpie-Agent: <agent id>`.
-- A wrong secret returns `401`. An unknown agent ID is registered on its first `Hello`.
+- A wrong secret returns `401`, and so does every agent while `MAGPIE_AGENT_SECRET` is unset. An `X-Magpie-Agent` that isn't a ULID returns `400`. An unknown agent ID is registered on its first `Hello`.
+- The first frame must be a `Hello` naming the same agent ID, within 10 s; otherwise the socket closes with a policy-violation status and nothing is stored.
 - Agents are LAN/tailnet only; TLS is up to the operator's reverse proxy.
 
 ### Control channel
@@ -255,7 +259,9 @@ type Envelope struct {
 }
 ```
 
+- The socket path is `agentproto.ControlPath` (`/api/transcode/agents/ws`).
 - The types live in `internal/transcode/api/agentproto`, shared by the server and `agent/`. Bodies use camelCase JSON fields.
+- The server answers `CapabilitiesChanged` and `DeviceUnhealthy` with `Ack`. `Hello` is answered by `Welcome`.
 - Enumerated string fields below are typed there (`Mode`, `Vendor`, `Capability`, `Stage`, `RejectReason`, `Outcome`, `JobKind`). Codec, encoder, container and Whisper model names stay ffmpeg/whisper.cpp spellings.
 
 Agent → server:
@@ -324,11 +330,14 @@ type VerifyReport struct {
 Server → agent:
 
 ```go
+// Welcome answers Hello, and is sent again whenever an admin changes the agent's overrides or the
+// default slots per GPU.
 type Welcome struct {
 	HeartbeatEvery time.Duration // 10s
 	LeaseTTL       time.Duration // 60s
 	Mode           string        // effective transfer mode for this agent
 	Slots          map[string]int // device_id -> concurrent jobs allowed
+	Draining       bool          // accept no new jobs; false undoes an earlier Drain
 }
 type JobOffer struct {
 	Spec         JobSpec
@@ -385,6 +394,21 @@ type WhisperParams struct {
 - **Expiry:** a lease that passes `lease_expires_at` returns the job to `QUEUED` with `attempt + 1`. The job is not re-offered to the same agent for 2 minutes, unless that agent reconnects with a matching `ResumableJob` (same `SourceETag`).
 - **Offer timeout:** an offer not accepted within 10 s returns the job to `QUEUED` without counting an attempt.
 - **Disconnect:** WebSocket loss doesn't fail jobs on its own; only lease expiry does. After 3 missed heartbeats the agent is marked offline and `AgentOffline` is published. Reconnecting publishes `AgentOnline`.
+  - A 5 s sweep finds agents not heard from for 3 × 10 s. `AgentOffline.Since` is the last heartbeat.
+  - `AgentOnline` is published only when an agent goes from offline (or unknown) to online, on `Hello` or on a heartbeat. A quick reconnect within the 30 s window publishes nothing.
+- **Unhealthy device:** the same sweep sends `Retest{DeviceID}` once `retest_at` passes and moves `retest_at` another 10 minutes on, so a retest that never answers is asked for again.
+
+### Capability tests
+
+The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `ffmpeg -encoders`.
+
+- **Devices:** NVIDIA from `nvidia-smi --query-gpu=index,name,driver_version` (`cuda:N`; GeForce gets `MaxSessions` 12). Intel and AMD from `/sys/class/drm/renderD*/device/vendor` (`0x8086`, `0x1002`); name and driver come from the VA-API vendor string ffmpeg logs at verbose level. NVIDIA's render nodes are skipped.
+- **Encode** (`ENC_HEVC_10`, `ENC_AV1_10`): 30 frames of 720p `testsrc2` converted to 10-bit, through `hevc_nvenc`/`av1_nvenc`, `hevc_qsv`/`av1_qsv` (Intel) or `hevc_vaapi`/`av1_vaapi` (AMD) to the null muxer.
+- **Decode** (`DEC_H264_8`, `DEC_HEVC_10`): CPU-encoded sample clips decoded with `-hwaccel cuda|qsv|vaapi -hwaccel_output_format …`. ffmpeg falls back to the CPU and exits 0 when the hardware decode can't start, so a "Failed setup for format" warning also fails the test.
+- **Pipeline** (`PIPELINE_HEVC_10`): the HEVC 10-bit sample decoded, scaled (`scale_cuda`, `vpp_qsv`, `scale_vaapi`) and re-encoded without leaving the GPU.
+- **Whisper** (`WHISPER_VULKAN`): `whisper-cli` must run, and a Vulkan device must derive from the GPU (`-init_hw_device vulkan=vk@…`). Ticket 26 may add a model run.
+- Each result's `Error` is the first line ffmpeg logged, without its `[component @ 0x…]` prefix (e.g. `OpenEncodeSessionEx failed: unsupported device (2): (no details)`). Each test times out after 1 minute.
+- A device is healthy when it passed at least one test; one that passed none is unhealthy and retested after 10 minutes.
 
 ### Byte transfer
 

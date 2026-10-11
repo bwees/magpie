@@ -15,9 +15,9 @@ Set on the container. Everything else lives in SQLite and is edited in the UI ([
 | `MAGPIE_BASE_URL` | server | none | absolute URL | Links in notifications, agent docs |
 | `MAGPIE_AGENT_SECRET` | server | none (agents refused until set) | ≥ 32 chars | Shared secret agents present ([ticket 14](../../.scratch/v1-spec/issues/14-agent-protocol.md)). Env-only; rotate by changing it and restarting. |
 | `MAGPIE_URL` | agent | none (required) | absolute URL | Server to dial |
-| `MAGPIE_SECRET` | agent | none (required) | must equal the server secret | Agent auth |
-| `MAGPIE_AGENT_NAME` | agent | hostname | `[a-z0-9-]` | Stable agent ID shown in the UI |
-| `MAGPIE_SCRATCH_DIR` | agent | `/scratch` | writable dir | Source/output scratch space |
+| `MAGPIE_AGENT_SECRET` | agent | none (required) | must equal the server secret | Agent auth |
+| `MAGPIE_AGENT_NAME` | agent | hostname | `[a-z0-9-]` | Name shown in the UI. The stable agent ID is a ULID the agent creates on first start in `<scratch>/.magpie-agent-id`. |
+| `MAGPIE_SCRATCH_DIR` | agent | `/scratch` | writable dir | Source/output scratch space and the agent ID; mount it as a volume |
 
 ## General
 

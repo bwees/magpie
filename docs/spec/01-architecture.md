@@ -48,6 +48,7 @@ server/
       fakes/                   in-memory fake per port
       service.go repository.go controller.go handlers.go ports.go module.go
   agent/                       transcode agent binary (separate image)
+    config/ probe/ session/    env + persisted agent ID, capability tests, control socket
 web/                           SvelteKit SPA
 ```
 
