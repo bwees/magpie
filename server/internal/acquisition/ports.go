@@ -13,8 +13,11 @@ import (
 // Prowlarr is implemented by internal/adapters/prowlarr.
 // Errors: ErrUnauthorized, *ErrIndexerFailed (Torznab <error>), ErrTimeout, ErrUnavailable.
 type Prowlarr interface {
-	// Indexers lists enabled indexers with Torznab caps. Called hourly and on demand.
+	// Indexers lists enabled torrent indexers with Torznab caps and Prowlarr's view of their health.
+	// Called hourly and on demand. One indexer failing its caps call doesn't fail the list.
 	Indexers(ctx context.Context) ([]ProwlarrIndexer, error)
+	// WebURL is Prowlarr's own UI, where indexers are configured. "" when no connection is set up.
+	WebURL(ctx context.Context) (string, error)
 	// Search queries ONE indexer's Torznab endpoint (/{id}/api). Never the aggregate search.
 	// The query carries ID params the indexer supports, else a title query; ctx carries the 60 s timeout.
 	Search(ctx context.Context, indexerID int, q TorznabQuery) ([]TorznabItem, error)
@@ -27,8 +30,28 @@ type Prowlarr interface {
 type ProwlarrIndexer struct {
 	ID       int
 	Name     string
+	Privacy  IndexerPrivacy
 	Priority int // Prowlarr's priority; Acquisition layers its own on top
-	Caps     TorznabCaps
+	// Caps is nil when Prowlarr couldn't answer t=caps for this indexer; Health.Error says why.
+	Caps   *TorznabCaps
+	Health ProwlarrHealth
+}
+
+type IndexerPrivacy string
+
+const (
+	PrivacyPublic      IndexerPrivacy = "PUBLIC"
+	PrivacySemiPrivate IndexerPrivacy = "SEMI_PRIVATE"
+	PrivacyPrivate     IndexerPrivacy = "PRIVATE"
+)
+
+// ProwlarrHealth is Prowlarr's view of one indexer.
+type ProwlarrHealth struct {
+	// Error is set while the indexer is failing: Prowlarr backed it off after repeated failures,
+	// or its caps call returned an error.
+	Error           string
+	FailingSince    *time.Time
+	AverageResponse time.Duration // 0 until Prowlarr has stats for it
 }
 
 // TorznabParam is a search parameter an indexer may support.

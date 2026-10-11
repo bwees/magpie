@@ -17,6 +17,7 @@ const (
 	ProwlarrSearch   scripted.Method = "Prowlarr.Search"
 	ProwlarrRSS      scripted.Method = "Prowlarr.RSS"
 	ProwlarrDownload scripted.Method = "Prowlarr.Download"
+	ProwlarrWebURL   scripted.Method = "Prowlarr.WebURL"
 )
 
 type indexer struct {
@@ -36,6 +37,7 @@ type Prowlarr struct {
 	mu        sync.Mutex
 	indexers  map[int]*indexer
 	downloads map[string]acquisition.TorrentPayload
+	webURL    string
 }
 
 var _ acquisition.Prowlarr = (*Prowlarr)(nil)
@@ -45,10 +47,28 @@ func NewProwlarr() *Prowlarr {
 }
 
 // AddIndexer adds an indexer that answers every query with no results until SetResults.
+// Adding a known ID replaces what Indexers reports for it and keeps its scripted answers.
 func (p *Prowlarr) AddIndexer(info acquisition.ProwlarrIndexer) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if ix, ok := p.indexers[info.ID]; ok {
+		ix.info = info
+		return
+	}
 	p.indexers[info.ID] = &indexer{info: info, results: func(acquisition.TorznabQuery) []acquisition.TorznabItem { return nil }}
+}
+
+// RemoveIndexer drops an indexer, as when it is deleted or disabled in Prowlarr.
+func (p *Prowlarr) RemoveIndexer(indexerID int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.indexers, indexerID)
+}
+
+func (p *Prowlarr) SetWebURL(url string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.webURL = url
 }
 
 // SetResults makes the indexer answer every query with items.
@@ -104,6 +124,15 @@ func (p *Prowlarr) Indexers(ctx context.Context) ([]acquisition.ProwlarrIndexer,
 	}
 	slices.SortFunc(list, func(a, b acquisition.ProwlarrIndexer) int { return a.ID - b.ID })
 	return list, nil
+}
+
+func (p *Prowlarr) WebURL(ctx context.Context) (string, error) {
+	if err := p.Enter(ctx, ProwlarrWebURL); err != nil {
+		return "", err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.webURL, nil
 }
 
 func (p *Prowlarr) Search(ctx context.Context, indexerID int, q acquisition.TorznabQuery) ([]acquisition.TorznabItem, error) {
