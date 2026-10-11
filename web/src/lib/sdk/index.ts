@@ -14,7 +14,16 @@ export enum ProblemType {
 	WEAK_PASSWORD = 'urn:magpie:problem:weak-password',
 	INVALID_CREDENTIALS = 'urn:magpie:problem:invalid-credentials',
 	TOO_MANY_SIGN_INS = 'urn:magpie:problem:too-many-sign-ins',
-	UNAUTHORIZED = 'urn:magpie:problem:unauthorized'
+	UNAUTHORIZED = 'urn:magpie:problem:unauthorized',
+	JELLYFIN_UNAVAILABLE = 'urn:magpie:problem:jellyfin-unavailable',
+	JELLYFIN_USER_DISABLED = 'urn:magpie:problem:jellyfin-user-disabled',
+	USER_DISABLED = 'urn:magpie:problem:user-disabled',
+	JELLYFIN_SIGN_IN_OFF = 'urn:magpie:problem:jellyfin-sign-in-off',
+	QUICK_CONNECT_OFF = 'urn:magpie:problem:quick-connect-off',
+	QUICK_CONNECT_EXPIRED = 'urn:magpie:problem:quick-connect-expired',
+	LAST_ADMIN = 'urn:magpie:problem:last-admin',
+	LOCAL_ADMIN_LOCKED = 'urn:magpie:problem:local-admin-locked',
+	OWN_ACCOUNT = 'urn:magpie:problem:own-account'
 }
 
 interface ProblemBody {
