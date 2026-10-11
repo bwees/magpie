@@ -22,15 +22,20 @@ Base template: [bwees/stack](https://github.com/bwees/stack). One change to it: 
 
 ```
 server/
-  main.go                      fx.New(platform.Module, identity.Module, catalog.Module, …)
+  main.go                      fx.New(app.Module)
   internal/
+    app/                       app.Module = platform.Module + every context's Module (main and flow tests)
     domain/                    shared IDs and value types
     platform/
       db/                      writer + reader pools, goose runner, backups
       bus/                     in-process event bus, outbox dispatcher, processed_events
-      jobs/                    backlite queue + periodic schedules
+      jobs/                    backlite queue, periodic schedules, tickers
       live/                    browser WebSocket gateway
-      config/                  env bootstrap + settings store
+      config/                  env bootstrap
+      settings/                settings store, platform.connections.*
+      backup/                  daily backup job, list/restore endpoints
+      owner/                   names of the platform and contexts (migration order, setting prefixes)
+    flows_test/                flow tests: all modules, fake adapters, temp SQLite
     adapters/
       tmdb/ qbittorrent/ prowlarr/ jellyfin/ opensubtitles/
     identity/ catalog/ requests/ acquisition/ library/ subtitles/ transcode/ activity/
@@ -46,7 +51,9 @@ web/                           SvelteKit SPA
 - Import lint (golangci-lint `depguard`):
   - `internal/<ctx>/**` may import `internal/<other>/api` only.
   - `api/` packages import only `internal/domain` and the standard library.
-  - Lint fails on any other cross-context import.
+  - Lint fails on any other cross-context import. Only `internal/app` (module wiring) and `internal/flows_test` may import a context's root package.
+  - `api/contracttest` may import its own context, since it runs against the real repository.
+  - `mise run lint:boundaries` proves the rule by linting a fixture that must fail (`internal/lintfixture`, build tag `lintfixture`).
 - Agent and server share the protocol types in `internal/transcode/api/agentproto`.
 
 ## HTTP
@@ -65,23 +72,30 @@ web/                           SvelteKit SPA
 - **Reader pool:** N connections (default `GOMAXPROCS*2`), read-only. Long reads must not hold a transaction across network I/O, which avoids WAL checkpoint starvation.
 - **Ownership:** each context owns its tables, prefixed with the context name (`catalog_titles`, `acquisition_downloads`, …). No cross-context foreign keys; references are plain ID columns.
 - **Migrations:** goose SQL files, one directory per context, run in a fixed order at startup after a pre-migration backup. No GORM AutoMigrate.
+  - Order: platform, identity, catalog, requests, library, acquisition, subtitles, transcode, activity.
+  - Each owner has its own goose version table (`<owner>_goose_db_version`), so versions are numbered per owner.
+  - A context registers its directory with `db.ProvideMigrations` in its module once it has a table.
 - **Platform tables:**
 
 | Table | Columns | Use |
 |---|---|---|
-| `platform_outbox` | `id` (event ULID), `type`, `aggregate_id`, `payload` JSON, `occurred_at` | Durable events, written in the same tx as the state change |
-| `platform_subscriptions` | `handler`, `event_type`, `cursor` (last outbox id seen) | One cursor per registered handler |
-| `platform_handler_queue` | `handler`, `event_id`, `aggregate_id`, `attempts`, `next_attempt_at`, `parked_at`, `last_error` | Per-handler delivery state for failing events |
+| `platform_outbox` | `seq` (autoincrement, commit order), `id` (event ULID), `type`, `aggregate_id`, `payload` JSON, `occurred_at` | Durable events, written in the same tx as the state change |
+| `platform_subscriptions` | `handler`, `cursor` (last outbox `seq` seen) | One cursor per registered handler; its event types live in code |
+| `platform_handler_queue` | `handler`, `event_id`, `seq`, `aggregate_id`, `attempts`, `next_attempt_at`, `parked_at`, `last_error` | Per-handler delivery state for failing events and the events held behind them |
 | `platform_processed_events` | `handler`, `event_id`, `processed_at` (PK handler+event_id) | Handler idempotency |
 | `platform_settings` | `key`, `value` JSON, `updated_at` | Settings store; each key is owned by one context or by platform |
-| backlite tables | as shipped | Jobs and schedules |
+| `platform_schedules` | `name`, `next_run_at` | Next run of each periodic job |
+| backlite tables | as shipped | Jobs |
+
+- Cursors use the outbox `seq`, not the event ULID: ULIDs are made before the transaction starts, so they can commit out of order.
 
 - **Dispatcher (per-handler subscriptions):**
   - Every handler registers for event types and gets its own cursor. Delivery to one handler never waits on another.
   - Ordering is per `aggregate_id` per handler: a handler sees one aggregate's events in outbox order.
   - At least once. A handler error retries that event with backoff (1 s, 5 s, 30 s, 2 min, then every 10 min) and holds only that handler's later events for the same aggregate. Other aggregates and other handlers continue.
-  - After 10 failures the event is parked for that handler and logged. Admins see parked events in Activity → History and can retry them.
-- **Pruning:** outbox rows are deleted once every subscribed handler's cursor has passed them and 7 days have gone by. Processed-event rows go after 30 days.
+  - After 10 failures the event is parked for that handler and logged. A parked event stops holding back later events for its aggregate. Admins see parked events in Activity → History and can retry them (`GET /api/platform/parked-events`, `POST /api/platform/parked-events/retry`); a retry starts a fresh set of attempts.
+  - A handler runs inside a write transaction. Its changes, the events it publishes and its `processed_events` row commit together; the cursor moves in a second transaction, so a crash between the two is deduped on redelivery.
+- **Pruning:** outbox rows are deleted once every subscribed handler's cursor has passed them and 7 days have gone by. Rows still queued for a handler stay. Processed-event rows go after 30 days.
 - **Transient data** (search results, progress ticks) stays in memory. Only outcomes are stored.
 
 ## Background work
@@ -137,6 +151,8 @@ type LiveClientMessage struct {
 - **Resume:** on connect the client sends `resume{epoch, seq}`.
   - Same epoch and seq still in the buffer: the gateway replays everything after seq.
   - Otherwise it sends `live.Reset` and the client refetches its views over REST.
+  - A first connect sends an empty epoch, so it always gets `live.Reset`. `live.Reset` carries the current epoch and latest seq. The client resumes from the last event or reset it received, never from a heartbeat.
+  - JSON field names are camelCase: `seq`, `epoch`, `type`, `topic`, `data`; `op`, `epoch`, `seq`, `topics`.
 - **Topics:** search results (`acquisition.SearchResultsReceived`, `SearchCompleted`) only go to sockets subscribed to `search:<SearchID>`. Everything else is broadcast, then filtered.
 - **Role filter:**
   - Requesters receive only events about their own requests and those requests' titles, plus their own notifications.
