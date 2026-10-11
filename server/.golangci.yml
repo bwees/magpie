@@ -1,0 +1,20 @@
+version: "2"
+
+linters:
+  enable:
+    - depguard
+  settings:
+    depguard:
+      rules:
+        sqlite-driver:
+          deny:
+            - pkg: github.com/glebarez/sqlite
+              desc: open SQLite through github.com/ncruces/go-sqlite3/gormlite
+            - pkg: gorm.io/driver/sqlite
+              desc: needs cgo; open SQLite through github.com/ncruces/go-sqlite3/gormlite
+            - pkg: github.com/mattn/go-sqlite3
+              desc: needs cgo; open SQLite through github.com/ncruces/go-sqlite3/gormlite
+
+formatters:
+  enable:
+    - gofmt
