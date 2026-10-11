@@ -4,9 +4,9 @@ import (
 	"magpie/internal/acquisition"
 	acquisitionfakes "magpie/internal/acquisition/fakes"
 	"magpie/internal/activity"
-	activityfakes "magpie/internal/activity/fakes"
 	"magpie/internal/adapters/jellyfin"
 	"magpie/internal/adapters/prowlarr"
+	"magpie/internal/adapters/shoutrrr"
 	"magpie/internal/adapters/tmdb"
 	"magpie/internal/adapters/trash"
 	"magpie/internal/catalog"
@@ -38,7 +38,7 @@ var PortFakes = fx.Provide(
 	fx.Annotate(subtitlesfakes.NewOpenSubtitles, fx.As(new(subtitles.OpenSubtitles))),
 	fx.Annotate(subtitlesfakes.NewSyncer, fx.As(new(subtitles.Syncer))),
 	fx.Annotate(transcodefakes.NewFileStat, fx.As(new(transcode.FileStat))),
-	fx.Annotate(activityfakes.NewNotificationSender, fx.As(new(activity.NotificationSender))),
+	fx.Annotate(shoutrrr.New, fx.As(new(activity.NotificationSender))),
 )
 
 // ReaderFakes provides the in-memory Reader of each context whose repository isn't built yet.
