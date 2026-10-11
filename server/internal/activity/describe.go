@@ -140,6 +140,21 @@ var issueActionText = map[string]string{
 	requestsapi.IssueActionRerunSubtitles: "Subtitle re-run requested",
 }
 
+var serviceText = map[platformapi.Service]string{
+	platformapi.ServiceTMDB:          "TMDB",
+	platformapi.ServiceQBittorrent:   "qBittorrent",
+	platformapi.ServiceProwlarr:      "Prowlarr",
+	platformapi.ServiceJellyfin:      "Jellyfin",
+	platformapi.ServiceOpenSubtitles: "OpenSubtitles",
+}
+
+func serviceName(s platformapi.Service) string {
+	if name, ok := serviceText[s]; ok {
+		return name
+	}
+	return string(s)
+}
+
 var jobKindText = map[transcodeapi.JobKind]string{
 	transcodeapi.JobKindTranscode: "Transcode",
 	transcodeapi.JobKindWhisper:   "Whisper",
@@ -151,9 +166,9 @@ func init() {
 	})
 	on(func(e platformapi.ServiceHealthChanged) description {
 		if e.Healthy {
-			return description{Text: string(e.Service) + " reachable again"}
+			return description{Text: serviceName(e.Service) + " reachable again"}
 		}
-		return description{Severity: api.SeverityError, Text: string(e.Service) + " unreachable", Detail: e.Error}
+		return description{Severity: api.SeverityError, Text: serviceName(e.Service) + " unreachable", Detail: e.Error}
 	})
 
 	on(func(e catalogapi.TitleAdded) description {

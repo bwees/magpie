@@ -93,7 +93,7 @@ func init() {
 		}
 		return []attentionChange{{
 			Kind: api.AttentionServiceDown, Ref: string(e.Service), Open: true,
-			Text: string(e.Service) + " unreachable", Action: api.ActionOpenSettings,
+			Text: serviceName(e.Service) + " unreachable", Action: api.ActionOpenSettings,
 		}}
 	})
 }
