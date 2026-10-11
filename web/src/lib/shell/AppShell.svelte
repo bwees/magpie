@@ -1,7 +1,10 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { Toaster } from '$lib/components/ui/sonner';
+	import { LiveClient, setLive } from '$lib/live/live-client.svelte';
+	import { liveUrl } from '$lib/live/protocol';
+	import { apiBaseUrl } from '$lib/sdk';
 	import AppSidebar from './AppSidebar.svelte';
 	import BottomTabs from './BottomTabs.svelte';
 	import TopBar from './TopBar.svelte';
@@ -10,6 +13,12 @@
 	let { children }: { children: Snippet } = $props();
 
 	const shell = setShell(new ShellState());
+	const live = setLive(new LiveClient({ url: liveUrl(apiBaseUrl, location.href) }));
+
+	onMount(() => {
+		live.connect();
+		return () => live.close();
+	});
 </script>
 
 <Toaster position={shell.toastPosition} />

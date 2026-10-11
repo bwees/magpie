@@ -2,13 +2,16 @@
 	import { page } from '$app/state';
 	import Bell from '@lucide/svelte/icons/bell';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Search from '@lucide/svelte/icons/search';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { getLive, LiveStatus } from '$lib/live/live-client.svelte';
 	import AvatarMenu from './AvatarMenu.svelte';
 	import { getShell } from './shell-state.svelte';
 
 	const shell = getShell();
+	const live = getLive();
 	const current = $derived(shell.pageFor(page.url.pathname));
 </script>
 
@@ -28,6 +31,16 @@
 		{/if}
 
 		<div class="ml-auto flex items-center gap-1 md:gap-3">
+			{#if live.status === LiveStatus.RECONNECTING}
+				<span
+					class="flex items-center gap-1.5 text-xs text-muted-foreground"
+					role="status"
+					aria-live="polite"
+				>
+					<LoaderCircle class="size-3.5 animate-spin" />
+					<span class="hidden sm:inline">Reconnecting…</span>
+				</span>
+			{/if}
 			{#if shell.isMobile}
 				<Button variant="ghost" size="icon" class="rounded-full" aria-label="Search" disabled>
 					<Search class="size-5" />
