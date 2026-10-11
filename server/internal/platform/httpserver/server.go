@@ -59,10 +59,14 @@ type Params struct {
 	Env         config.Env
 	Mode        Mode
 	Controllers controllers
+	Schemas     []Schemas `group:"openapi_schemas"`
 }
 
 func New(p Params) *fuego.Server {
 	server := Build(p.Env, p.Mode, p.Controllers.All)
+	for _, schemas := range p.Schemas {
+		RegisterSchemas(server, schemas...)
+	}
 
 	p.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {

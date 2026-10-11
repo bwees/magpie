@@ -8,6 +8,7 @@ import (
 	"magpie/internal/identity"
 	"magpie/internal/library"
 	"magpie/internal/platform"
+	"magpie/internal/platform/httpserver"
 	"magpie/internal/requests"
 	"magpie/internal/subtitles"
 	"magpie/internal/transcode"
@@ -26,4 +27,4 @@ var Contexts = fx.Options(
 	activity.Module,
 )
 
-var Module = fx.Options(platform.Module, Contexts)
+var Module = fx.Options(platform.Module, Contexts, PortFakes, httpserver.AsSchemas(messageSchemas()))

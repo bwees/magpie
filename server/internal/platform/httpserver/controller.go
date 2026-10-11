@@ -21,3 +21,21 @@ type controllers struct {
 	fx.In
 	All []Controller `group:"controllers"`
 }
+
+const schemasGroupName = "openapi_schemas"
+
+// Schemas are types the OpenAPI spec lists as components without a route, such as live event payloads,
+// so the web client gets their TypeScript types.
+type Schemas []any
+
+// AsSchemas adds s to the OpenAPI components.
+func AsSchemas(s Schemas) fx.Option {
+	return fx.Supply(fx.Annotated{Group: schemasGroupName, Target: s})
+}
+
+// RegisterSchemas adds each value's type, and the types it contains, to the server's OpenAPI components.
+func RegisterSchemas(server *fuego.Server, values ...any) {
+	for _, v := range values {
+		fuego.SchemaTagFromType(server.OpenAPI, v)
+	}
+}
