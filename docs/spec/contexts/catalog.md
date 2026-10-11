@@ -108,10 +108,12 @@ type Reader interface {
     Episode(ctx context.Context, id domain.EpisodeID) (Episode, error)
     // EpisodeByNumber resolves a season/number in the current numbering. ErrNotFound if no match.
     EpisodeByNumber(ctx context.Context, title domain.TitleID, season, number int) (Episode, error)
-    // Wanted returns monitored, released episodes of a series (or the movie itself as an empty slice
-    // with ok=true when the movie is monitored and released). Callers decide whether a file is missing.
+    // Wanted returns what is wanted for a Title. Series: its monitored, released episodes ordered by
+    // (Season, Number), with ok = at least one. Movies: an empty slice, with ok = the movie is monitored
+    // and released. Callers decide whether a file is missing. ErrNotFound if the Title is unknown.
     Wanted(ctx context.Context, title domain.TitleID) (episodes []Episode, ok bool, err error)
-    // ImagePath returns the local cached image path, or ErrNotFound if not cached yet.
+    // ImagePath returns the local cached image path for kind POSTER | BACKDROP | LOGO,
+    // or ErrNotFound if not cached yet.
     ImagePath(ctx context.Context, title domain.TitleID, kind string) (string, error)
     // WantedLanguages returns the effective ordered list for a Title: its override if set,
     // else the global list. ErrNotFound if the Title is unknown.
@@ -123,7 +125,13 @@ type Reader interface {
 // Importer is the migration entrypoint (platform migration job only). Idempotent on the
 // source key and on (kind, tmdbId). Full input types are in 11-migration.md.
 type Importer interface {
-    ImportTitles(ctx context.Context, in []ImportTitle) (map[SourceKey]domain.TitleID, error)
+    ImportTitles(ctx context.Context, in []ImportTitle) (ImportedTitles, error)
+}
+
+// ImportedTitles maps each ImportTitle.Source and ImportEpisode.Source to its Magpie ID.
+type ImportedTitles struct {
+    Titles   map[domain.SourceKey]domain.TitleID
+    Episodes map[domain.SourceKey]domain.EpisodeID
 }
 ```
 
@@ -131,7 +139,7 @@ type Importer interface {
 
 ## Events published
 
-All durable (written through the outbox in the same transaction as the change).
+All durable (written through the outbox in the same transaction as the change). Aggregate ID: the title ID; `TitleAddFailed` uses its request ID, and `LanguagesChanged` for the global list uses `GLOBAL`.
 
 ```go
 // TitleAdded: a new Title was created and its metadata stored.
@@ -248,6 +256,7 @@ var (
 )
 ```
 
+- The `Tmdb*` result types (movie with release dates per region and type, series with seasons summary, season episodes with TMDB episode IDs, episode groups, find and search results) are declared in `internal/catalog/ports.go`.
 - The adapter rate-limits to 40 requests/s with a token bucket. On `429` it waits for `Retry-After` (or 1s, doubling up to 30s) and retries up to 5 times. Then it returns `ErrTmdbUnavailable`.
 - `ErrTmdbUnauthorized` sets the TMDB connection status to failed (Settings → Connections) and pauses refresh jobs until the key changes.
 
