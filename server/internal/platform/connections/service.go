@@ -192,7 +192,7 @@ func normaliseURL(raw string) (string, error) {
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || !urlSchemes[u.Scheme] {
-		return "", fmt.Errorf("URL %q must be an absolute http or https URL", raw)
+		return "", fmt.Errorf("address %q must be an absolute http or https URL", raw)
 	}
 	return strings.TrimRight(raw, urlPathSeparator), nil
 }
