@@ -9,6 +9,9 @@ import (
 	"magpie/internal/domain"
 )
 
+// ControlPath is the control WebSocket, relative to the server URL.
+const ControlPath = "/api/transcode/agents/ws"
+
 // Auth headers sent on every agent request and on the WebSocket upgrade.
 const (
 	HeaderAuthorization = "Authorization"
@@ -193,11 +196,13 @@ type VerifyReport struct {
 	SHA256          string   `json:"sha256"`
 }
 
+// Welcome answers Hello. The server sends it again whenever an admin changes the agent's overrides.
 type Welcome struct {
 	HeartbeatEvery time.Duration  `json:"heartbeatEvery"`
 	LeaseTTL       time.Duration  `json:"leaseTtl"`
-	Mode           Mode           `json:"mode"`  // effective transfer mode for this agent
-	Slots          map[string]int `json:"slots"` // device_id -> concurrent jobs allowed
+	Mode           Mode           `json:"mode"`     // effective transfer mode for this agent
+	Slots          map[string]int `json:"slots"`    // device_id -> concurrent jobs allowed
+	Draining       bool           `json:"draining"` // accept no new jobs
 }
 
 type JobOffer struct {
