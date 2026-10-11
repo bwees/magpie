@@ -12,8 +12,10 @@ export const defaults: Oazapfts.Defaults<Oazapfts.CustomHeaders> = {
 };
 const oazapfts = Oazapfts.runtime(defaults);
 export const servers = {};
-export type HealthResponse = {
-    status: string;
+export type IndexerOptionsResponse = {
+    resultCacheMinutes: number;
+    searchTimeoutSeconds: number;
+    syncIntervalMinutes: number;
 };
 export type ErrorItem = {
     /** Additional information about the error */
@@ -38,6 +40,50 @@ export type HttpError = {
     title?: string;
     /** URL of the error type. Can be used to lookup the error in a documentation */
     "type"?: string;
+};
+export type IndexerOptionsRequest = {
+    resultCacheMinutes: number;
+    searchTimeoutSeconds: number;
+    syncIntervalMinutes: number;
+};
+export type IndexerCapsResponse = {
+    categories: number[];
+    movieParams: string[];
+    movieSearch: boolean;
+    tvParams: string[];
+    tvSearch: boolean;
+};
+export type IndexerResponse = {
+    averageResponseMs: number;
+    caps: IndexerCapsResponse;
+    failingSince?: string;
+    id: number;
+    lastError: string;
+    lastOkAt?: string;
+    minSeeders: number;
+    name: string;
+    priority: number;
+    privacy: string;
+    seedDays?: number;
+    seedRatio?: number;
+    seedingOverride: string;
+    status: string;
+};
+export type IndexerListResponse = {
+    indexers: IndexerResponse[];
+    lastSyncedAt?: string;
+    prowlarrUrl: string;
+    syncError?: string;
+};
+export type UpdateIndexerRequest = {
+    minSeeders: number;
+    priority: number;
+    seedDays?: number;
+    seedRatio?: number;
+    seedingOverride: string;
+};
+export type HealthResponse = {
+    status: string;
 };
 export type BackupResponse = {
     createdAt: string;
@@ -495,6 +541,121 @@ export type WhisperCompleted = {
     stagedPath: string;
 };
 export type UnknownInterface = any;
+/**
+ * Sync interval, search timeout and result cache for all indexers (admin)
+ */
+export function getIndexerOptions({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IndexerOptionsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/indexer-options", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change the options that apply to all indexers (admin)
+ */
+export function setIndexerOptions(indexerOptionsRequest: IndexerOptionsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IndexerOptionsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/indexer-options", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: indexerOptionsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * List Prowlarr's indexers with Magpie's settings (admin)
+ */
+export function listIndexers({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IndexerListResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/indexers", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Pull the indexer list from Prowlarr now (admin)
+ */
+export function syncIndexers({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IndexerListResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/indexers/sync", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Replace Magpie's settings for one indexer (admin)
+ */
+export function updateIndexer(id: number, updateIndexerRequest: UpdateIndexerRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IndexerResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/indexers/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: updateIndexerRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
 /**
  * Report that the server is up
  */

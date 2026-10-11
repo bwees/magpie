@@ -662,6 +662,171 @@
 				],
 				"type": "object"
 			},
+			"IndexerCapsResponse": {
+				"properties": {
+					"categories": {
+						"items": {
+							"type": "integer"
+						},
+						"type": "array"
+					},
+					"movieParams": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"movieSearch": {
+						"type": "boolean"
+					},
+					"tvParams": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"tvSearch": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"categories",
+					"movieParams",
+					"movieSearch",
+					"tvParams",
+					"tvSearch"
+				],
+				"type": "object"
+			},
+			"IndexerListResponse": {
+				"description": "IndexerListResponse schema",
+				"properties": {
+					"indexers": {
+						"items": {
+							"$ref": "#/components/schemas/IndexerResponse"
+						},
+						"type": "array"
+					},
+					"lastSyncedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"prowlarrUrl": {
+						"type": "string"
+					},
+					"syncError": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"indexers",
+					"prowlarrUrl"
+				],
+				"type": "object"
+			},
+			"IndexerOptionsRequest": {
+				"description": "IndexerOptionsRequest schema",
+				"properties": {
+					"resultCacheMinutes": {
+						"type": "integer"
+					},
+					"searchTimeoutSeconds": {
+						"type": "integer"
+					},
+					"syncIntervalMinutes": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"resultCacheMinutes",
+					"searchTimeoutSeconds",
+					"syncIntervalMinutes"
+				],
+				"type": "object"
+			},
+			"IndexerOptionsResponse": {
+				"description": "IndexerOptionsResponse schema",
+				"properties": {
+					"resultCacheMinutes": {
+						"type": "integer"
+					},
+					"searchTimeoutSeconds": {
+						"type": "integer"
+					},
+					"syncIntervalMinutes": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"resultCacheMinutes",
+					"searchTimeoutSeconds",
+					"syncIntervalMinutes"
+				],
+				"type": "object"
+			},
+			"IndexerResponse": {
+				"properties": {
+					"averageResponseMs": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"caps": {
+						"$ref": "#/components/schemas/IndexerCapsResponse"
+					},
+					"failingSince": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"id": {
+						"type": "integer"
+					},
+					"lastError": {
+						"type": "string"
+					},
+					"lastOkAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"minSeeders": {
+						"type": "integer"
+					},
+					"name": {
+						"type": "string"
+					},
+					"priority": {
+						"type": "integer"
+					},
+					"privacy": {
+						"type": "string"
+					},
+					"seedDays": {
+						"type": "integer"
+					},
+					"seedRatio": {
+						"format": "double",
+						"type": "number"
+					},
+					"seedingOverride": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"averageResponseMs",
+					"caps",
+					"id",
+					"lastError",
+					"minSeeders",
+					"name",
+					"priority",
+					"privacy",
+					"seedingOverride",
+					"status"
+				],
+				"type": "object"
+			},
 			"IssueActionRequested": {
 				"description": "IssueActionRequested schema",
 				"properties": {
@@ -2007,6 +2172,33 @@
 				],
 				"type": "object"
 			},
+			"UpdateIndexerRequest": {
+				"description": "UpdateIndexerRequest schema",
+				"properties": {
+					"minSeeders": {
+						"type": "integer"
+					},
+					"priority": {
+						"type": "integer"
+					},
+					"seedDays": {
+						"type": "integer"
+					},
+					"seedRatio": {
+						"format": "double",
+						"type": "number"
+					},
+					"seedingOverride": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"minSeeders",
+					"priority",
+					"seedingOverride"
+				],
+				"type": "object"
+			},
 			"UserCreated": {
 				"description": "UserCreated schema",
 				"properties": {
@@ -2104,6 +2296,345 @@
 	},
 	"openapi": "3.1.0",
 	"paths": {
+		"/api/acquisition/indexer-options": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).indexerOptions`\n\n---\n\n",
+				"operationId": "getIndexerOptions",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IndexerOptionsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Sync interval, search timeout and result cache for all indexers (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).setIndexerOptions`\n\n---\n\n",
+				"operationId": "setIndexerOptions",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/IndexerOptionsRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.IndexerOptionsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IndexerOptionsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change the options that apply to all indexers (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/indexers": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).listIndexers`\n\n---\n\n",
+				"operationId": "listIndexers",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IndexerListResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "List Prowlarr's indexers with Magpie's settings (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/indexers/sync": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).syncIndexers`\n\n---\n\n",
+				"operationId": "syncIndexers",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IndexerListResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Pull the indexer list from Prowlarr now (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/indexers/{id}": {
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).updateIndexer`\n\n---\n\n",
+				"operationId": "updateIndexer",
+				"parameters": [
+					{
+						"description": "Prowlarr's indexer ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "integer"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateIndexerRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.UpdateIndexerRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IndexerResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Replace Magpie's settings for one indexer (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
 		"/api/health": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/platform/httpserver.(*HealthController).Register.func1`\n\n---\n\n",
@@ -2445,6 +2976,9 @@
 		}
 	},
 	"tags": [
+		{
+			"name": "acquisition"
+		},
 		{
 			"name": "api"
 		},
