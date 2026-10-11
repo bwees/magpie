@@ -1,0 +1,70 @@
+{
+  "page": 1,
+  "results": [
+    {
+      "backdrop_path": "/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
+      "id": 693134,
+      "title": "Dune: Part Two",
+      "original_title": "Dune: Part Two",
+      "overview": "Follow the mythic journey of Paul Atreides as he unites with Chani and the Fremen while on a path of revenge against the conspirators who destroyed his family.",
+      "poster_path": "/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+      "media_type": "movie",
+      "adult": false,
+      "original_language": "en",
+      "genre_ids": [878, 12],
+      "popularity": 312.4,
+      "release_date": "2024-02-27",
+      "video": false,
+      "vote_average": 8.1,
+      "vote_count": 6214
+    },
+    {
+      "backdrop_path": "/iopYFB1b6Bh7FWZh3onQhph1sih.jpg",
+      "id": 90228,
+      "name": "Dune: Prophecy",
+      "original_name": "Dune: Prophecy",
+      "overview": "Ten thousand years before the ascension of Paul Atreides, two Harkonnen sisters combat forces that threaten the future of humankind.",
+      "poster_path": "/7mD7ihV4ILvhyX4wB3o9OHyTvVC.jpg",
+      "media_type": "tv",
+      "adult": false,
+      "original_language": "en",
+      "genre_ids": [10765, 18],
+      "popularity": 120.7,
+      "first_air_date": "2024-11-17",
+      "vote_average": 7.6,
+      "vote_count": 512,
+      "origin_country": ["US"]
+    },
+    {
+      "id": 1373,
+      "name": "Dune Person",
+      "original_name": "Dune Person",
+      "media_type": "person",
+      "adult": false,
+      "popularity": 2.1,
+      "gender": 2,
+      "known_for_department": "Acting",
+      "profile_path": null,
+      "known_for": []
+    },
+    {
+      "backdrop_path": null,
+      "id": 841,
+      "title": "Dune",
+      "original_title": "Dune",
+      "overview": "In the year 10,191, the most precious substance in the universe is the spice Melange.",
+      "poster_path": null,
+      "media_type": "movie",
+      "adult": false,
+      "original_language": "en",
+      "genre_ids": [878],
+      "popularity": 40.2,
+      "release_date": "",
+      "video": false,
+      "vote_average": 6.2,
+      "vote_count": 2900
+    }
+  ],
+  "total_pages": 3,
+  "total_results": 52
+}

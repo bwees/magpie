@@ -1,0 +1,42 @@
+{
+  "movie_results": [],
+  "person_results": [],
+  "tv_results": [
+    {
+      "backdrop_path": "/2meX1nMdScFOoV4370rqHWKmXhY.jpg",
+      "id": 95396,
+      "name": "Severance",
+      "original_name": "Severance",
+      "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+      "poster_path": "/pPHpeI2X1qEd1CS1SeyrdhZ4qnT.jpg",
+      "media_type": "tv",
+      "adult": false,
+      "original_language": "en",
+      "genre_ids": [18, 9648, 10765],
+      "popularity": 512.6,
+      "first_air_date": "2022-02-17",
+      "vote_average": 8.4,
+      "vote_count": 2208,
+      "origin_country": ["US"]
+    }
+  ],
+  "tv_episode_results": [
+    {
+      "id": 1981452,
+      "name": "Good News About Hell",
+      "overview": "Mark is promoted after a colleague leaves the company.",
+      "media_type": "tv_episode",
+      "vote_average": 8.1,
+      "vote_count": 30,
+      "air_date": "2022-02-18",
+      "episode_number": 1,
+      "episode_type": "standard",
+      "production_code": "",
+      "runtime": 57,
+      "season_number": 1,
+      "show_id": 95396,
+      "still_path": "/s.jpg"
+    }
+  ],
+  "tv_season_results": []
+}

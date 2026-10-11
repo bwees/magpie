@@ -247,6 +247,7 @@ type TMDB interface {
     Trending(ctx context.Context, window string) ([]TmdbSearchItem, error)              // "week"
     Changes(ctx context.Context, kind domain.MediaKind, since time.Time) ([]domain.TmdbID, error)
     Image(ctx context.Context, path string, size string) (io.ReadCloser, error)
+    ImageURL(path string, size string) string // public URL, for hotlinking discovery results
 }
 
 var (
@@ -257,7 +258,8 @@ var (
 ```
 
 - The `Tmdb*` result types (movie with release dates per region and type, series with seasons summary, season episodes with TMDB episode IDs, episode groups, find and search results) are declared in `internal/catalog/ports.go`.
-- The adapter rate-limits to 40 requests/s with a token bucket. On `429` it waits for `Retry-After` (or 1s, doubling up to 30s) and retries up to 5 times. Then it returns `ErrTmdbUnavailable`.
+- The adapter rate-limits to 40 requests/s with a token bucket. On `429` it waits for `Retry-After` (or 1s, doubling up to 30s) and retries up to 5 times. Then it returns `ErrTmdbUnavailable`. `5xx` answers and network errors retry the same way.
+- The key may be a v3 API key (sent as `api_key`) or a v4 read access token (sent as `Authorization: Bearer`). A missing key is `ErrTmdbUnauthorized`.
 - `ErrTmdbUnauthorized` sets the TMDB connection status to failed (Settings → Connections) and pauses refresh jobs until the key changes.
 
 ## HTTP surface

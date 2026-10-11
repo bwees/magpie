@@ -1,0 +1,21 @@
+{
+  "description": "Production order",
+  "episode_count": 19,
+  "group_count": 2,
+  "groups": [
+    {
+      "id": "64a1f6c1a0be28011cd0ba3a",
+      "name": "Block 1",
+      "order": 1,
+      "episodes": [
+        { "air_date": "2022-02-17", "episode_number": 1, "id": 1981452, "name": "Good News About Hell", "order": 0, "season_number": 1, "show_id": 95396 },
+        { "air_date": "2022-02-18", "episode_number": 2, "id": 3364813, "name": "Half Loop", "order": 1, "season_number": 1, "show_id": 95396 }
+      ],
+      "locked": true
+    }
+  ],
+  "id": "64a1f6ae8c0a48013b6c2bd0",
+  "name": "Production Order",
+  "network": null,
+  "type": 6
+}

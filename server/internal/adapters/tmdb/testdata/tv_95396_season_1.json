@@ -1,0 +1,31 @@
+{
+  "_id": "5f5a3cfb3e2ec80036a1e7c3",
+  "air_date": "2022-02-17",
+  "episodes": [
+    {
+      "air_date": "2022-02-17",
+      "episode_number": 1,
+      "episode_type": "standard",
+      "id": 1981452,
+      "name": "Good News About Hell",
+      "overview": "Mark is promoted after a colleague leaves the company.",
+      "runtime": 57,
+      "season_number": 1,
+      "show_id": 95396
+    },
+    {
+      "air_date": "2022-02-18",
+      "episode_number": 2,
+      "episode_type": "standard",
+      "id": 3364813,
+      "name": "Half Loop",
+      "overview": "Mark brings the new hire through orientation.",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 95396
+    }
+  ],
+  "name": "Season 1",
+  "id": 133396,
+  "season_number": 1
+}

@@ -29,6 +29,8 @@ const (
 	// SearchPageSize matches TMDB's page size.
 	SearchPageSize = 20
 	firstPage      = 1
+
+	FakeImageHost = "https://images.tmdb.invalid/"
 )
 
 type seasonKey struct {
@@ -263,6 +265,11 @@ func (f *TMDB) Image(ctx context.Context, path string, _ string) (io.ReadCloser,
 		return nil, err
 	}
 	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+// ImageURL points at FakeImageHost, which serves nothing; tests compare the URL only.
+func (f *TMDB) ImageURL(path string, size string) string {
+	return FakeImageHost + size + path
 }
 
 func lookup[K comparable, V any](m map[K]V, key K) (V, error) {

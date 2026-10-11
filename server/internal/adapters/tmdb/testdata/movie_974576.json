@@ -1,0 +1,95 @@
+{
+  "adult": false,
+  "backdrop_path": "/2n7lYEeIbucsEQCswRcVB6ZYmMP.jpg",
+  "belongs_to_collection": null,
+  "budget": 20000000,
+  "genres": [
+    { "id": 18, "name": "Drama" },
+    { "id": 9648, "name": "Mystery" },
+    { "id": 53, "name": "Thriller" }
+  ],
+  "homepage": "https://www.focusfeatures.com/conclave",
+  "id": 974576,
+  "imdb_id": "tt20215234",
+  "origin_country": ["GB", "US"],
+  "original_language": "en",
+  "original_title": "Conclave",
+  "overview": "After the unexpected death of the Pope, Cardinal Lawrence is tasked with managing the covert and ancient ritual of electing a new one. Sequestered in the Vatican with the Catholic Church's most powerful leaders until the process is complete, Lawrence finds himself at the center of a conspiracy that could lead to its downfall.",
+  "popularity": 62.551,
+  "poster_path": "/m5x8D0bZ3eKqIVWZ5y7TnZ2oTVg.jpg",
+  "release_date": "2024-10-25",
+  "revenue": 125300000,
+  "runtime": 120,
+  "status": "Released",
+  "tagline": "What happens behind these walls will change everything.",
+  "title": "Conclave",
+  "video": false,
+  "vote_average": 7.2,
+  "vote_count": 2154,
+  "alternative_titles": {
+    "titles": [
+      { "iso_3166_1": "DE", "title": "Konklave", "type": "" },
+      { "iso_3166_1": "IT", "title": "Conclave - Il Conclave", "type": "" }
+    ]
+  },
+  "external_ids": {
+    "imdb_id": "tt20215234",
+    "wikidata_id": "Q115294390",
+    "facebook_id": null,
+    "instagram_id": "conclavefilm",
+    "twitter_id": null
+  },
+  "images": {
+    "backdrops": [],
+    "logos": [
+      {
+        "aspect_ratio": 4.0,
+        "height": 150,
+        "iso_639_1": "en",
+        "file_path": "/conclave-logo.svg",
+        "vote_average": 5.4,
+        "vote_count": 2,
+        "width": 600
+      },
+      {
+        "aspect_ratio": 4.0,
+        "height": 150,
+        "iso_639_1": "en",
+        "file_path": "/conclave-logo-en.png",
+        "vote_average": 5.3,
+        "vote_count": 1,
+        "width": 600
+      },
+      {
+        "aspect_ratio": 4.0,
+        "height": 150,
+        "iso_639_1": null,
+        "file_path": "/conclave-logo-null.png",
+        "vote_average": 0,
+        "vote_count": 0,
+        "width": 600
+      }
+    ],
+    "posters": []
+  },
+  "release_dates": {
+    "results": [
+      {
+        "iso_3166_1": "GB",
+        "release_dates": [
+          { "certification": "12A", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "2024-11-29T00:00:00.000Z", "type": 3 },
+          { "certification": "12", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "2024-12-26T00:00:00.000Z", "type": 4 }
+        ]
+      },
+      {
+        "iso_3166_1": "US",
+        "release_dates": [
+          { "certification": "", "descriptors": [], "iso_639_1": "", "note": "Telluride Film Festival", "release_date": "2024-08-30T00:00:00.000Z", "type": 1 },
+          { "certification": "PG", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "2024-10-25T00:00:00.000Z", "type": 3 },
+          { "certification": "PG", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "2024-11-12T00:00:00.000Z", "type": 4 },
+          { "certification": "PG", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "2025-01-14T00:00:00.000Z", "type": 5 }
+        ]
+      }
+    ]
+  }
+}

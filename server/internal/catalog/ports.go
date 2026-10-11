@@ -29,6 +29,8 @@ type TMDB interface {
 	Changes(ctx context.Context, kind domain.MediaKind, since time.Time) ([]domain.TmdbID, error)
 	// Image downloads an image by its TMDB path at a TMDB size (TmdbImageOriginal or e.g. "w500").
 	Image(ctx context.Context, path string, size string) (io.ReadCloser, error)
+	// ImageURL is the public URL of an image, for hotlinking discovery results that aren't cached.
+	ImageURL(path string, size string) string
 }
 
 var (
