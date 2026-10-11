@@ -13,6 +13,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/pressly/goose/v3 v3.29.0
 	go.uber.org/fx v1.24.0
+	golang.org/x/crypto v0.58.0
 	golang.org/x/sys v0.49.0
 	gorm.io/gorm v1.31.2
 )
@@ -39,7 +40,6 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
