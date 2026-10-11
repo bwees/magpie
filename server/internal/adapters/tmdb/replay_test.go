@@ -70,7 +70,7 @@ func (r *replay) serve(w http.ResponseWriter, req *http.Request) {
 	if next.fixture == "" {
 		return
 	}
-	body, err := os.ReadFile(filepath.Join(replayDir,next.fixture))
+	body, err := os.ReadFile(filepath.Join(replayDir, next.fixture))
 	if err != nil {
 		r.t.Errorf("reading fixture: %v", err)
 		return
