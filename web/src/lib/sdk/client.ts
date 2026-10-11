@@ -133,6 +133,98 @@ export type TimelineEntryResponse = {
     text: string;
     "type": string;
 };
+export type AttributionResponse = {
+    link: string;
+    logoUrl: string;
+    notice: string;
+};
+export type DiscoverItemResponse = {
+    inLibrary: boolean;
+    kind: string;
+    name: string;
+    overview: string;
+    posterUrl: string | null;
+    titleId: string | null;
+    tmdbId: number;
+    year: number;
+};
+export type DiscoverResponse = {
+    items: DiscoverItemResponse[];
+    trending: boolean;
+};
+export type String = string;
+export type CatalogSettingsResponse = {
+    language: string;
+    releaseRegion: string;
+};
+export type UpdateCatalogSettingsRequest = {
+    language: string;
+    releaseRegion: string;
+};
+export type TitleImagesResponse = {
+    backdrop: string | null;
+    logo: string | null;
+    poster: string | null;
+};
+export type ReleaseDatesResponse = {
+    digital: string | null;
+    physical: string | null;
+    theatrical: string | null;
+};
+export type EpisodeResponse = {
+    airDate: string | null;
+    airedNumber: number;
+    airedSeason: number;
+    id: string;
+    monitored: boolean;
+    name: string;
+    "number": number;
+    released: boolean;
+    runtimeMinutes: number;
+    season: number;
+};
+export type SeasonResponse = {
+    episodes: EpisodeResponse[];
+    monitored: boolean;
+    "number": number;
+};
+export type TitleResponse = {
+    addedAt: string;
+    id: string;
+    images: TitleImagesResponse;
+    imdbId: string | null;
+    kind: string;
+    monitorFutureSeasons: boolean;
+    monitored: boolean;
+    name: string;
+    origin: string;
+    originalLanguage: string;
+    originalName: string;
+    overview: string;
+    profileId: string;
+    releaseDates: ReleaseDatesResponse;
+    released: boolean;
+    releasedAt: string | null;
+    requestedBy: string | null;
+    runtimeMinutes: number;
+    seasons: SeasonResponse[];
+    seriesStatus: string;
+    tmdbId: number;
+    tvdbId: string | null;
+    year: number;
+};
+export type RemoveTitleResponse = {
+    deleteFiles: boolean;
+    id: string;
+};
+export type UpdateTitleRequest = {
+    monitorFutureSeasons?: boolean;
+    monitored?: boolean;
+    profileId?: string;
+};
+export type RefreshTitleResponse = {
+    queued: boolean;
+};
 export type HealthResponse = {
     status: string;
 };
@@ -885,6 +977,248 @@ export function getTimeline(title: string, { before, limit, accept }: {
         limit
     }))}`, {
         ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * TMDB logo and notice for the About page
+ */
+export function getAttribution({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AttributionResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/catalog/attribution", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Search TMDB, or list this week's trending titles for an empty query
+ */
+export function discoverTitles({ q, accept }: {
+    q?: string;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: DiscoverResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/discover${QS.query(QS.explode({
+        q
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Serve a cached poster, backdrop or logo, resized to the width asked for
+ */
+export function getTitleImage(titleId: string, kind: string, { w }: {
+    w?: number;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: String;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/images/${encodeURIComponent(titleId)}/${encodeURIComponent(kind)}${QS.query(QS.explode({
+        w
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Get the metadata language and release region
+ */
+export function getCatalogSettings({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CatalogSettingsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/catalog/settings", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Set the metadata language and release region (admin)
+ */
+export function updateCatalogSettings(updateCatalogSettingsRequest: UpdateCatalogSettingsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CatalogSettingsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/catalog/settings", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: updateCatalogSettingsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * List Titles in the library
+ */
+export function listTitles({ q, kind, monitored, released, sort, accept }: {
+    q?: string;
+    kind?: string;
+    monitored?: boolean;
+    released?: boolean;
+    sort?: string;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles${QS.query(QS.explode({
+        q,
+        kind,
+        monitored,
+        released,
+        sort
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Remove a Title from Magpie (admin)
+ */
+export function removeTitle(id: string, { deleteFiles, accept }: {
+    deleteFiles?: boolean;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RemoveTitleResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}${QS.query(QS.explode({
+        deleteFiles
+    }))}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Get one Title with its seasons and episodes
+ */
+export function getTitle(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change a Title's profile or monitoring (admin)
+ */
+export function updateTitle(id: string, updateTitleRequest: UpdateTitleRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: updateTitleRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Refresh a Title's metadata and images from TMDB now (admin)
+ */
+export function refreshTitle(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: RefreshTitleResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/titles/${encodeURIComponent(id)}/refresh`, {
+        ...opts,
+        method: "POST",
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept
         })

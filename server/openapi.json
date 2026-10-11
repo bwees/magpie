@@ -100,6 +100,26 @@
 				],
 				"type": "object"
 			},
+			"AttributionResponse": {
+				"description": "AttributionResponse schema",
+				"properties": {
+					"link": {
+						"type": "string"
+					},
+					"logoUrl": {
+						"type": "string"
+					},
+					"notice": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"link",
+					"logoUrl",
+					"notice"
+				],
+				"type": "object"
+			},
 			"BackupResponse": {
 				"description": "BackupResponse schema",
 				"properties": {
@@ -123,6 +143,22 @@
 					"kind",
 					"name",
 					"size"
+				],
+				"type": "object"
+			},
+			"CatalogSettingsResponse": {
+				"description": "CatalogSettingsResponse schema",
+				"properties": {
+					"language": {
+						"type": "string"
+					},
+					"releaseRegion": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"language",
+					"releaseRegion"
 				],
 				"type": "object"
 			},
@@ -264,6 +300,67 @@
 					"origin",
 					"quality",
 					"title"
+				],
+				"type": "object"
+			},
+			"DiscoverItemResponse": {
+				"properties": {
+					"inLibrary": {
+						"type": "boolean"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"overview": {
+						"type": "string"
+					},
+					"posterUrl": {
+						"nullable": true,
+						"type": "string"
+					},
+					"titleId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"tmdbId": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"year": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"inLibrary",
+					"kind",
+					"name",
+					"overview",
+					"posterUrl",
+					"titleId",
+					"tmdbId",
+					"year"
+				],
+				"type": "object"
+			},
+			"DiscoverResponse": {
+				"description": "DiscoverResponse schema",
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DiscoverItemResponse"
+						},
+						"type": "array"
+					},
+					"trending": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"trending"
 				],
 				"type": "object"
 			},
@@ -463,6 +560,55 @@
 				"required": [
 					"episode",
 					"number",
+					"season"
+				],
+				"type": "object"
+			},
+			"EpisodeResponse": {
+				"properties": {
+					"airDate": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"airedNumber": {
+						"type": "integer"
+					},
+					"airedSeason": {
+						"type": "integer"
+					},
+					"id": {
+						"type": "string"
+					},
+					"monitored": {
+						"type": "boolean"
+					},
+					"name": {
+						"type": "string"
+					},
+					"number": {
+						"type": "integer"
+					},
+					"released": {
+						"type": "boolean"
+					},
+					"runtimeMinutes": {
+						"type": "integer"
+					},
+					"season": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"airDate",
+					"airedNumber",
+					"airedSeason",
+					"id",
+					"monitored",
+					"name",
+					"number",
+					"released",
+					"runtimeMinutes",
 					"season"
 				],
 				"type": "object"
@@ -1632,6 +1778,18 @@
 				],
 				"type": "object"
 			},
+			"RefreshTitleResponse": {
+				"description": "RefreshTitleResponse schema",
+				"properties": {
+					"queued": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"queued"
+				],
+				"type": "object"
+			},
 			"Rejection": {
 				"properties": {
 					"message": {
@@ -1648,6 +1806,31 @@
 					"message",
 					"reason",
 					"temporary"
+				],
+				"type": "object"
+			},
+			"ReleaseDatesResponse": {
+				"properties": {
+					"digital": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"physical": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"theatrical": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					}
+				},
+				"required": [
+					"digital",
+					"physical",
+					"theatrical"
 				],
 				"type": "object"
 			},
@@ -1813,6 +1996,22 @@
 					"reason",
 					"release",
 					"title"
+				],
+				"type": "object"
+			},
+			"RemoveTitleResponse": {
+				"description": "RemoveTitleResponse schema",
+				"properties": {
+					"deleteFiles": {
+						"type": "boolean"
+					},
+					"id": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"deleteFiles",
+					"id"
 				],
 				"type": "object"
 			},
@@ -2132,6 +2331,28 @@
 					"search",
 					"title",
 					"trigger"
+				],
+				"type": "object"
+			},
+			"SeasonResponse": {
+				"properties": {
+					"episodes": {
+						"items": {
+							"$ref": "#/components/schemas/EpisodeResponse"
+						},
+						"type": "array"
+					},
+					"monitored": {
+						"type": "boolean"
+					},
+					"number": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"episodes",
+					"monitored",
+					"number"
 				],
 				"type": "object"
 			},
@@ -2486,6 +2707,28 @@
 				],
 				"type": "object"
 			},
+			"TitleImagesResponse": {
+				"properties": {
+					"backdrop": {
+						"nullable": true,
+						"type": "string"
+					},
+					"logo": {
+						"nullable": true,
+						"type": "string"
+					},
+					"poster": {
+						"nullable": true,
+						"type": "string"
+					}
+				},
+				"required": [
+					"backdrop",
+					"logo",
+					"poster"
+				],
+				"type": "object"
+			},
 			"TitleRemoved": {
 				"description": "TitleRemoved schema",
 				"properties": {
@@ -2499,6 +2742,116 @@
 				"required": [
 					"deleteFiles",
 					"title"
+				],
+				"type": "object"
+			},
+			"TitleResponse": {
+				"description": "TitleResponse schema",
+				"properties": {
+					"addedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"images": {
+						"$ref": "#/components/schemas/TitleImagesResponse"
+					},
+					"imdbId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"monitorFutureSeasons": {
+						"type": "boolean"
+					},
+					"monitored": {
+						"type": "boolean"
+					},
+					"name": {
+						"type": "string"
+					},
+					"origin": {
+						"type": "string"
+					},
+					"originalLanguage": {
+						"type": "string"
+					},
+					"originalName": {
+						"type": "string"
+					},
+					"overview": {
+						"type": "string"
+					},
+					"profileId": {
+						"type": "string"
+					},
+					"releaseDates": {
+						"$ref": "#/components/schemas/ReleaseDatesResponse"
+					},
+					"released": {
+						"type": "boolean"
+					},
+					"releasedAt": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"requestedBy": {
+						"nullable": true,
+						"type": "string"
+					},
+					"runtimeMinutes": {
+						"type": "integer"
+					},
+					"seasons": {
+						"items": {
+							"$ref": "#/components/schemas/SeasonResponse"
+						},
+						"type": "array"
+					},
+					"seriesStatus": {
+						"type": "string"
+					},
+					"tmdbId": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"tvdbId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"year": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"addedAt",
+					"id",
+					"images",
+					"imdbId",
+					"kind",
+					"monitorFutureSeasons",
+					"monitored",
+					"name",
+					"origin",
+					"originalLanguage",
+					"originalName",
+					"overview",
+					"profileId",
+					"releaseDates",
+					"released",
+					"releasedAt",
+					"requestedBy",
+					"runtimeMinutes",
+					"seasons",
+					"seriesStatus",
+					"tmdbId",
+					"tvdbId",
+					"year"
 				],
 				"type": "object"
 			},
@@ -2663,6 +3016,22 @@
 				],
 				"type": "object"
 			},
+			"UpdateCatalogSettingsRequest": {
+				"description": "UpdateCatalogSettingsRequest schema",
+				"properties": {
+					"language": {
+						"type": "string"
+					},
+					"releaseRegion": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"language",
+					"releaseRegion"
+				],
+				"type": "object"
+			},
 			"UpdateConnectionsRequest": {
 				"description": "UpdateConnectionsRequest schema",
 				"properties": {
@@ -2709,6 +3078,21 @@
 					"priority",
 					"seedingOverride"
 				],
+				"type": "object"
+			},
+			"UpdateTitleRequest": {
+				"description": "UpdateTitleRequest schema",
+				"properties": {
+					"monitorFutureSeasons": {
+						"type": "boolean"
+					},
+					"monitored": {
+						"type": "boolean"
+					},
+					"profileId": {
+						"type": "string"
+					}
+				},
 				"type": "object"
 			},
 			"UserCreated": {
@@ -2795,6 +3179,10 @@
 					"stagedPath"
 				],
 				"type": "object"
+			},
+			"string": {
+				"description": "string schema",
+				"type": "string"
 			},
 			"unknown-interface": {
 				"description": "unknown-interface schema"
@@ -3480,6 +3868,761 @@
 				"tags": [
 					"api",
 					"activity"
+				]
+			}
+		},
+		"/api/catalog/attribution": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).attribution`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getAttribution",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AttributionResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "TMDB logo and notice for the About page",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/discover": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).discover`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "discoverTitles",
+				"parameters": [
+					{
+						"description": "Search text; empty for trending",
+						"in": "query",
+						"name": "q",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DiscoverResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Search TMDB, or list this week's trending titles for an empty query",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/images/{titleId}/{kind}": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).serveImage`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getTitleImage",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "titleId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "POSTER, BACKDROP or LOGO",
+						"in": "path",
+						"name": "kind",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Width in pixels; rounds up to a cached size",
+						"in": "query",
+						"name": "w",
+						"schema": {
+							"type": "integer"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"image/jpeg": {
+								"schema": {
+									"$ref": "#/components/schemas/string"
+								}
+							},
+							"image/png": {
+								"schema": {
+									"$ref": "#/components/schemas/string"
+								}
+							}
+						},
+						"description": "The image"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Serve a cached poster, backdrop or logo, resized to the width asked for",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/settings": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getCatalogSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CatalogSettingsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Get the metadata language and release region",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateCatalogSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateCatalogSettingsRequest"
+							}
+						}
+					},
+					"description": "Request body for catalog.UpdateCatalogSettingsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CatalogSettingsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Set the metadata language and release region (admin)",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/titles": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).listTitles`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listTitles",
+				"parameters": [
+					{
+						"description": "Match the name, original name or an alias",
+						"in": "query",
+						"name": "q",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "MOVIE or SERIES",
+						"in": "query",
+						"name": "kind",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Only monitored (true) or unmonitored (false) Titles",
+						"in": "query",
+						"name": "monitored",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"description": "Only released (true) or unreleased (false) Titles",
+						"in": "query",
+						"name": "released",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"description": "NAME (default) or ADDED, newest first",
+						"in": "query",
+						"name": "sort",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/TitleResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "List Titles in the library",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/titles/{id}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).removeTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "removeTitle",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Also delete its files from disk",
+						"in": "query",
+						"name": "deleteFiles",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RemoveTitleResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Remove a Title from Magpie (admin)",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			},
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getTitle",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TitleResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Get one Title with its seasons and episodes",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			},
+			"patch": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "updateTitle",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateTitleRequest"
+							}
+						}
+					},
+					"description": "Request body for catalog.UpdateTitleRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TitleResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change a Title's profile or monitoring (admin)",
+				"tags": [
+					"api",
+					"catalog"
+				]
+			}
+		},
+		"/api/catalog/titles/{id}/refresh": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).refreshTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "refreshTitle",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RefreshTitleResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Refresh a Title's metadata and images from TMDB now (admin)",
+				"tags": [
+					"api",
+					"catalog"
 				]
 			}
 		},
@@ -4439,6 +5582,9 @@
 		},
 		{
 			"name": "api"
+		},
+		{
+			"name": "catalog"
 		},
 		{
 			"name": "identity"
