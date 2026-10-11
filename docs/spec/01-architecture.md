@@ -33,7 +33,9 @@ server/
       live/                    browser WebSocket gateway
       config/                  env bootstrap
       settings/                settings store, platform.connections.*
-      backup/                  daily backup job, list/restore endpoints
+      backup/                  daily backup job, list/back up now/restore endpoints
+      connections/             connection settings endpoints (masked secrets, Test)
+      health/                  probe registry, per-minute checks, ServiceHealthChanged on flips
       owner/                   names of the platform and contexts (migration order, setting prefixes)
       api/                     events the platform publishes (ServiceHealthChanged)
       scripted/                error and latency injection embedded in every fake
@@ -66,6 +68,8 @@ web/                           SvelteKit SPA
 - `mise run openapi` regenerates `server/openapi.json` and `web/src/lib/sdk/client.ts`. CI fails on drift.
 - Every event and command struct (`app.Messages()`) is also an OpenAPI component schema, so the web client gets a TypeScript type for each live-event payload. A test in `internal/app` fails when a struct changed without regenerating.
 - Auth: session cookie (HttpOnly, SameSite=Lax), issued by Identity. Middleware resolves the user and role and puts them on the request context. Admin-only routes are marked per route.
+  - A module provides middleware with `httpserver.AsMiddleware`; it wraps every route, the API not-found handler and the SPA. Identity's is the only one in v1.
+  - Before setup every `/api` route except `identity/setup/admin` and `health` answers `409 setup-required`. After setup, routes other than setup and `identity/login/*` answer `401` without a session.
 - Errors: RFC 9457 problem JSON with a stable `type` per domain error.
 
 ## Database
@@ -183,7 +187,12 @@ type LiveClientMessage struct {
 Adapters live in `internal/adapters/<system>`. They are the only code that speaks these protocols. Contract tests for each adapter run against recorded fixtures.
 
 - **Connection config is platform-owned:** TMDB key, qBittorrent URL/key, Prowlarr URL/key, Jellyfin URL/key and OpenSubtitles login live under `platform.connections.*` in `platform_settings`. Adapters read them; contexts never store credentials. One Jellyfin connection serves both Identity and Library.
-- **Health:** `platform/health` probes each connection every minute and on settings change. It publishes `platform.ServiceHealthChanged{Service, Healthy, Error}` when the state flips. The struct lives in `internal/platform/api`, so Activity can import it without depending on the prober.
+- **Connections API** (`platform/connections`, admin): `GET/PUT /api/platform/connections` and `POST /api/platform/connections/{service}/test` (`tmdb`, `qbittorrent`, `prowlarr`, `jellyfin`, `opensubtitles`). Secrets come back as a fixed mask; sending the mask back keeps the stored secret. PUT changes only the services in the body and queues a health check for each in the same transaction. URLs must be absolute http(s); the qBittorrent category matches `[a-z0-9-]`.
+- **Health:** `platform/health` probes each connection every minute, at startup and on settings change. It publishes `platform.ServiceHealthChanged{Service, Healthy, Error}` when the state flips. The struct lives in `internal/platform/api`, so Activity can import it without depending on the prober.
+  - Each adapter has a minimal `health.Probe` (`internal/adapters/<system>/health.go`), wired in `internal/app`. A probe with no URL or credentials returns `ErrNotConfigured`.
+  - Statuses: `UNKNOWN`, `HEALTHY`, `UNHEALTHY`, `NOT_CONFIGURED`. The last status per service is stored in `platform.health`, so a flip is detected across restarts.
+  - Flip rule: a service counts as healthy until a probe fails. The first failure publishes `Healthy=false`; the first success after a failure publishes `Healthy=true`; `NOT_CONFIGURED` never publishes.
+  - The OpenSubtitles probe logs in once and reuses the token (`GET /infos/user`), logging in again only on `401`. The app key is set at build time (`-X magpie/internal/adapters/opensubtitles.AppKey=…`).
 
 ## Packaging and deployment
 
@@ -218,7 +227,7 @@ Adapters live in `internal/adapters/<system>`. They are the only code that speak
   9. OpenSubtitles login.
   10. Transcode target.
   11. Optional Sonarr/Radarr import.
-- **Backups:** daily `VACUUM INTO data/backups/magpie-<date>.db`, keeping 7, plus one before every migration. Restore from Settings → General; the server restarts.
+- **Backups:** daily `VACUUM INTO data/backups/magpie-<date>.db`, keeping 7, plus one before every migration. "Back up now" (`POST /api/platform/backups`, admin) writes a `MANUAL` snapshot (`magpie-manual-<timestamp>.db`, newest 7 kept). Restore from Settings → General; the server restarts.
 - **Upgrades:** goose migrations run at startup after the pre-migration backup. A failed migration aborts startup and leaves the backup in place.
 
 ## Visual style

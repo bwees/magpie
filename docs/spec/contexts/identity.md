@@ -137,7 +137,8 @@ var ErrInvalidCredentials, ErrUnavailable, ErrExpired error
 
 ## Behaviour
 
-- **Setup:** while no admin exists, every route except `setup/admin` and static assets returns `409 setup_required`. Setup creates the local admin (`is_local_admin`, `ADMIN`) and publishes `UserCreated{Source: LOCAL}`.
+- **Setup:** while no admin exists, every route except `setup/admin`, `GET /api/health` (container health checks) and static assets returns `409` with problem type `urn:magpie:problem:setup-required`. Setup creates the local admin (`is_local_admin`, `ADMIN`, password ≥ 12 characters, argon2id) and publishes `UserCreated{Source: LOCAL}`. A second setup returns `409 setup-complete`.
+- **Middleware:** Identity provides the `httpserver.Middleware` that wraps every `/api` route. It applies the setup gate, resolves the session cookie into `domain.Principal`, and returns `401` on any route except `setup/admin` and `login/*` when there is no valid session. Admin-only routes check `httpserver.RequireAdmin` and return `403` to requesters.
 - **Jellyfin sign-in:**
   1. Authenticate with Jellyfin.
   2. Reject if `IsDisabled` (`403 jellyfin_user_disabled`).
@@ -151,6 +152,8 @@ var ErrInvalidCredentials, ErrUnavailable, ErrExpired error
   - 30-day sliding expiry: `last_seen_at` refresh at most every 5 minutes.
   - Logout deletes the row.
   - Disabling a user deletes all their sessions.
+  - Changing the local admin password deletes the admin's other sessions.
+  - Cookie `magpie_session`; `Secure` when the request is HTTPS or `X-Forwarded-Proto: https`.
 - **Roles:**
   - `ADMIN` can do everything; their toggles read as all true.
   - `REQUESTER` sees Discover/search, their own requests (or all requests when `ViewOthersRequests` is set), and issue reporting (when `ReportIssues` is set).
@@ -161,7 +164,7 @@ var ErrInvalidCredentials, ErrUnavailable, ErrExpired error
   - Users can't change their own role or toggles.
 - **Defaults** (`identity.defaults`): `AutoApproveMovies=false`, `AutoApproveTV=false`, `ViewOthersRequests=false`, `ReportIssues=true`.
 - **No quotas in v1.**
-- **Rate limit:** 10 failed sign-ins per IP per 10 minutes return `429`.
+- **Rate limit:** 10 failed sign-ins per IP per 10 minutes return `429` (`urn:magpie:problem:too-many-sign-ins`), even for correct credentials. The IP is the connecting address; behind a reverse proxy all clients share it. Failures are kept in memory.
 
 ## Test seeds
 
