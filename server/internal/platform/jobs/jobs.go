@@ -45,7 +45,7 @@ var Module = fx.Module("jobs",
 		func(q *Queue) Enqueuer { return q },
 		NewScheduler,
 	),
-	fx.Invoke(func(*Queue, *Scheduler) {}),
+	fx.Invoke(registerQueues, func(*Scheduler) {}),
 )
 
 type Params struct {
@@ -53,7 +53,19 @@ type Params struct {
 
 	Lifecycle fx.Lifecycle
 	DB        *db.DB
-	Queues    []backlite.Queue `group:"job_queues"`
+}
+
+type queuesParams struct {
+	fx.In
+
+	Queue  *Queue
+	Queues []backlite.Queue `group:"job_queues"`
+}
+
+// registerQueues runs after construction, so queue processors and event handlers can depend on the
+// Enqueuer without a dependency cycle.
+func registerQueues(p queuesParams) {
+	p.Queue.Register(p.Queues...)
 }
 
 // AsQueue provides constructor's backlite.Queue to the job runner.
@@ -61,9 +73,10 @@ func AsQueue(constructor any) any {
 	return fx.Annotate(constructor, fx.ResultTags(queuesGroup))
 }
 
-// New installs backlite's tables, registers every queue and runs the workers while the app runs.
+// New installs backlite's tables and runs the workers while the app runs. Module registers every queue
+// before the app starts.
 func New(p Params) (*Queue, error) {
-	q, err := Open(p.DB, p.Queues...)
+	q, err := Open(p.DB)
 	if err != nil {
 		return nil, err
 	}
@@ -105,10 +118,16 @@ func Open(d *db.DB, queues ...backlite.Queue) (*Queue, error) {
 	if err := client.Install(); err != nil {
 		return nil, err
 	}
+	q := &Queue{client: client}
+	q.Register(queues...)
+	return q, nil
+}
+
+// Register adds queues. Call it before Start.
+func (q *Queue) Register(queues ...backlite.Queue) {
 	for _, queue := range queues {
-		client.Register(queue)
+		q.client.Register(queue)
 	}
-	return &Queue{client: client}, nil
 }
 
 // Start runs the workers until ctx ends. fx-managed queues start themselves.
