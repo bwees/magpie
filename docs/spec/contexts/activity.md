@@ -86,17 +86,21 @@ type Notification struct {
     Read                        bool
 }
 
-type Page struct{ Before *time.Time; Limit int } // Limit default 50, max 200
+// Page selects entries strictly older than Before (nil = from the newest).
+// Limit ≤ 0 means DefaultPageLimit (50); it is capped at MaxPageLimit (200). Page.EffectiveLimit() applies both.
+type Page struct{ Before *time.Time; Limit int }
 
 type Reader interface {
     // Timeline returns a title's entries, newest first. Unknown title → empty slice, no error.
     Timeline(ctx context.Context, title domain.TitleID, p Page) ([]TimelineEntry, error)
-    // History returns the global feed (90-day retention), newest first, optionally filtered by severity.
+    // History returns the global feed (90-day retention), newest first. minSeverity keeps entries at
+    // that severity or above (INFO < WARN < ERROR); "" keeps all.
     History(ctx context.Context, minSeverity string, p Page) ([]TimelineEntry, error)
     // Pipeline returns one row per movie or per episode of the title, episodes in season/number order.
     // A title with no events yet returns rows at REQUESTED once catalog.TitleAdded is processed; unknown → empty.
     Pipeline(ctx context.Context, title domain.TitleID) ([]PipelineRow, error)
-    // TitleStages returns the summary stage per title (the least-advanced unfinished row), for library grids.
+    // TitleStages returns the summary stage per title: the least-advanced row (first in season/number
+    // order on ties), for library grids. Unknown titles are absent from the map.
     TitleStages(ctx context.Context, titles []domain.TitleID) (map[domain.TitleID]PipelineRow, error)
     // Notifications returns a user's in-app notifications, newest first.
     Notifications(ctx context.Context, user domain.UserID, unreadOnly bool, p Page) ([]Notification, error)
@@ -107,6 +111,24 @@ type Reader interface {
 ```
 
 No other context depends on this Reader in v1. The UI uses it through HTTP.
+
+The api package also exports the string constants for severities, chip states, attention kinds and notification kinds.
+
+```go
+// Importer is the migration entrypoint (platform migration job only). Idempotent on Source.
+type Importer interface {
+    ImportTimeline(ctx context.Context, in []ImportTimelineEvent) error
+}
+type ImportTimelineEvent struct {
+    Source      domain.SourceKey
+    Title       domain.TitleID
+    Episodes    []domain.EpisodeID // empty for movies
+    Kind        ImportKind         // GRABBED | IMPORTED | DOWNLOAD_FAILED | FILE_DELETED
+    ReleaseName string
+    Reason      string             // failure or deletion reason
+    At          time.Time          // original timestamp
+}
+```
 
 ## Events published
 
@@ -128,6 +150,8 @@ type AttentionChanged struct {
     Count  int    // open items after this change (Home badge)
 }
 ```
+
+- Aggregate ID: the user for `NotificationCreated`, the attention item for `AttentionChanged`.
 
 ## Events and commands consumed
 
