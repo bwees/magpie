@@ -16,6 +16,10 @@ type QBittorrentConnection struct {
 	URL      string `json:"url"`
 	APIKey   string `json:"apiKey"`
 	Category string `json:"category"`
+	// RemotePath is where qBittorrent's downloads sit as qBittorrent sees them, and LocalPath the same
+	// folder as Magpie sees it. Both empty when the paths match.
+	RemotePath string `json:"remotePath,omitempty"`
+	LocalPath  string `json:"localPath,omitempty"`
 }
 
 type ProwlarrConnection struct {

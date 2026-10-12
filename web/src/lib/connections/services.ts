@@ -31,7 +31,9 @@ export enum FieldKey {
 	API_KEY = 'apiKey',
 	CATEGORY = 'category',
 	USERNAME = 'username',
-	PASSWORD = 'password'
+	PASSWORD = 'password',
+	REMOTE_PATH = 'remotePath',
+	LOCAL_PATH = 'localPath'
 }
 
 export interface FieldSpec {
@@ -87,7 +89,19 @@ export const SERVICES: Record<Service, ServiceSpec> = {
 		fields: [
 			URL_FIELD('http://qbittorrent:8080'),
 			API_KEY_FIELD,
-			{ key: FieldKey.CATEGORY, label: 'Category', placeholder: 'magpie', secret: false }
+			{ key: FieldKey.CATEGORY, label: 'Category', placeholder: 'magpie', secret: false },
+			{
+				key: FieldKey.REMOTE_PATH,
+				label: 'Download path in qBittorrent (optional)',
+				placeholder: '/data/torrents',
+				secret: false
+			},
+			{
+				key: FieldKey.LOCAL_PATH,
+				label: 'Same path in Magpie (optional)',
+				placeholder: '/downloads',
+				secret: false
+			}
 		]
 	},
 	[Service.PROWLARR]: {

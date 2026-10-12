@@ -2868,6 +2868,12 @@
 					"category": {
 						"type": "string"
 					},
+					"localPath": {
+						"type": "string"
+					},
+					"remotePath": {
+						"type": "string"
+					},
 					"url": {
 						"type": "string"
 					}

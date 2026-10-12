@@ -89,6 +89,10 @@ func (s *Service) Save(ctx context.Context, update Update) (Connections, error) 
 		if !categoryPattern.MatchString(qb.Category) {
 			return Connections{}, fmt.Errorf("%w: qBittorrent category may use only a-z, 0-9 and -", ErrInvalidConnection)
 		}
+		qb.RemotePath, qb.LocalPath = strings.TrimSpace(qb.RemotePath), strings.TrimSpace(qb.LocalPath)
+		if (qb.RemotePath == "") != (qb.LocalPath == "") {
+			return Connections{}, fmt.Errorf("%w: set both qBittorrent paths, or neither", ErrInvalidConnection)
+		}
 		if qb.URL, err = normaliseURL(qb.URL); err != nil {
 			return Connections{}, fmt.Errorf("%w: qBittorrent %w", ErrInvalidConnection, err)
 		}

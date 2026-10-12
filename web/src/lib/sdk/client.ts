@@ -653,6 +653,8 @@ export type ProwlarrConnection = {
 export type QBittorrentConnection = {
     apiKey: string;
     category: string;
+    localPath?: string;
+    remotePath?: string;
     url: string;
 };
 export type TmdbConnection = {
