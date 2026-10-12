@@ -29,6 +29,7 @@ type ports struct {
 	DownloadLocation   library.DownloadLocation
 	OpenSubtitles      subtitles.OpenSubtitles
 	Syncer             subtitles.Syncer
+	SidecarFiles       subtitles.SidecarFiles
 	FileStat           transcode.FileStat
 	NotificationSender activity.NotificationSender
 }
@@ -42,7 +43,8 @@ func TestBootProvidesEveryPort(t *testing.T) {
 		"QBittorrent": got.QBittorrent, "TrashGuides": got.TrashGuides, "FileSystem": got.FileSystem,
 		"MediaProber": got.MediaProber, "Hasher": got.Hasher, "JellyfinLibrary": got.JellyfinLibrary,
 		"DownloadLocation": got.DownloadLocation,
-		"OpenSubtitles":    got.OpenSubtitles, "Syncer": got.Syncer, "FileStat": got.FileStat,
+		"OpenSubtitles":    got.OpenSubtitles, "Syncer": got.Syncer, "SidecarFiles": got.SidecarFiles,
+		"FileStat":           got.FileStat,
 		"NotificationSender": got.NotificationSender,
 	} {
 		if port == nil {

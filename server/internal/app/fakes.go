@@ -36,6 +36,7 @@ var PortFakes = fx.Provide(
 	fx.Annotate(jellyfin.NewLibrary, fx.As(new(library.JellyfinLibrary))),
 	fx.Annotate(subtitlesfakes.NewOpenSubtitles, fx.As(new(subtitles.OpenSubtitles))),
 	fx.Annotate(subtitlesfakes.NewSyncer, fx.As(new(subtitles.Syncer))),
+	fx.Annotate(disk.NewSidecarFiles, fx.As(new(subtitles.SidecarFiles))),
 	fx.Annotate(transcodefakes.NewFileStat, fx.As(new(transcode.FileStat))),
 	fx.Annotate(shoutrrr.New, fx.As(new(activity.NotificationSender))),
 )
