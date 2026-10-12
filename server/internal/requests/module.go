@@ -20,5 +20,6 @@ var Module = fx.Module(string(owner.Requests),
 		bus.AsHandler(newMonitoringHandler),
 		bus.AsHandler(newEpisodesHandler),
 		bus.AsHandler(newTitleAddFailedHandler),
+		bus.AsHandler(newItemAvailableHandler),
 	),
 )

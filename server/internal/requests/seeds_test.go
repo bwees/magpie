@@ -9,6 +9,7 @@ import (
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	identityapi "magpie/internal/identity/api"
+	libraryapi "magpie/internal/library/api"
 	"magpie/internal/requests/api"
 )
 
@@ -322,16 +323,116 @@ func TestNewlyWantedEpisodesExtendOpenRequests(t *testing.T) {
 
 func TestAddedItemMakesAnAvailableRequestPartialAgain(t *testing.T) {
 	h := newHarness(t)
-	title, _ := h.series(severanceTmdb, [2]int{1, 1})
+	title, episodes := h.series(severanceTmdb, [2]int{1, 1})
 	whole := h.create(h.admin, wholeSeries(severanceTmdb))
 	h.deliver(catalogapi.TitleAdded{Title: title, Kind: domain.MediaKindSeries, RequestID: &whole.ID, Origin: domain.OriginRequest})
-	h.markAvailable(whole.ID)
+	h.deliver(libraryapi.ItemAvailable{Title: title, Episodes: episodes, JellyfinItem: "jf-1"})
 
 	h.catalog.PutEpisode(catalogapi.Episode{ID: domain.NewID[domain.EpisodeID](), Title: title, Season: 1, Number: 2, Monitored: true, Released: true})
 	h.deliver(catalogapi.MonitoringChanged{Title: title})
 
 	if request := h.request(whole.ID); request.Status != api.StatusPartiallyAvailable {
 		t.Errorf("status = %s, want PARTIALLY_AVAILABLE", request.Status)
+	}
+}
+
+// Seed requests #8.
+func TestItemAvailableMarksOnlyItemsInScope(t *testing.T) {
+	h := newHarness(t)
+	got := h.create(h.admin, seasons(severanceTmdb, 2))
+	var numbering [][2]int
+	for season := 1; season <= 2; season++ {
+		for number := 1; number <= 10; number++ {
+			numbering = append(numbering, [2]int{season, number})
+		}
+	}
+	title, episodes := h.series(severanceTmdb, numbering...)
+	seasonOne, seasonTwo := episodes[:10], episodes[10:]
+	h.deliver(catalogapi.TitleAdded{Title: title, Kind: domain.MediaKindSeries, RequestID: &got.ID, Origin: domain.OriginRequest})
+
+	h.deliver(libraryapi.ItemAvailable{Title: title, Episodes: slices.Concat(seasonTwo[:4], seasonOne[:3]), JellyfinItem: "jf-1"})
+
+	request := h.request(got.ID)
+	if request.Status != api.StatusPartiallyAvailable || request.AvailableItems != 4 || request.TotalItems != 10 {
+		t.Errorf("request = %s %d/%d, want PARTIALLY_AVAILABLE 4/10", request.Status, request.AvailableItems, request.TotalItems)
+	}
+	if published := events[api.RequestAvailable](h); len(published) != 0 {
+		t.Errorf("RequestAvailable = %+v, want none yet", published)
+	}
+}
+
+// Seed requests #9.
+func TestTheLastItemMakesTheRequestAvailableOnce(t *testing.T) {
+	h := newHarness(t)
+	got := h.create(h.requester, seasons(severanceTmdb, 1))
+	h.approve(got.ID)
+	title, episodes := h.series(severanceTmdb, [2]int{1, 1}, [2]int{1, 2}, [2]int{1, 3})
+	h.deliver(catalogapi.TitleAdded{Title: title, Kind: domain.MediaKindSeries, RequestID: &got.ID, Origin: domain.OriginRequest})
+	h.deliver(libraryapi.ItemAvailable{Title: title, Episodes: episodes[:2], JellyfinItem: "jf-1"})
+
+	last := h.deliver(libraryapi.ItemAvailable{Title: title, Episodes: episodes[2:], JellyfinItem: "jf-2"})
+	h.deliverEvent(last)
+
+	request := h.request(got.ID)
+	if request.Status != api.StatusAvailable || request.AvailableItems != 3 {
+		t.Errorf("request = %s %d/%d, want AVAILABLE 3/3", request.Status, request.AvailableItems, request.TotalItems)
+	}
+	want := api.RequestAvailable{Request: got.ID, User: h.requester.User, Title: title}
+	if published := events[api.RequestAvailable](h); len(published) != 1 || published[0] != want {
+		t.Errorf("RequestAvailable = %+v, want once %+v", published, want)
+	}
+}
+
+func TestAnAvailableMovieMakesItsRequestAvailable(t *testing.T) {
+	h := newHarness(t)
+	got := h.create(h.admin, movie(duneTmdb))
+	title := h.movieTitle(duneTmdb, true)
+	h.deliver(catalogapi.TitleAdded{Title: title, Kind: domain.MediaKindMovie, RequestID: &got.ID, Origin: domain.OriginRequest})
+
+	h.deliver(libraryapi.ItemAvailable{Title: title, Episodes: []domain.EpisodeID{}, JellyfinItem: "jf-movie"})
+
+	if request := h.request(got.ID); request.Status != api.StatusAvailable || request.AvailableItems != 1 {
+		t.Errorf("request = %s %d/%d, want AVAILABLE 1/1", request.Status, request.AvailableItems, request.TotalItems)
+	}
+	if published := events[api.RequestAvailable](h); len(published) != 1 {
+		t.Errorf("RequestAvailable = %+v, want once", published)
+	}
+}
+
+func TestItemAvailableBeforeTheRequestIsLinkedChangesNothing(t *testing.T) {
+	h := newHarness(t)
+	got := h.create(h.admin, movie(duneTmdb))
+	title := h.movieTitle(duneTmdb, true)
+
+	h.deliver(libraryapi.ItemAvailable{Title: title, Episodes: []domain.EpisodeID{}, JellyfinItem: "jf-movie"})
+
+	if request := h.request(got.ID); request.Status != api.StatusApproved {
+		t.Errorf("status = %s, want APPROVED until Catalog links the Title", request.Status)
+	}
+}
+
+// Seed requests #10.
+func TestANewEpisodeReopensAnAvailableRequestWithoutASecondRequestAvailable(t *testing.T) {
+	h := newHarness(t)
+	title, episodes := h.series(severanceTmdb, [2]int{1, 1})
+	whole := h.create(h.admin, wholeSeries(severanceTmdb))
+	h.deliver(catalogapi.TitleAdded{Title: title, Kind: domain.MediaKindSeries, RequestID: &whole.ID, Origin: domain.OriginRequest})
+	h.deliver(libraryapi.ItemAvailable{Title: title, Episodes: episodes, JellyfinItem: "jf-1"})
+
+	released := domain.NewID[domain.EpisodeID]()
+	h.catalog.PutEpisode(catalogapi.Episode{ID: released, Title: title, Season: 1, Number: 2, Monitored: true, Released: true})
+	h.deliver(catalogapi.WantedReleased{Title: title, Episodes: []domain.EpisodeID{released}})
+	if request := h.request(whole.ID); request.Status != api.StatusPartiallyAvailable {
+		t.Fatalf("status = %s, want PARTIALLY_AVAILABLE after a new episode", request.Status)
+	}
+
+	h.deliver(libraryapi.ItemAvailable{Title: title, Episodes: []domain.EpisodeID{released}, JellyfinItem: "jf-2"})
+
+	if request := h.request(whole.ID); request.Status != api.StatusAvailable {
+		t.Errorf("status = %s, want AVAILABLE again", request.Status)
+	}
+	if published := events[api.RequestAvailable](h); len(published) != 1 {
+		t.Errorf("RequestAvailable = %+v, want it only the first time", published)
 	}
 }
 

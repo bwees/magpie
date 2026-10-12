@@ -194,6 +194,18 @@ func (r *Repository) delete(tx *gorm.DB, id domain.RequestID) error {
 	return tx.Where("id = ?", id).Delete(&requestRow{}).Error
 }
 
+// markItemsAvailable sets availableAt on a request's items that don't have it yet: its movie item when
+// episodes is nil, else the items for those episodes.
+func (r *Repository) markItemsAvailable(tx *gorm.DB, id domain.RequestID, episodes []domain.EpisodeID, at time.Time) error {
+	query := tx.Model(&itemRow{}).Where("request_id = ? AND available_at IS NULL", id)
+	if episodes == nil {
+		query = query.Where("episode_id IS NULL")
+	} else {
+		query = query.Where("episode_id IN ?", episodes)
+	}
+	return query.Update("available_at", at).Error
+}
+
 // addItems stores the items a request doesn't have yet and reports whether any were new.
 func (r *Repository) addItems(tx *gorm.DB, items []itemRow) (bool, error) {
 	if len(items) == 0 {

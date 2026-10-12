@@ -522,6 +522,57 @@ func (s *Service) track(ctx context.Context, tx *gorm.DB, row requestRow) error 
 	return s.repo.save(tx, row)
 }
 
+// MarkAvailable records that Jellyfin confirmed a Title's movie or episodes, then moves each approved
+// request on it: some items available is PARTIALLY_AVAILABLE, all of them AVAILABLE. A request publishes
+// RequestAvailable the first time it becomes AVAILABLE, and never again.
+func (s *Service) MarkAvailable(tx *gorm.DB, title domain.TitleID, episodes []domain.EpisodeID) error {
+	rows, err := s.repo.requests(tx, requestFilter{Title: &title, Statuses: trackingStatuses})
+	if err != nil {
+		return err
+	}
+	now := s.now().UTC()
+	for _, row := range rows {
+		var confirmed []domain.EpisodeID
+		if row.Kind == domain.MediaKindSeries {
+			confirmed = append([]domain.EpisodeID{}, episodes...)
+		}
+		if err := s.repo.markItemsAvailable(tx, row.ID, confirmed, now); err != nil {
+			return err
+		}
+		counted, err := s.repo.request(tx, row.ID)
+		if err != nil {
+			return err
+		}
+		if err := s.settle(tx, counted, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// settle derives a linked request's status from its item progress.
+func (s *Service) settle(tx *gorm.DB, row requestRow, now time.Time) error {
+	switch {
+	case row.AvailableItems == 0:
+		return nil
+	case row.AvailableItems < row.TotalItems:
+		row.Status = api.StatusPartiallyAvailable
+	default:
+		row.Status = api.StatusAvailable
+	}
+	first := row.Status == api.StatusAvailable && row.AvailableAt == nil
+	if first {
+		row.AvailableAt = &now
+	}
+	if err := s.repo.save(tx, row); err != nil {
+		return err
+	}
+	if !first {
+		return nil
+	}
+	return s.publish(tx, api.RequestAvailable{Request: row.ID, User: row.UserID, Title: *row.TitleID})
+}
+
 // itemsInScope is the movie, or every wanted (monitored and released) episode in the request's seasons.
 func (s *Service) itemsInScope(ctx context.Context, row requestRow) ([]itemRow, error) {
 	if row.Kind == domain.MediaKindMovie {

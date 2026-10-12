@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
-	"time"
 
 	"magpie/internal/domain"
 	"magpie/internal/platform/db/dbtest"
@@ -74,21 +73,6 @@ func fixtureItems(r api.Request) []itemRow {
 		items = append(items, item)
 	}
 	return items
-}
-
-// markAvailable stands in for library.ItemAvailable until Requests consumes it.
-func (h *harness) markAvailable(id domain.RequestID) {
-	h.t.Helper()
-	now := time.Now().UTC()
-	err := h.db.Write(context.Background(), func(tx *gorm.DB) error {
-		if err := tx.Model(&itemRow{}).Where("request_id = ?", id).Update("available_at", now).Error; err != nil {
-			return err
-		}
-		return tx.Model(&requestRow{}).Where("id = ?", id).Updates(map[string]any{"status": api.StatusAvailable, "available_at": now}).Error
-	})
-	if err != nil {
-		h.t.Fatal(err)
-	}
 }
 
 type problemBody struct {

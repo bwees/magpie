@@ -90,6 +90,7 @@ func newHarness(t *testing.T) *harness {
 		newMonitoringHandler(h.service),
 		newEpisodesHandler(h.service),
 		newTitleAddFailedHandler(h.service),
+		newItemAvailableHandler(h.service),
 	}
 	h.server = httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{NewController(h.service)})
 	return h
@@ -126,6 +127,12 @@ func (h *harness) do(method, path string, body any, p domain.Principal) *httptes
 func (h *harness) create(p domain.Principal, body CreateRequestRequest) RequestResponse {
 	h.t.Helper()
 	return decode[RequestResponse](h.t, h.do(http.MethodPost, requestsPath, body, p))
+}
+
+// approve approves a pending request as the admin, with the default profile.
+func (h *harness) approve(id domain.RequestID) RequestResponse {
+	h.t.Helper()
+	return decode[RequestResponse](h.t, h.do(http.MethodPost, requestsPath+"/"+string(id)+"/approve", ApproveRequestRequest{}, h.admin))
 }
 
 func (h *harness) list(query string, p domain.Principal) RequestListResponse {

@@ -5,6 +5,7 @@ import (
 
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
+	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
 
 	"gorm.io/gorm"
@@ -15,6 +16,7 @@ const (
 	handlerMonitoring     = "requests.link-on-monitoring-changed"
 	handlerEpisodes       = "requests.extend-on-new-episodes"
 	handlerTitleAddFailed = "requests.fail-on-title-add-failed"
+	handlerItemAvailable  = "requests.mark-available-on-item-available"
 )
 
 // newTitleAddedHandler links the request a Title was added for.
@@ -73,6 +75,21 @@ func episodesTitle(ev bus.Event) (domain.TitleID, error) {
 	}
 	announced, err := bus.Decode[catalogapi.EpisodesAnnounced](ev)
 	return announced.Title, err
+}
+
+// newItemAvailableHandler counts a movie or episodes Jellyfin confirmed towards the requests on the Title.
+func newItemAvailableHandler(s *Service) bus.Handler {
+	return bus.Handler{
+		Name:       handlerItemAvailable,
+		EventTypes: []string{libraryapi.TypeItemAvailable},
+		Handle: func(_ context.Context, tx *gorm.DB, ev bus.Event) error {
+			available, err := bus.Decode[libraryapi.ItemAvailable](ev)
+			if err != nil {
+				return err
+			}
+			return s.MarkAvailable(tx, available.Title, available.Episodes)
+		},
+	}
 }
 
 func newTitleAddFailedHandler(s *Service) bus.Handler {
