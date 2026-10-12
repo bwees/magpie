@@ -21,6 +21,7 @@ import {
 	jobName,
 	type JobDetail
 } from './gpu-jobs';
+import { SkipReason } from './transcode-settings';
 
 export interface GpuJobsApi {
 	list: () => Promise<JobListResponse>;
@@ -57,6 +58,8 @@ export class GpuJobsManager {
 	jobs = $state<JobResponse[]>([]);
 	counts = $state<Record<string, number>>({});
 	backlog = $state(0);
+	/** Eligible files kept as they are, per skip reason. */
+	skipped = $state<Record<string, number>>({});
 	status = $state(LoadStatus.LOADING);
 	error = $state('');
 	/** Speed and ETA of running jobs, from their last progress event. */
@@ -84,6 +87,20 @@ export class GpuJobsManager {
 		return this.jobs.filter((j) => RETRYABLE_STATES.includes(j.state));
 	}
 
+	/** Files that queue once an agent passes a test encode for the target. */
+	get waitingForAgent(): number {
+		return this.skipped[SkipReason.NO_CAPABLE_AGENT] ?? 0;
+	}
+
+	/** Skip reasons with files, in the order SKIP_LABELS lists them. */
+	get skipReasons(): SkipReason[] {
+		return Object.values(SkipReason).filter((reason) => (this.skipped[reason] ?? 0) > 0);
+	}
+
+	get skippedCount(): number {
+		return this.skipReasons.reduce((total, reason) => total + this.skipped[reason], 0);
+	}
+
 	/** Every queued job, including those past the page the list holds. */
 	get queuedCount(): number {
 		return this.counts[JobState.QUEUED] ?? 0;
@@ -95,6 +112,7 @@ export class GpuJobsManager {
 			this.jobs = list.jobs;
 			this.counts = list.counts;
 			this.backlog = list.backlog;
+			this.skipped = list.skipped;
 			this.status = LoadStatus.READY;
 			this.error = '';
 		} catch (error) {

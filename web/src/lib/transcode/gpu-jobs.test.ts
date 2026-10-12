@@ -5,6 +5,7 @@ import type { LiveMessage } from '$lib/live/protocol';
 import { LoadStatus } from '$lib/load-status';
 import { GpuJobsManager, type GpuJobsApi } from './gpu-jobs-manager.svelte';
 import { JobEvent, JobState, detailLabel, jobName, kindLabel, stateLabel } from './gpu-jobs';
+import { SkipReason } from './transcode-settings';
 
 const NANOS_PER_SECOND = 1e9;
 const SERVER_ERROR = 500;
@@ -72,6 +73,21 @@ class FakeLive {
 }
 
 describe('GpuJobsManager', () => {
+	it('counts skipped files and those waiting for a capable agent', async () => {
+		const api = fakeApi([]);
+		api.list.mockResolvedValueOnce({
+			...list([]),
+			skipped: { [SkipReason.NO_CAPABLE_AGENT]: 3, [SkipReason.LOW_BITRATE]: 2 }
+		});
+		const manager = new GpuJobsManager(api, notify());
+
+		await manager.load();
+
+		expect(manager.waitingForAgent).toBe(3);
+		expect(manager.skippedCount).toBe(5);
+		expect(manager.skipReasons).toEqual([SkipReason.LOW_BITRATE, SkipReason.NO_CAPABLE_AGENT]);
+	});
+
 	it('splits the list into running, queued and failed jobs', async () => {
 		const manager = new GpuJobsManager(
 			fakeApi(

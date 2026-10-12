@@ -103,7 +103,10 @@ const ENDPOINTS: Endpoint[] = [
 	{ method: Method.POST, path: /^\/api\/acquisition\/searches$/, respond: () => data.SEARCH },
 	{ path: /^\/api\/acquisition\/searches\/[^/]+$/, respond: () => data.SEARCH },
 	{ path: /^\/api\/transcode\/agents$/, respond: () => data.AGENTS },
-	{ path: /^\/api\/transcode\/jobs$/, respond: () => data.JOBS }
+	{ path: /^\/api\/transcode\/jobs$/, respond: () => data.JOBS },
+	{ path: /^\/api\/transcode\/settings$/, respond: () => data.TRANSCODE_SETTINGS },
+	{ path: /^\/api\/transcode\/backlog$/, respond: () => data.TRANSCODE_BACKLOG },
+	{ path: /^\/api\/transcode\/exclusions$/, respond: () => [] }
 ];
 
 function posterSvg(id: string): string {

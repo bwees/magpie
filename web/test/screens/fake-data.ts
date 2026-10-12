@@ -1,6 +1,7 @@
 import type {
 	AgentResponse,
 	AttentionItemResponse,
+	BacklogResponse,
 	CutoffStatusResponse,
 	DiscoverDetailResponse,
 	DiscoverResponse,
@@ -27,6 +28,7 @@ import type {
 	TimelineEntryResponse,
 	TitleCoverageResponse,
 	TitleResponse,
+	TranscodeSettingsResponse,
 	WantedLanguagesResponse
 } from '../../src/lib/sdk';
 import { AttentionAction, AttentionKind } from '../../src/lib/activity/attention';
@@ -40,6 +42,12 @@ import {
 } from '../../src/lib/settings/indexers/indexer-settings';
 import { Capability, TransferMode } from '../../src/lib/transcode/agents';
 import { JobKind, JobOrigin, JobState } from '../../src/lib/transcode/gpu-jobs';
+import {
+	Preset,
+	ResolutionClass,
+	SkipReason,
+	TargetCodec
+} from '../../src/lib/transcode/transcode-settings';
 
 /** The moment every screenshot is taken at, so relative times never change. */
 export const NOW = '2026-10-11T12:00:00Z';
@@ -622,9 +630,56 @@ function job(overrides: Partial<JobResponse>): JobResponse {
 	};
 }
 
-export const JOBS: JobListResponse = {
+function calibration(encoder: string, qualityArg: string, max: number, values: number[]) {
+	const [archive, high, balanced, small] = values;
+	return {
+		encoder,
+		qualityArg,
+		min: 1,
+		max,
+		presets: {
+			[Preset.ARCHIVE]: archive,
+			[Preset.HIGH]: high,
+			[Preset.BALANCED]: balanced,
+			[Preset.SMALL]: small
+		}
+	};
+}
+
+export const TRANSCODE_SETTINGS: TranscodeSettingsResponse = {
+	enabled: true,
+	targetCodec: TargetCodec.HEVC_10,
+	preset: Preset.HIGH,
+	bitrateCapsMbps: {
+		[ResolutionClass.UHD]: 25,
+		[ResolutionClass.FHD]: 10,
+		[ResolutionClass.HD]: 5,
+		[ResolutionClass.SD]: 2
+	},
+	skipAlreadyTarget: true,
+	skipLowBitrate: true,
+	lowBitratePct: 50,
+	minSavingPct: 15,
+	encoderOverrides: { hevc_qsv: 22 },
+	transferCap: 2,
+	defaultSlotsPerGpu: 1,
+	encoders: [
+		calibration('av1_nvenc', 'cq', 51, [24, 28, 32, 36]),
+		calibration('hevc_nvenc', 'cq', 51, [19, 23, 26, 29]),
+		calibration('hevc_qsv', 'global_quality', 51, [20, 23, 26, 29]),
+		calibration('libsvtav1', 'crf', 63, [22, 28, 32, 38])
+	]
+};
+
+export const TRANSCODE_BACKLOG: BacklogResponse = {
 	backlog: 38,
-	skipped: {},
+	eligible: 412,
+	skipped: { [SkipReason.ALREADY_TARGET]: 120, [SkipReason.NO_CAPABLE_AGENT]: 4 }
+};
+
+export const JOBS: JobListResponse = {
+	backlog: TRANSCODE_BACKLOG.backlog,
+	skipped: TRANSCODE_BACKLOG.skipped,
 	counts: {},
 	jobs: [
 		job({}),

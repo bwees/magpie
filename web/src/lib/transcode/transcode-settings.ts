@@ -79,6 +79,31 @@ export function inRange(value: number, bounds: Bounds): boolean {
 	return Number.isInteger(value) && value >= bounds.MIN && value <= bounds.MAX;
 }
 
+function sameRecord(a: Record<string, number>, b: Record<string, number>): boolean {
+	const keys = Object.keys(a);
+	return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
+
+/** Whether two PUT bodies store the same settings. */
+export function sameSettings(
+	a: UpdateTranscodeSettingsRequest,
+	b: UpdateTranscodeSettingsRequest
+): boolean {
+	return (
+		a.enabled === b.enabled &&
+		a.targetCodec === b.targetCodec &&
+		a.preset === b.preset &&
+		sameRecord(a.bitrateCapsMbps, b.bitrateCapsMbps) &&
+		a.skipAlreadyTarget === b.skipAlreadyTarget &&
+		a.skipLowBitrate === b.skipLowBitrate &&
+		a.lowBitratePct === b.lowBitratePct &&
+		a.minSavingPct === b.minSavingPct &&
+		sameRecord(a.encoderOverrides, b.encoderOverrides) &&
+		a.transferCap === b.transferCap &&
+		a.defaultSlotsPerGpu === b.defaultSlotsPerGpu
+	);
+}
+
 /** The PUT body that stores settings as they are; the calibration table is read-only. */
 export function toUpdate(settings: TranscodeSettingsResponse): UpdateTranscodeSettingsRequest {
 	return {

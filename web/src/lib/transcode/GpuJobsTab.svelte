@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import X from '@lucide/svelte/icons/x';
+	import * as Alert from '$lib/components/ui/alert';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -11,6 +13,8 @@
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { LoadStatus } from '$lib/load-status';
 	import type { JobResponse } from '$lib/sdk';
+	import { SettingsSection, settingsPath } from '$lib/settings/sections';
+	import { SKIP_LABELS } from './transcode-settings';
 	import { GpuJobsManager } from './gpu-jobs-manager.svelte';
 	import {
 		JobState,
@@ -34,7 +38,10 @@
 	});
 
 	const empty = $derived(
-		manager.running.length === 0 && manager.queuedCount === 0 && manager.failed.length === 0
+		manager.running.length === 0 &&
+			manager.queuedCount === 0 &&
+			manager.failed.length === 0 &&
+			manager.skipReasons.length === 0
 	);
 </script>
 
@@ -91,6 +98,20 @@
 	</section>
 {:else}
 	<div class="flex flex-col gap-6">
+		{#if manager.waitingForAgent > 0}
+			<Alert.Root>
+				<CircleAlert />
+				<Alert.Title>
+					{manager.waitingForAgent}
+					{manager.waitingForAgent === 1 ? 'file waits' : 'files wait'} for a capable agent
+				</Alert.Title>
+				<Alert.Description>
+					No agent has passed a test encode for the transcode target. These files queue as soon as
+					one does.
+				</Alert.Description>
+			</Alert.Root>
+		{/if}
+
 		<section class="flex flex-col gap-3" aria-label="Running">
 			{@render sectionTitle('Running', manager.running.length)}
 			{#if manager.running.length === 0}
@@ -220,6 +241,25 @@
 						</li>
 					{/each}
 				</ul>
+			</section>
+		{/if}
+
+		{#if manager.skipReasons.length > 0}
+			<section class="flex flex-col gap-3" aria-label="Skipped">
+				<div class="flex flex-wrap items-center justify-between gap-2">
+					{@render sectionTitle('Skipped', manager.skippedCount)}
+					<a
+						href={settingsPath(SettingsSection.TRANSCODE)}
+						class="text-xs text-primary underline-offset-4 hover:underline">Transcode settings</a
+					>
+				</div>
+				<div class="flex flex-wrap gap-2">
+					{#each manager.skipReasons as reason (reason)}
+						<Badge variant="outline" class="tabular-nums">
+							{SKIP_LABELS[reason]} · {manager.skipped[reason]}
+						</Badge>
+					{/each}
+				</div>
 			</section>
 		{/if}
 	</div>

@@ -57,7 +57,13 @@ const SCREENS: Screen[] = [
 		path: '/activity',
 		open: (page) => page.getByRole('tab', { name: 'Agents' }).click()
 	},
+	{
+		name: 'activity-gpu-jobs',
+		path: '/activity',
+		open: (page) => page.getByRole('tab', { name: 'GPU jobs' }).click()
+	},
 	{ name: 'settings', path: '/settings/indexers' },
+	{ name: 'settings-transcode', path: '/settings/transcode' },
 	{
 		name: 'interactive-search',
 		path: `/titles/${MOVIE_ID}`,
