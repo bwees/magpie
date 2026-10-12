@@ -2,7 +2,9 @@ package library
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -21,8 +23,13 @@ const (
 	pathRootFolderID = "id"
 	pathDownloadID   = "downloadId"
 	queryTitle       = "title"
+	queryTitles      = "titles"
+	queryTranscoded  = "transcoded"
 	queryStatus      = "status"
 	listSeparator    = ","
+
+	// maxBatchTitles bounds one library-table lookup.
+	maxBatchTitles = 500
 
 	TypeFileNotFound        problem.Type = "urn:magpie:problem:file-not-found"
 	TypeRootFolderNotFound  problem.Type = "urn:magpie:problem:root-folder-not-found"
@@ -33,6 +40,7 @@ const (
 	TypeImportNotStopped    problem.Type = "urn:magpie:problem:import-not-stopped"
 	TypeInvalidFileMapping  problem.Type = "urn:magpie:problem:invalid-file-mapping"
 	TypeTitleRequired       problem.Type = "urn:magpie:problem:title-required"
+	TypeTooManyTitles       problem.Type = "urn:magpie:problem:too-many-titles"
 	TypeUnknownImportStatus problem.Type = "urn:magpie:problem:unknown-import-status"
 )
 
@@ -84,6 +92,14 @@ type MediaFileResponse struct {
 	Available bool `json:"available"`
 	// JellyfinOverdue is true while Jellyfin still hasn't confirmed the file a day after its import.
 	JellyfinOverdue bool `json:"jellyfinOverdue"`
+}
+
+// TitleCoverageResponse is one series row's coverage on the TV page.
+type TitleCoverageResponse struct {
+	Title             domain.TitleID `json:"title" validate:"required"`
+	EpisodesWithFile  int            `json:"episodesWithFile" validate:"required"`
+	EpisodesAvailable int            `json:"episodesAvailable" validate:"required"`
+	SizeBytes         int64          `json:"sizeBytes" validate:"required"`
 }
 
 // RootFolderResponse is a root folder with its hardlink check result.
@@ -165,8 +181,14 @@ func (c *Controller) Register(s *fuego.Server) {
 
 	fuego.Get(s, "/library/files", c.files, tags,
 		fuego.OptionOperationID("listMediaFiles"),
-		fuego.OptionSummary("A title's media files, newest first (admin)"),
-		fuego.OptionQuery(queryTitle, "Title ID", fuego.ParamRequired()))
+		fuego.OptionSummary("One title's media files, or several titles' files in input order; newest first per title (admin)"),
+		fuego.OptionQuery(queryTitle, "One title's files"),
+		fuego.OptionQueryArray(queryTitles, "Several titles' files, at most 500 titles", reflect.String),
+		fuego.OptionQueryBool(queryTranscoded, "With titles: only transcoded (true) or not transcoded (false) files"))
+	fuego.Get(s, "/library/coverage", c.coverage, tags,
+		fuego.OptionOperationID("getCoverage"),
+		fuego.OptionSummary("Episodes with a file, episodes Jellyfin confirmed and size per title, in input order (admin)"),
+		fuego.OptionQueryArray(queryTitles, "Title IDs, at most 500", reflect.String))
 	fuego.Get(s, "/library/files/{id}", c.file, tags,
 		fuego.OptionPath(pathFileID, "Media file ID"),
 		fuego.OptionOperationID("getMediaFile"),
@@ -209,10 +231,29 @@ func (c *Controller) files(ctx fuego.ContextNoBody) ([]MediaFileResponse, error)
 		return nil, err
 	}
 	title := domain.TitleID(ctx.QueryParam(queryTitle))
-	if title == "" {
-		return nil, problem.New(TypeTitleRequired, http.StatusBadRequest, "Pass the title to list files for")
+	raw := ctx.QueryParamArr(queryTitles)
+	if (title == "") == (len(raw) == 0) {
+		return nil, problem.New(TypeTitleRequired, http.StatusBadRequest, "Pass either one title or a list of titles")
 	}
-	files, err := c.library.FilesForTitle(ctx.Context(), title)
+	var files []api.MediaFile
+	var err error
+	if title != "" {
+		files, err = c.library.FilesForTitle(ctx.Context(), title)
+	} else {
+		var titles []domain.TitleID
+		if titles, err = batchTitles(raw); err != nil {
+			return nil, err
+		}
+		var filter api.FileFilter
+		if ctx.QueryParam(queryTranscoded) != "" {
+			transcoded, parseErr := ctx.QueryParamBoolErr(queryTranscoded)
+			if parseErr != nil {
+				return nil, problem.New(problem.TypeBadRequest, http.StatusBadRequest, "transcoded must be true or false")
+			}
+			filter.Transcoded = &transcoded
+		}
+		files, err = c.library.FilesForTitles(ctx.Context(), titles, filter)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -227,6 +268,36 @@ func (c *Controller) fileResponse(f api.MediaFile) MediaFileResponse {
 	response := mediaFileResponse(f)
 	response.JellyfinOverdue = c.library.JellyfinOverdue(f)
 	return response
+}
+
+func (c *Controller) coverage(ctx fuego.ContextNoBody) ([]TitleCoverageResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return nil, err
+	}
+	titles, err := batchTitles(ctx.QueryParamArr(queryTitles))
+	if err != nil {
+		return nil, err
+	}
+	coverage, err := c.library.Coverage(ctx.Context(), titles)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]TitleCoverageResponse, 0, len(coverage))
+	for _, cov := range coverage {
+		out = append(out, TitleCoverageResponse(cov))
+	}
+	return out, nil
+}
+
+func batchTitles(raw []string) ([]domain.TitleID, error) {
+	if len(raw) > maxBatchTitles {
+		return nil, problem.New(TypeTooManyTitles, http.StatusBadRequest, fmt.Sprintf("Ask for at most %d titles at once", maxBatchTitles))
+	}
+	titles := make([]domain.TitleID, 0, len(raw))
+	for _, id := range raw {
+		titles = append(titles, domain.TitleID(id))
+	}
+	return titles, nil
 }
 
 func (c *Controller) file(ctx fuego.ContextNoBody) (MediaFileResponse, error) {

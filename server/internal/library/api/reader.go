@@ -17,6 +17,9 @@ type Reader interface {
 	// FilesForTitle returns the current media files of a title, newest first (by ImportedAt).
 	// A title without files returns an empty slice, not ErrNotFound.
 	FilesForTitle(ctx context.Context, title domain.TitleID) ([]MediaFile, error)
+	// FilesForTitles returns the files of several titles for the library tables: grouped by title in
+	// input order, newest first within a title, keeping only those the filter matches.
+	FilesForTitles(ctx context.Context, titles []domain.TitleID, f FileFilter) ([]MediaFile, error)
 	// FileForEpisode returns the file covering an episode, or ErrNotFound.
 	FileForEpisode(ctx context.Context, ep domain.EpisodeID) (MediaFile, error)
 	// File returns one media file, or ErrNotFound.
@@ -52,6 +55,11 @@ type MediaFile struct {
 	Transcoded  bool
 	ImportedAt  time.Time
 	Available   bool
+}
+
+// FileFilter narrows FilesForTitles. Transcoded nil keeps every file.
+type FileFilter struct {
+	Transcoded *bool
 }
 
 type TitleCoverage struct {

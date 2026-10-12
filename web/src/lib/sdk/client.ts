@@ -644,6 +644,12 @@ export type UpdateUserRequest = {
     role?: string;
     viewOthersRequests?: boolean;
 };
+export type TitleCoverageResponse = {
+    episodesAvailable: number;
+    episodesWithFile: number;
+    sizeBytes: number;
+    title: string;
+};
 export type EpisodeRefResponse = {
     episode: string;
     "number": number;
@@ -3366,9 +3372,37 @@ export function updateUser(id: string, updateUserRequest: UpdateUserRequest, { a
     })));
 }
 /**
- * A title's media files, newest first (admin)
+ * Episodes with a file, episodes Jellyfin confirmed and size per title, in input order (admin)
  */
-export function listMediaFiles(title: string, { accept }: {
+export function getCoverage({ titles, accept }: {
+    titles?: string[];
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleCoverageResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/coverage${QS.query(QS.explode({
+        titles
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * One title's media files, or several titles' files in input order; newest first per title (admin)
+ */
+export function listMediaFiles({ title, titles, transcoded, accept }: {
+    title?: string;
+    titles?: string[];
+    transcoded?: boolean;
     accept?: string;
 } = {}, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
@@ -3381,7 +3415,9 @@ export function listMediaFiles(title: string, { accept }: {
         status: 500;
         data: HttpError;
     }>(`/api/library/files${QS.query(QS.explode({
-        title
+        title,
+        titles,
+        transcoded
     }))}`, {
         ...opts,
         headers: oazapfts.mergeHeaders(opts?.headers, {

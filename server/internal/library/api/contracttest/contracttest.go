@@ -68,6 +68,10 @@ func Run(t *testing.T, newReader Factory) {
 		fixture.Files = append(fixture.Files, StoredFile{File: file, ETag: fmt.Sprintf("etag-%d", i)})
 	}
 	withoutFiles := domain.NewID[domain.TitleID]()
+	transcodedMovie := domain.NewID[domain.TitleID]()
+	transcodedFile := movieFile(transcodedMovie, importedAt)
+	transcodedFile.Transcoded = true
+	fixture.Files = append(fixture.Files, StoredFile{File: transcodedFile, ETag: movieETag})
 
 	t.Run("File returns a stored file and ErrNotFound for an unknown ID", func(t *testing.T) {
 		r := newReader(t, fixture)
@@ -94,6 +98,35 @@ func Run(t *testing.T, newReader Factory) {
 		got, err = r.FilesForTitle(ctx, withoutFiles)
 		if err != nil || len(got) != 0 {
 			t.Errorf("FilesForTitle(no files) = %v, %v; want empty, nil", got, err)
+		}
+	})
+
+	t.Run("FilesForTitles lists each title's files in input order, newest first, and filters on transcoded", func(t *testing.T) {
+		r := newReader(t, fixture)
+		titles := []domain.TitleID{transcodedMovie, withoutFiles, movie}
+		got, err := r.FilesForTitles(ctx, titles, api.FileFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertFileIDs(t, got, transcodedFile.ID, newMovieFile.ID, oldMovieFile.ID)
+
+		notTranscoded := false
+		got, err = r.FilesForTitles(ctx, titles, api.FileFilter{Transcoded: &notTranscoded})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertFileIDs(t, got, newMovieFile.ID, oldMovieFile.ID)
+
+		transcoded := true
+		got, err = r.FilesForTitles(ctx, titles, api.FileFilter{Transcoded: &transcoded})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertFileIDs(t, got, transcodedFile.ID)
+
+		got, err = r.FilesForTitles(ctx, nil, api.FileFilter{})
+		if err != nil || got == nil || len(got) != 0 {
+			t.Errorf("FilesForTitles(no titles) = %v, %v; want empty, nil", got, err)
 		}
 	})
 
@@ -164,13 +197,14 @@ func Run(t *testing.T, newReader Factory) {
 
 	t.Run("Coverage counts files and confirmations, zero for titles without files", func(t *testing.T) {
 		r := newReader(t, fixture)
-		got, err := r.Coverage(ctx, []domain.TitleID{series, withoutFiles})
+		got, err := r.Coverage(ctx, []domain.TitleID{withoutFiles, series, movie})
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := []api.TitleCoverage{
-			{Title: series, EpisodesWithFile: episodesWithFile, EpisodesAvailable: episodesInJelly, SizeBytes: episodesWithFile * episodeSize},
 			{Title: withoutFiles},
+			{Title: series, EpisodesWithFile: episodesWithFile, EpisodesAvailable: episodesInJelly, SizeBytes: episodesWithFile * episodeSize},
+			{Title: movie, SizeBytes: 2 * episodeSize},
 		}
 		if !slices.Equal(got, want) {
 			t.Errorf("Coverage = %+v, want %+v", got, want)

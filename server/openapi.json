@@ -5180,6 +5180,31 @@
 				],
 				"type": "object"
 			},
+			"TitleCoverageResponse": {
+				"description": "TitleCoverageResponse schema",
+				"properties": {
+					"episodesAvailable": {
+						"type": "integer"
+					},
+					"episodesWithFile": {
+						"type": "integer"
+					},
+					"sizeBytes": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodesAvailable",
+					"episodesWithFile",
+					"sizeBytes",
+					"title"
+				],
+				"type": "object"
+			},
 			"TitleImagesResponse": {
 				"properties": {
 					"backdrop": {
@@ -11922,18 +11947,112 @@
 				]
 			}
 		},
+		"/api/library/coverage": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).coverage`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getCoverage",
+				"parameters": [
+					{
+						"description": "Title IDs, at most 500",
+						"in": "query",
+						"name": "titles",
+						"schema": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/TitleCoverageResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Episodes with a file, episodes Jellyfin confirmed and size per title, in input order (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
 		"/api/library/files": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).files`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listMediaFiles",
 				"parameters": [
 					{
-						"description": "Title ID",
+						"description": "One title's files",
 						"in": "query",
 						"name": "title",
-						"required": true,
 						"schema": {
 							"type": "string"
+						}
+					},
+					{
+						"description": "Several titles' files, at most 500 titles",
+						"in": "query",
+						"name": "titles",
+						"schema": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						}
+					},
+					{
+						"description": "With titles: only transcoded (true) or not transcoded (false) files",
+						"in": "query",
+						"name": "transcoded",
+						"schema": {
+							"type": "boolean"
 						}
 					},
 					{
@@ -11989,7 +12108,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "A title's media files, newest first (admin)",
+				"summary": "One title's media files, or several titles' files in input order; newest first per title (admin)",
 				"tags": [
 					"api",
 					"library"

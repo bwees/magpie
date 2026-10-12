@@ -41,6 +41,9 @@ package api // internal/library/api
 type Reader interface {
 	// FilesForTitle returns the current media files of a title, newest first. No files → empty slice.
 	FilesForTitle(ctx context.Context, title domain.TitleID) ([]MediaFile, error)
+	// FilesForTitles returns the files of several titles for the library tables: grouped by title in
+	// input order, newest first within a title, keeping only those the filter matches. No titles → empty slice.
+	FilesForTitles(ctx context.Context, titles []domain.TitleID, f FileFilter) ([]MediaFile, error)
 	// FileForEpisode returns the file covering an episode, or ErrNotFound.
 	FileForEpisode(ctx context.Context, ep domain.EpisodeID) (MediaFile, error)
 	// File returns one media file, or ErrNotFound.
@@ -74,6 +77,9 @@ type MediaFile struct {
 	ImportedAt  time.Time
 	Available   bool
 }
+
+// FileFilter narrows FilesForTitles. Transcoded nil keeps every file.
+type FileFilter struct { Transcoded *bool }
 
 type TitleCoverage struct {
 	Title                domain.TitleID
@@ -203,9 +209,9 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/library/files?title={id}` | Files for the title page Files tab; each has `available` and `jellyfinOverdue` (not confirmed 24 h after import) |
-| GET | `/api/library/files?titles={id,…}&transcoded={bool}` | Batch file summaries (video, size, transcoded) for the Movies table view; `transcoded` filter optional |
+| GET | `/api/library/files?titles={id}&titles={id}…&transcoded={bool}` | Batch files (same shape as above) for the Movies page, grouped by title in input order (`FilesForTitles`); `transcoded` filter optional. Pass exactly one of `title` or `titles`; more than 500 titles is 400 `too-many-titles` (admin) |
 | GET | `/api/library/files/{id}` | One file with media info |
-| GET | `/api/library/coverage?titles=` | Episodes with a file / confirmed in Jellyfin, size (TV page) |
+| GET | `/api/library/coverage?titles={id}&titles={id}…` | Episodes with a file / confirmed in Jellyfin and size per title, in input order (TV page; at most 500 titles, admin) |
 | DELETE | `/api/library/files/{id}` | Delete a file from disk → `FileDeleted{REMOVED}` (admin) |
 | GET | `/api/library/root-folders` · POST · DELETE `/{id}` | Root folders, each with its hardlink check (`link`: `HARDLINK` \| `COPY` \| `UNKNOWN`); POST validates the path is absolute, exists and is writable (400 `invalid-root-folder`, 409 `root-folder-exists`); DELETE refuses a folder that still holds media files (409 `root-folder-in-use`) |
 | GET | `/api/library/imports?status=FAILED,MANUAL` | Failed and manual imports, with each download's videos and subtitles, the matched episodes, and the series' episodes for the picker |

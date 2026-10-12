@@ -27,7 +27,7 @@ export class TitleFiles {
 	readonly #title: string;
 	readonly #api: FilesApi;
 
-	constructor(title: string, api: FilesApi = (id) => listMediaFiles(id)) {
+	constructor(title: string, api: FilesApi = (id) => listMediaFiles({ title: id })) {
 		this.#title = title;
 		this.#api = api;
 	}

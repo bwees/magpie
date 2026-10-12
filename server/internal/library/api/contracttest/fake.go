@@ -14,6 +14,7 @@ import (
 
 const (
 	ReaderFilesForTitle       scripted.Method = "library.Reader.FilesForTitle"
+	ReaderFilesForTitles      scripted.Method = "library.Reader.FilesForTitles"
 	ReaderFileForEpisode      scripted.Method = "library.Reader.FileForEpisode"
 	ReaderFile                scripted.Method = "library.Reader.File"
 	ReaderSourceForProcessing scripted.Method = "library.Reader.SourceForProcessing"
@@ -61,6 +62,19 @@ func (f *Fake) FilesForTitle(ctx context.Context, title domain.TitleID) ([]api.M
 		return nil, err
 	}
 	return f.newestFirst(func(m api.MediaFile) bool { return m.Title == title }), nil
+}
+
+func (f *Fake) FilesForTitles(ctx context.Context, titles []domain.TitleID, filter api.FileFilter) ([]api.MediaFile, error) {
+	if err := f.Enter(ctx, ReaderFilesForTitles); err != nil {
+		return nil, err
+	}
+	files := []api.MediaFile{}
+	for _, title := range titles {
+		files = append(files, f.newestFirst(func(m api.MediaFile) bool {
+			return m.Title == title && (filter.Transcoded == nil || m.Transcoded == *filter.Transcoded)
+		})...)
+	}
+	return files, nil
 }
 
 func (f *Fake) FileForEpisode(ctx context.Context, ep domain.EpisodeID) (api.MediaFile, error) {

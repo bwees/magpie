@@ -48,6 +48,16 @@ func (s *Service) FilesForTitle(ctx context.Context, title domain.TitleID) ([]ap
 	return s.deps.Repo.FilesForTitle(ctx, title)
 }
 
+// FilesForTitles lists the files of several titles for the library tables.
+func (s *Service) FilesForTitles(ctx context.Context, titles []domain.TitleID, f api.FileFilter) ([]api.MediaFile, error) {
+	return s.deps.Repo.FilesForTitles(ctx, titles, f)
+}
+
+// Coverage counts each title's episodes with a file and those Jellyfin confirmed.
+func (s *Service) Coverage(ctx context.Context, titles []domain.TitleID) ([]api.TitleCoverage, error) {
+	return s.deps.Repo.Coverage(ctx, titles)
+}
+
 // File returns one media file, or api.ErrNotFound.
 func (s *Service) File(ctx context.Context, id domain.MediaFileID) (api.MediaFile, error) {
 	return s.deps.Repo.File(ctx, id)

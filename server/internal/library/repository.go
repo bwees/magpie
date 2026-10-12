@@ -1,6 +1,7 @@
 package library
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -219,6 +220,28 @@ func (r *Repository) FilesForTitle(ctx context.Context, title domain.TitleID) ([
 	return publicFiles(files), err
 }
 
+func (r *Repository) FilesForTitles(ctx context.Context, titles []domain.TitleID, f api.FileFilter) ([]api.MediaFile, error) {
+	if len(titles) == 0 {
+		return []api.MediaFile{}, nil
+	}
+	where, args := "title_id IN ?", []any{titles}
+	if f.Transcoded != nil {
+		where, args = where+" AND transcoded = ?", append(args, *f.Transcoded)
+	}
+	files, err := r.files(ctx, where, args...)
+	if err != nil {
+		return nil, err
+	}
+	position := make(map[domain.TitleID]int, len(titles))
+	for i, title := range titles {
+		position[title] = i
+	}
+	slices.SortStableFunc(files, func(a, b storedFile) int {
+		return cmp.Compare(position[a.Title], position[b.Title])
+	})
+	return publicFiles(files), nil
+}
+
 func (r *Repository) FileForEpisode(ctx context.Context, ep domain.EpisodeID) (api.MediaFile, error) {
 	files, err := r.files(ctx, "id IN (?)", r.db.Read(ctx).Model(&mediaFileEpisodeRow{}).Select("media_file_id").Where("episode_id = ?", ep))
 	if err != nil {
@@ -270,30 +293,45 @@ func (r *Repository) AvailableEpisodes(ctx context.Context, title domain.TitleID
 
 func (r *Repository) Coverage(ctx context.Context, titles []domain.TitleID) ([]api.TitleCoverage, error) {
 	coverage := make([]api.TitleCoverage, 0, len(titles))
+	if len(titles) == 0 {
+		return coverage, nil
+	}
+	var sizes []struct {
+		TitleID domain.TitleID
+		Size    int64
+	}
+	err := r.db.Read(ctx).Model(&mediaFileRow{}).Select("title_id, SUM(size) AS size").
+		Where("title_id IN ?", titles).Group("title_id").Scan(&sizes).Error
+	if err != nil {
+		return nil, err
+	}
+	var episodes []struct {
+		TitleID   domain.TitleID
+		WithFile  int
+		Available int
+	}
+	err = r.db.Read(ctx).Table("library_media_file_episodes AS e").
+		Joins("JOIN library_media_files AS f ON f.id = e.media_file_id").
+		Select("f.title_id AS title_id, COUNT(DISTINCT e.episode_id) AS with_file, "+
+			"COUNT(DISTINCT CASE WHEN f.available_at IS NOT NULL THEN e.episode_id END) AS available").
+		Where("f.title_id IN ?", titles).Group("f.title_id").Scan(&episodes).Error
+	if err != nil {
+		return nil, err
+	}
+	byTitle := make(map[domain.TitleID]api.TitleCoverage, len(titles))
+	for _, s := range sizes {
+		c := byTitle[s.TitleID]
+		c.SizeBytes = s.Size
+		byTitle[s.TitleID] = c
+	}
+	for _, e := range episodes {
+		c := byTitle[e.TitleID]
+		c.EpisodesWithFile, c.EpisodesAvailable = e.WithFile, e.Available
+		byTitle[e.TitleID] = c
+	}
 	for _, title := range titles {
-		c := api.TitleCoverage{Title: title}
-		read := r.db.Read(ctx)
-		if err := read.Model(&mediaFileRow{}).Select("COALESCE(SUM(size), 0)").Where("title_id = ?", title).Scan(&c.SizeBytes).Error; err != nil {
-			return nil, err
-		}
-		episodes := func(available bool) (int, error) {
-			q := r.db.Read(ctx).Table("library_media_file_episodes AS e").
-				Joins("JOIN library_media_files AS f ON f.id = e.media_file_id").
-				Where("f.title_id = ?", title)
-			if available {
-				q = q.Where("f.available_at IS NOT NULL")
-			}
-			var n int64
-			err := q.Distinct("e.episode_id").Count(&n).Error
-			return int(n), err
-		}
-		var err error
-		if c.EpisodesWithFile, err = episodes(false); err != nil {
-			return nil, err
-		}
-		if c.EpisodesAvailable, err = episodes(true); err != nil {
-			return nil, err
-		}
+		c := byTitle[title]
+		c.Title = title
 		coverage = append(coverage, c)
 	}
 	return coverage, nil
