@@ -40,7 +40,7 @@
 						{@const badge = shell.badgeFor(item)}
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton
-								class="data-active:text-sidebar-primary"
+								class="data-active:text-sidebar-primary pointer-coarse:h-10 pointer-coarse:group-data-[collapsible=icon]:size-10! pointer-coarse:group-data-[collapsible=icon]:p-3!"
 								tooltipContent={item.label}
 								isActive={ownsPath(item, page.url.pathname)}
 							>

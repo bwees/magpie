@@ -30,7 +30,10 @@
 
 <Toaster position={shell.toastPosition} />
 
-<Sidebar.Provider bind:open={shell.sidebarOpen}>
+<Sidebar.Provider
+	bind:open={shell.sidebarOpen}
+	class="pointer-coarse:[--sidebar-width-icon:3.5rem]!"
+>
 	<AppSidebar />
 
 	<Sidebar.Inset class="min-w-0">
