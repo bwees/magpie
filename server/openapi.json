@@ -5277,6 +5277,15 @@
 			"SubtitleAdded": {
 				"description": "SubtitleAdded schema",
 				"properties": {
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
 					"forced": {
 						"type": "boolean"
 					},
@@ -5297,16 +5306,21 @@
 					},
 					"synced": {
 						"type": "boolean"
+					},
+					"title": {
+						"type": "string"
 					}
 				},
 				"required": [
+					"episodes",
 					"forced",
 					"language",
 					"mediaFile",
 					"replaces",
 					"sdh",
 					"source",
-					"synced"
+					"synced",
+					"title"
 				],
 				"type": "object"
 			},

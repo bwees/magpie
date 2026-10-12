@@ -21,11 +21,14 @@ const (
 // SubtitleAdded is durable. A subtitle was stored for a file.
 type SubtitleAdded struct {
 	MediaFile domain.MediaFileID `json:"mediaFile"`
-	Language  domain.Language    `json:"language"`
-	Forced    bool               `json:"forced"`
-	SDH       bool               `json:"sdh"`
-	Source    Source             `json:"source"`
-	Synced    bool               `json:"synced"`
+	Title     domain.TitleID     `json:"title"`
+	// Episodes are the episodes the file holds; empty for a movie.
+	Episodes []domain.EpisodeID `json:"episodes"`
+	Language domain.Language    `json:"language"`
+	Forced   bool               `json:"forced"`
+	SDH      bool               `json:"sdh"`
+	Source   Source             `json:"source"`
+	Synced   bool               `json:"synced"`
 	// Replaces is true when an upgrade replaced an earlier provider subtitle.
 	Replaces bool `json:"replaces"`
 }

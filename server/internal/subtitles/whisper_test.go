@@ -1,6 +1,7 @@
 package subtitles_test
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -142,8 +143,8 @@ func TestRedeliveredWhisperResultStoresOneUnsyncedSidecar(t *testing.T) {
 		t.Errorf("files = %v, want the staged subtitle moved", paths)
 	}
 	added := ofType[api.SubtitleAdded](t, h.events, api.TypeSubtitleAdded)
-	want := api.SubtitleAdded{MediaFile: file.ID, Language: english, Source: api.SourceWhisper}
-	if len(added) != 1 || added[0] != want {
+	want := api.SubtitleAdded{MediaFile: file.ID, Title: h.show.ID, Episodes: []domain.EpisodeID{h.episode.ID}, Language: english, Source: api.SourceWhisper}
+	if len(added) != 1 || !reflect.DeepEqual(added[0], want) {
 		t.Fatalf("SubtitleAdded = %+v, want once %+v", added, want)
 	}
 	if subs := h.view(file.ID).Subtitles; len(subs) != 1 || subs[0].Synced || subs[0].Source != api.SourceWhisper {

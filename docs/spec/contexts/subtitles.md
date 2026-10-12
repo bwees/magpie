@@ -22,7 +22,8 @@ Decisions: [07](../../../.scratch/v1-spec/issues/07-subtitles.md), [16](../../..
 
 | Table | Key columns |
 |---|---|
-| `files` | media_file_id, title_id, settled (false while a wanted track is in progress), imported_at |
+| `files` | media_file_id, title_id, episode_ids (JSON; empty for a movie, kept current by `FileRenamed`), settled (false while a wanted track is in progress), imported_at |
+| `issue_reruns` | issue_id, handled_at: the RERUN_SUBTITLES actions already run, so an issue reruns once |
 | `subtitles` | id, media_file_id, language, forced, sdh, source (EMBEDDED/RELEASE/PROVIDER/WHISPER), stream_index? (EMBEDDED), provider_file_id?, release_name, score?, max_score?, synced, sync_offset_ms?, path?, added_at, upgrade_until?, job_id? (WHISPER: the job that wrote it) |
 | `wanted` | media_file_id, language, forced, hearing_impaired (HI ok), position (wanted order), status (PENDING/SEARCHING/WAITING_WHISPER/MISSING/SATISFIED), source? (when SATISFIED), reason? (when MISSING), priority (IMPORT/MANUAL/UPGRADE/BACKLOG), next_attempt_at?, candidate? (an accepted subtitle waiting for quota), whisper_attempts (Whisper jobs asked for since the track was last reopened) |
 | `blocklist` | media_file_id, provider_file_id (filled by RERUN_SUBTITLES and by deleting a provider subtitle) |
@@ -72,6 +73,8 @@ type LanguageCoverage struct { Language domain.Language; Forced bool; Status Cov
 ```go
 type SubtitleAdded struct {
 	MediaFile domain.MediaFileID
+	Title     domain.TitleID
+	Episodes  []domain.EpisodeID // the file's episodes, empty for a movie; Requests matches RERUN_SUBTITLES issues by them
 	Language  domain.Language
 	Forced    bool
 	SDH       bool
@@ -107,8 +110,8 @@ type CoverageSettled struct {
 | `library.FileImported` | Record EMBEDDED tracks from `MediaInfo`, record `Sidecars` as RELEASE, and create `wanted` rows for uncovered languages (wanted list from `catalog.Reader.WantedLanguages`). Queue a search job. `Replaces` is ignored; the old file is cleaned up on its `FileDeleted`. | media file ID | Search errors leave rows PENDING with backoff. |
 | `library.FileTranscoded` | Re-read embedded streams; drop EMBEDDED rows for tracks the transcode removed; create `wanted` rows if a wanted language is now uncovered | event ID | none |
 | `library.FileDeleted` (any `Reason`) | Delete the file's subtitle rows and its sidecar files, except sidecar paths that now belong to another live media file (an upgrade that kept the same basename) | media file ID | A missing sidecar counts as deleted |
-| `library.FileRenamed` | Rewrite the stored path of each of the file's subtitles found at a sidecar's `OldPath` to its `NewPath`. A sidecar it doesn't store is ignored | event ID; a row already at its new path isn't touched | none |
-| `requests.IssueActionRequested{RERUN_SUBTITLES}` | Delete PROVIDER/WHISPER subtitles for the file and blocklist their provider file IDs for this file, then re-run the search | issue ID | none |
+| `library.FileRenamed` | Rewrite the stored path of each of the file's subtitles found at a sidecar's `OldPath` to its `NewPath`, and store the file's `Episodes`. A sidecar it doesn't store is ignored | event ID; a row already at its new path isn't touched | none |
+| `requests.IssueActionRequested{RERUN_SUBTITLES}` | For the episode's file (or every file of the title): delete PROVIDER/WHISPER subtitles and blocklist their provider file IDs for this file, then re-run the search | issue ID (`issue_reruns`) | none |
 | `catalog.LanguagesChanged` | Recompute `wanted` for affected files (one title, or all titles if global) | event ID | Done in batches via a backlite job |
 | `transcode.WhisperCompleted` | Move the staged SRT to the sidecar path of the video's current path (re-read from `library.Reader`); source WHISPER, not synced; publish `SubtitleAdded`. A result for a track that was found meanwhile, is no longer wanted, or whose file is gone is deleted instead. | job ID (stored on the subtitle row) | If the staged file is missing, treat as `JobFailed` |
 | `transcode.JobFailed` (Kind WHISPER, `Final` only; earlier attempts are Transcode's own retries) | Mark the `Language` track MISSING `WHISPER_FAILED`; publish `SubtitleMissing` the first time Whisper fails it | only a WAITING_WHISPER track moves | Retried by the next sweep, at most 3 Whisper jobs per track until it is reopened |

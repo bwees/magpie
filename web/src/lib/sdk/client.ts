@@ -1464,6 +1464,7 @@ export type ServiceHealthChanged = {
     service: string;
 };
 export type SubtitleAdded = {
+    episodes: string[] | null;
     forced: boolean;
     language: string;
     mediaFile: string;
@@ -1471,6 +1472,7 @@ export type SubtitleAdded = {
     sdh: boolean;
     source: string;
     synced: boolean;
+    title: string;
 };
 export type SubtitleMissing = {
     forced: boolean;

@@ -170,7 +170,7 @@ type Event struct {
 | `library.FileRenamed` | Library | mediaFile, title, episodes (new numbering), oldPath, newPath, sidecars [{oldPath, newPath}] (published with the new path) | Subtitles → rewrite stored sidecar paths; Activity → timeline |
 | `library.FolderFound` | Library | path, kind, parsed title/year, tmdbHint | Catalog → match against TMDB or review queue |
 | `library.ItemAvailable` | Library | title, episodes, jellyfinItem | Requests → mark available; Activity |
-| `subtitles.SubtitleAdded` | Subtitles | mediaFile, language, source, synced | Requests → resolve RERUN_SUBTITLES issues; Activity |
+| `subtitles.SubtitleAdded` | Subtitles | mediaFile, title, episodes, language, source, synced | Requests → resolve RERUN_SUBTITLES issues; Activity |
 | `subtitles.SubtitleMissing` | Subtitles | mediaFile, language, reason | Activity |
 | `subtitles.CoverageSettled` | Subtitles | mediaFile, title, satisfied, missing | Activity → Subs chip |
 | `transcode.JobQueued` | Transcode | job, kind, mediaFile, title, origin | Activity → Transcode chip |

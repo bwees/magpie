@@ -431,7 +431,8 @@ func (s *Service) keep(tx *gorm.DB, st fileState, sub subtitleRow, write func() 
 		}
 	}
 	added := api.SubtitleAdded{
-		MediaFile: sub.MediaFileID, Language: sub.Language, Forced: sub.Forced, SDH: sub.SDH,
+		MediaFile: sub.MediaFileID, Title: st.File.TitleID, Episodes: append([]domain.EpisodeID{}, st.File.EpisodeIDs...),
+		Language: sub.Language, Forced: sub.Forced, SDH: sub.SDH,
 		Source: sub.Source, Synced: sub.Synced, Replaces: replaces,
 	}
 	if err := s.publish(tx, added); err != nil {

@@ -58,7 +58,8 @@ func (s *Service) recordImport(ctx context.Context, tx *gorm.DB, e libraryapi.Fi
 		return err
 	}
 	now := s.now()
-	if err := insertFile(tx, fileRow{MediaFileID: e.MediaFile, TitleID: e.Title, Settled: true, ImportedAt: now}); err != nil {
+	file := fileRow{MediaFileID: e.MediaFile, TitleID: e.Title, EpisodeIDs: episodeIDs(e.Episodes), Settled: true, ImportedAt: now}
+	if err := insertFile(tx, file); err != nil {
 		return err
 	}
 	subs := embeddedRows(e.MediaFile, e.MediaInfo, now)
@@ -142,13 +143,28 @@ func (s *Service) forgetFile(tx *gorm.DB, e libraryapi.FileDeleted) error {
 
 // followRename points the file's stored sidecars at the paths Library moved them to.
 func (s *Service) followRename(tx *gorm.DB, e libraryapi.FileRenamed) error {
+	if err := setFileEpisodes(tx, e.MediaFile, episodeIDs(e.Episodes)); err != nil {
+		return err
+	}
 	return moveSidecars(tx, e.MediaFile, e.Sidecars)
+}
+
+func episodeIDs(refs []domain.EpisodeRef) []domain.EpisodeID {
+	ids := make([]domain.EpisodeID, 0, len(refs))
+	for _, ref := range refs {
+		ids = append(ids, ref.Episode)
+	}
+	return ids
 }
 
 // rerun drops a file's provider and Whisper subtitles, blocklists the provider's files for it and searches again.
 func (s *Service) rerun(ctx context.Context, tx *gorm.DB, e requestsapi.IssueActionRequested) error {
 	if e.Action != requestsapi.IssueActionRerunSubtitles {
 		return nil
+	}
+	first, err := claimIssue(tx, e.Issue, s.now())
+	if err != nil || !first {
+		return err
 	}
 	files, err := s.issueFiles(ctx, e)
 	if err != nil {

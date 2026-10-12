@@ -31,6 +31,8 @@ var (
 type fileRow struct {
 	MediaFileID domain.MediaFileID `gorm:"primaryKey"`
 	TitleID     domain.TitleID
+	// EpisodeIDs are the episodes the file holds; empty for a movie.
+	EpisodeIDs []domain.EpisodeID `gorm:"serializer:json"`
 	// Settled is false while any wanted track is in progress; CoverageSettled flips it back.
 	Settled    bool
 	ImportedAt time.Time
@@ -287,6 +289,9 @@ func saveSession(tx *gorm.DB, s sessionRow) error {
 }
 
 func insertFile(tx *gorm.DB, f fileRow) error {
+	if f.EpisodeIDs == nil {
+		f.EpisodeIDs = []domain.EpisodeID{}
+	}
 	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&f).Error
 }
 
@@ -353,6 +358,26 @@ func deleteFile(tx *gorm.DB, file domain.MediaFileID) ([]string, error) {
 
 // moveSidecars repoints a file's subtitles from each old path to its new one. Paths the file doesn't use
 // are skipped, so a repeat changes nothing.
+func setFileEpisodes(tx *gorm.DB, file domain.MediaFileID, episodes []domain.EpisodeID) error {
+	if episodes == nil {
+		episodes = []domain.EpisodeID{}
+	}
+	return tx.Model(&fileRow{MediaFileID: file}).Select("EpisodeIDs").Updates(fileRow{EpisodeIDs: episodes}).Error
+}
+
+// claimIssue records that a rerun for the issue ran, and reports false when one already had.
+func claimIssue(tx *gorm.DB, issue domain.IssueID, at time.Time) (bool, error) {
+	result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&issueRerunRow{IssueID: issue, HandledAt: at})
+	return result.RowsAffected > 0, result.Error
+}
+
+type issueRerunRow struct {
+	IssueID   domain.IssueID `gorm:"primaryKey"`
+	HandledAt time.Time
+}
+
+func (issueRerunRow) TableName() string { return "subtitles_issue_reruns" }
+
 func moveSidecars(tx *gorm.DB, file domain.MediaFileID, moves []libraryapi.SidecarMove) error {
 	for _, m := range moves {
 		err := tx.Model(&subtitleRow{}).Where("media_file_id = ? AND path = ?", file, m.OldPath).

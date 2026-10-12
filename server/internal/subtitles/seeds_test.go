@@ -3,6 +3,7 @@ package subtitles_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -70,8 +71,11 @@ func TestHashMatchIsDownloadedSyncedAndWritten(t *testing.T) {
 		t.Fatalf("sidecar %s = %q, %v", want, content, ok)
 	}
 	added := ofType[api.SubtitleAdded](t, h.events, api.TypeSubtitleAdded)
-	wantAdded := api.SubtitleAdded{MediaFile: file.ID, Language: english, Source: api.SourceProvider, Synced: true}
-	if len(added) != 1 || added[0] != wantAdded {
+	wantAdded := api.SubtitleAdded{
+		MediaFile: file.ID, Title: h.show.ID, Episodes: []domain.EpisodeID{h.episode.ID},
+		Language: english, Source: api.SourceProvider, Synced: true,
+	}
+	if len(added) != 1 || !reflect.DeepEqual(added[0], wantAdded) {
 		t.Fatalf("SubtitleAdded = %+v, want %+v", added, wantAdded)
 	}
 	subs := h.view(file.ID).Subtitles
@@ -404,6 +408,17 @@ func TestRerunSubtitlesBlocklistsAndSearchesAgain(t *testing.T) {
 	}
 	if content, _ := h.sidecars.Read("/tv/Show (2011)/Season 01/Show S01E02.en.srt"); string(content) != string(betterSRT) {
 		t.Errorf("sidecar = %q, want the new download", content)
+	}
+	added := ofType[api.SubtitleAdded](t, h.events, api.TypeSubtitleAdded)
+	if last := added[len(added)-1]; last.Title != h.show.ID || !slices.Equal(last.Episodes, []domain.EpisodeID{h.episode.ID}) {
+		t.Errorf("SubtitleAdded = %+v, want the show's episode so Requests can resolve the issue", last)
+	}
+
+	h.handle(subtitles.NewIssueActionHandler(h.service), issue)
+	h.runDue()
+
+	if subs := h.view(file.ID).Subtitles; len(subs) != 1 || *subs[0].ProviderFileID != 18 {
+		t.Errorf("subtitles after redelivery = %+v, want the issue's rerun to run once", subs)
 	}
 }
 
