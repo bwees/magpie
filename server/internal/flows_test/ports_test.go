@@ -42,7 +42,7 @@ func TestBootProvidesEveryPort(t *testing.T) {
 		"QBittorrent": got.QBittorrent, "TrashGuides": got.TrashGuides, "FileSystem": got.FileSystem,
 		"MediaProber": got.MediaProber, "Hasher": got.Hasher, "JellyfinLibrary": got.JellyfinLibrary,
 		"DownloadLocation": got.DownloadLocation,
-		"OpenSubtitles": got.OpenSubtitles, "Syncer": got.Syncer, "FileStat": got.FileStat,
+		"OpenSubtitles":    got.OpenSubtitles, "Syncer": got.Syncer, "FileStat": got.FileStat,
 		"NotificationSender": got.NotificationSender,
 	} {
 		if port == nil {
