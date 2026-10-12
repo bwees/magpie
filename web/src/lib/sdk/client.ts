@@ -676,6 +676,7 @@ export type MediaFileResponse = {
     episodes: EpisodeRefResponse[];
     id: string;
     importedAt: string;
+    jellyfinOverdue: boolean;
     mediaInfo: MediaInfoResponse;
     origin: string;
     path: string;
@@ -733,6 +734,12 @@ export type ManualImportRequest = {
 export type AddRootFolderRequest = {
     kind: string;
     path: string;
+};
+export type LibrarySchedulesResponse = {
+    jellyfinReconcileHours: number;
+};
+export type LibrarySchedulesRequest = {
+    jellyfinReconcileHours: number;
 };
 export type BackupResponse = {
     createdAt: string;
@@ -3497,6 +3504,52 @@ export function removeRootFolder(id: string, { accept }: {
             Accept: accept
         })
     }));
+}
+/**
+ * How often the Jellyfin full reconcile runs (admin)
+ */
+export function getLibrarySchedules({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: LibrarySchedulesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/library/schedules", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change how often the Jellyfin full reconcile runs (admin)
+ */
+export function setLibrarySchedules(librarySchedulesRequest: LibrarySchedulesRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: LibrarySchedulesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/library/schedules", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: librarySchedulesRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
 }
 /**
  * List database backups, newest first (admin)
