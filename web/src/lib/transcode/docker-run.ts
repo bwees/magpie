@@ -10,7 +10,7 @@ const LINE_BREAK = ' \\\n  ';
 export function dockerRunCommand(serverUrl: string, secret = SECRET_PLACEHOLDER): string {
 	return [
 		'docker run -d --name magpie-agent --restart unless-stopped',
-		'--gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility',
+		'--gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility,graphics',
 		'--device /dev/dri --group-add "$(getent group render | cut -d: -f3)"',
 		`-e MAGPIE_URL=${serverUrl}`,
 		`-e MAGPIE_AGENT_SECRET=${secret}`,

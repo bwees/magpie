@@ -106,7 +106,7 @@ describe('dockerRunCommand', () => {
 		const command = dockerRunCommand(SERVER);
 		expect(command).toContain(`MAGPIE_URL=${SERVER}`);
 		expect(command).toContain(`MAGPIE_AGENT_SECRET=${SECRET_PLACEHOLDER}`);
-		expect(command).toContain('NVIDIA_DRIVER_CAPABILITIES=compute,video,utility');
+		expect(command).toContain('NVIDIA_DRIVER_CAPABILITIES=compute,video,utility,graphics');
 		expect(command.endsWith(AGENT_IMAGE)).toBe(true);
 	});
 });
