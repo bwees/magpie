@@ -71,14 +71,14 @@
 			{#if note}
 				<p class="truncate text-xs text-muted-foreground" title={note}>{note}</p>
 			{/if}
-			<div class="mt-1 flex flex-col items-start gap-1.5 md:hidden">
-				<Badge variant={STATUS_VARIANTS[status]}>{label}</Badge>
+			<div class="mt-1 flex flex-col items-start gap-1.5 lg:hidden">
+				<Badge variant={STATUS_VARIANTS[status]} class="md:hidden">{label}</Badge>
 				{@render requester()}
 			</div>
 		</div>
 	</div>
 
-	<div class="hidden w-56 shrink-0 md:block">{@render requester()}</div>
+	<div class="hidden w-56 shrink-0 lg:block">{@render requester()}</div>
 	<div class="hidden w-32 shrink-0 md:block">
 		<Badge variant={STATUS_VARIANTS[status]}>{label}</Badge>
 	</div>

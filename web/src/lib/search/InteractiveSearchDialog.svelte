@@ -33,7 +33,7 @@
 
 <Dialog.Root bind:open>
 	<Dialog.Content
-		class="flex h-dvh w-screen max-w-none flex-col gap-0 rounded-none p-0 sm:max-w-none md:h-[90vh] md:w-[94vw] md:max-w-[94vw] md:rounded-xl"
+		class="top-[env(safe-area-inset-top)] flex h-[calc(100dvh-env(safe-area-inset-top))] w-screen max-w-none translate-y-0 flex-col gap-0 rounded-none p-0 sm:max-w-none md:top-1/2 md:h-[90vh] md:w-[94vw] md:max-w-[94vw] md:-translate-y-1/2 md:rounded-xl"
 		onOpenAutoFocus={(event) => event.preventDefault()}
 	>
 		<div class="flex flex-wrap items-center gap-3 border-b px-4 py-3 pr-12 md:px-6 md:py-4">

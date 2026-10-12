@@ -21,8 +21,8 @@
 	<title>{current?.label ?? 'Settings'} · Settings · Magpie</title>
 </svelte:head>
 
-<div class="flex flex-col gap-4 md:flex-row md:gap-8">
-	<nav aria-label="Settings sections" class="md:w-52 md:shrink-0">
+<div class="flex flex-col gap-4 lg:flex-row lg:gap-8">
+	<nav aria-label="Settings sections" class="lg:w-52 lg:shrink-0">
 		<Input
 			type="search"
 			bind:value={query}
@@ -30,7 +30,7 @@
 			aria-label="Search settings"
 			class="mb-3 h-8"
 		/>
-		<div class="md:hidden">
+		<div class="lg:hidden">
 			<Select.Root
 				type="single"
 				value={current?.section}
@@ -49,7 +49,7 @@
 				</Select.Content>
 			</Select.Root>
 		</div>
-		<ul class="hidden md:grid md:gap-0.5">
+		<ul class="hidden lg:grid lg:gap-0.5">
 			{#each sections as spec (spec.section)}
 				<li>
 					<a
@@ -71,8 +71,8 @@
 
 	<div class="max-w-3xl min-w-0 flex-1">
 		{#if current}
-			<h2 class="hidden text-xl font-semibold md:block">{current.label}</h2>
-			<Separator class="my-4 hidden md:block" />
+			<h2 class="hidden text-xl font-semibold lg:block">{current.label}</h2>
+			<Separator class="my-4 hidden lg:block" />
 		{/if}
 		{@render children()}
 	</div>

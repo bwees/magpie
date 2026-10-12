@@ -72,7 +72,7 @@
 		<p class="text-sm text-muted-foreground">Nothing is downloading right now.</p>
 	</section>
 {:else}
-	<div class="hidden rounded-xl border md:block">
+	<div class="hidden rounded-xl border lg:block">
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
@@ -106,7 +106,7 @@
 		</Table.Root>
 	</div>
 
-	<div class="flex flex-col gap-3 md:hidden">
+	<div class="flex flex-col gap-3 lg:hidden">
 		{#each manager.downloads as d (d.id)}
 			<article class="flex flex-col gap-2 rounded-xl border p-3">
 				<div class="flex items-start justify-between gap-2">

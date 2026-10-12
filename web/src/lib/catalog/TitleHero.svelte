@@ -42,17 +42,17 @@
 </script>
 
 <section class="overflow-hidden rounded-xl border bg-card" style:background-image={background}>
-	<div class="flex flex-col gap-4 p-4 text-white md:flex-row md:items-end md:gap-6 md:p-8 md:pt-12">
-		<div class="flex items-end gap-4 md:contents">
+	<div class="flex flex-col gap-4 p-4 text-white md:p-8 lg:flex-row lg:items-end lg:gap-6 lg:pt-12">
+		<div class="flex items-end gap-4 md:gap-6 lg:contents">
 			<PosterImage
 				src={posterUrl}
 				alt="{title.name} poster"
-				class="w-24 shrink-0 ring-2 ring-white/20 md:w-36"
+				class="w-24 shrink-0 ring-2 ring-white/20 md:w-32 lg:w-36"
 			/>
-			<h1 class="text-2xl font-semibold tracking-tight md:hidden">{title.name}</h1>
+			<h1 class="text-2xl font-semibold tracking-tight md:text-4xl lg:hidden">{title.name}</h1>
 		</div>
 		<div class="min-w-0 flex-1">
-			<h1 class="hidden text-4xl font-semibold tracking-tight md:block">{title.name}</h1>
+			<h1 class="hidden text-4xl font-semibold tracking-tight lg:block">{title.name}</h1>
 			{#if title.overview}
 				<p class="mt-2 line-clamp-3 max-w-3xl text-sm text-white/80 md:line-clamp-none">
 					{title.overview}
@@ -74,7 +74,7 @@
 			</div>
 		</div>
 		{#if session.isAdmin}
-			<div class="grid grid-cols-2 gap-2 md:flex md:shrink-0">
+			<div class="grid grid-cols-2 gap-2 lg:flex lg:shrink-0">
 				<Button
 					variant="secondary"
 					disabled={automatic.isStarting(target)}

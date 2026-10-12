@@ -27,7 +27,7 @@
 <div
 	in:fly={{ y: ENTER_OFFSET_PX, duration: ENTER_DURATION_MS }}
 	class={[
-		'flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2 md:flex-nowrap',
+		'flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2 lg:flex-nowrap',
 		best && 'border-primary/50 bg-primary/5',
 		rejected && 'opacity-70'
 	]}
@@ -36,12 +36,12 @@
 	{#if best}
 		<Star class="size-4 shrink-0 fill-primary text-primary" aria-label="Best in this quality" />
 	{:else}
-		<span class="hidden size-4 shrink-0 md:block"></span>
+		<span class="hidden size-4 shrink-0 lg:block"></span>
 	{/if}
-	<div class={['min-w-0 flex-1 md:basis-auto', best ? 'basis-[calc(100%-2rem)]' : 'basis-full']}>
+	<div class={['min-w-0 flex-1 lg:basis-auto', best ? 'basis-[calc(100%-2rem)]' : 'basis-full']}>
 		<div
 			class={[
-				'font-mono text-xs break-all md:truncate md:break-normal',
+				'font-mono text-xs break-all lg:truncate lg:break-normal',
 				rejected && 'text-muted-foreground'
 			]}
 			title={release.name}
@@ -66,13 +66,15 @@
 			{/if}
 		</div>
 	</div>
-	<div class="flex min-w-0 flex-1 items-center gap-3 text-xs text-muted-foreground md:contents">
-		<span class="text-foreground tabular-nums md:w-14 md:text-right" title="Custom format score">
+	<div class="flex min-w-0 flex-1 items-center gap-3 text-xs text-muted-foreground lg:contents">
+		<span class="text-foreground tabular-nums lg:w-14 lg:text-right" title="Custom format score">
 			{release.cfScore}
 		</span>
-		<span class="tabular-nums md:w-16 md:text-right">{formatSize(release.sizeBytes)}</span>
-		<span class="tabular-nums md:w-12 md:text-right" title="Seeders">↑{release.seeders}</span>
-		<span class="truncate md:w-28">{release.indexer}</span>
+		<span class="whitespace-nowrap tabular-nums lg:w-16 lg:text-right"
+			>{formatSize(release.sizeBytes)}</span
+		>
+		<span class="tabular-nums lg:w-12 lg:text-right" title="Seeders">↑{release.seeders}</span>
+		<span class="truncate lg:w-28">{release.indexer}</span>
 	</div>
 	{#if grabState === GrabState.CHECKING}
 		<Button size="sm" variant="outline" disabled>

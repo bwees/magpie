@@ -30,7 +30,11 @@
 </script>
 
 <div class="flex flex-col gap-4">
-	<div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Request status">
+	<div
+		class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0"
+		role="tablist"
+		aria-label="Request status"
+	>
 		{#each STATUS_FILTERS as filter (filter)}
 			{@const active = page.filter === filter}
 			<button
