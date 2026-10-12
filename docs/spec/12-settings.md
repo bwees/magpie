@@ -43,7 +43,7 @@ All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row i
 | Prowlarr indexer list refresh | Acquisition | 1 h | 15 min–24 h |
 | TRaSH sync | Acquisition | daily | daily, or off (the TRaSH Guides sync switch under Quality); a weekly option isn't built yet |
 | TMDB refresh | Catalog | continuing series daily; ended series and movies weekly; images < 5 months | images must stay < 6 months (TMDB terms) |
-| Subtitle upgrade check | Subtitles | 6 h | 1–24 h |
+| Subtitle upgrade check | Subtitles | 6 h | 1–24 h (edited under Settings → Subtitles; the same sweep retries missing languages) |
 | Jellyfin full reconcile | Library | daily | 6 h–weekly |
 
 ## Connections
