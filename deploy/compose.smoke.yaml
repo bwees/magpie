@@ -1,0 +1,25 @@
+# Smoke test stack: the server and an agent offering only the CPU encoders. Run with `mise run smoke`.
+
+name: magpie-smoke
+
+x-agent-secret: &agent-secret magpie-smoke-agent-secret-not-for-production
+
+services:
+  magpie:
+    image: ${MAGPIE_IMAGE:-ghcr.io/bwees/magpie:latest}
+    environment:
+      MAGPIE_AGENT_SECRET: *agent-secret
+    ports:
+      - "${MAGPIE_SMOKE_PORT:-3931}:3000"
+
+  magpie-agent:
+    image: ${MAGPIE_AGENT_IMAGE:-ghcr.io/bwees/magpie-agent:latest}
+    platform: linux/amd64
+    depends_on:
+      magpie:
+        condition: service_healthy
+    environment:
+      MAGPIE_URL: http://magpie:3000
+      MAGPIE_AGENT_SECRET: *agent-secret
+      MAGPIE_AGENT_NAME: smoke-cpu
+      MAGPIE_AGENT_CPU: "true"

@@ -1,0 +1,84 @@
+# Example single-box install: Magpie, one transcode agent, qBittorrent and Prowlarr.
+# Copy .env.example to .env next to this file and fill it in, then run `docker compose up -d`.
+#
+# Downloads and the library live under one host directory (MEDIA_DIR), mounted at the same path in
+# Magpie and qBittorrent, so imports are hardlinks and the paths qBittorrent reports exist in Magpie.
+#   ${MEDIA_DIR}/downloads       qBittorrent's save path
+#   ${MEDIA_DIR}/library/movies  library roots, added in the setup wizard
+#   ${MEDIA_DIR}/library/tv
+
+name: magpie
+
+services:
+  magpie:
+    image: ghcr.io/bwees/magpie:latest
+    restart: unless-stopped
+    ports:
+      - "${MAGPIE_PORT:-3000}:${MAGPIE_PORT:-3000}"
+    environment:
+      MAGPIE_PORT: ${MAGPIE_PORT:-3000}
+      MAGPIE_DATA_DIR: /data
+      MAGPIE_BASE_URL: ${MAGPIE_BASE_URL:-}
+      MAGPIE_AGENT_SECRET: ${MAGPIE_AGENT_SECRET:?set MAGPIE_AGENT_SECRET in .env}
+    volumes:
+      # SQLite needs local disk, not NFS or SMB.
+      - ${MAGPIE_CONFIG_DIR:-./config}/magpie:/data
+      - ${MEDIA_DIR:?set MEDIA_DIR in .env}:/media
+
+  magpie-agent:
+    image: ghcr.io/bwees/magpie-agent:latest
+    restart: unless-stopped
+    depends_on:
+      magpie:
+        condition: service_healthy
+    environment:
+      MAGPIE_URL: http://magpie:${MAGPIE_PORT:-3000}
+      MAGPIE_AGENT_SECRET: ${MAGPIE_AGENT_SECRET:?set MAGPIE_AGENT_SECRET in .env}
+      MAGPIE_AGENT_NAME: local
+    volumes:
+      - ${MAGPIE_CONFIG_DIR:-./config}/agent-scratch:/scratch
+    # Pick the block for your GPU. Without one the agent connects but offers no devices.
+    #
+    # Intel or AMD: pass the render nodes and the host's render group (getent group render).
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - "${RENDER_GID:-109}"
+    #
+    # NVIDIA: needs the NVIDIA Container Toolkit on the host.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  qbittorrent:
+    # Magpie needs qBittorrent 5.2 or newer (API keys).
+    image: lscr.io/linuxserver/qbittorrent:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+      WEBUI_PORT: "8080"
+    volumes:
+      - ${MAGPIE_CONFIG_DIR:-./config}/qbittorrent:/config
+      - ${MEDIA_DIR:?set MEDIA_DIR in .env}:/media
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    restart: unless-stopped
+    ports:
+      - "9696:9696"
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - ${MAGPIE_CONFIG_DIR:-./config}/prowlarr:/config

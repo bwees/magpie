@@ -1,0 +1,27 @@
+name: smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@v2
+
+      - uses: docker/setup-qemu-action@v3
+
+      - name: Validate the compose files
+        run: mise run lint:deploy
+
+      - name: Build the images without publishing
+        run: mise run release:snapshot
+
+      - name: Smoke test the server and a CPU agent
+        run: mise run smoke

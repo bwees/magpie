@@ -124,5 +124,18 @@ description = "Build and publish binaries and the server image with goreleaser"
 run = "goreleaser release --clean"
 
 [tasks."release:snapshot"]
-description = "Build release binaries locally without publishing (pass --skip=docker without a Docker daemon)"
+description = "Build release binaries and load the images locally without publishing (pass --skip=docker without a Docker daemon)"
 run = "goreleaser release --snapshot --clean"
+
+[tasks.smoke]
+description = "Run the snapshot server image with a CPU agent and check health and the agent coming online"
+run = "deploy/smoke.sh"
+
+[tasks."lint:deploy"]
+description = "Validate the example and smoke compose files"
+dir = "deploy"
+env = { MEDIA_DIR = "/srv/media" }
+run = [
+  "docker compose -f compose.yaml config --quiet",
+  "docker compose -f compose.smoke.yaml config --quiet",
+]
