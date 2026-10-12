@@ -1,0 +1,7 @@
+1
+00:00:05,120 --> 00:00:07,480
+I swore an oath to your father.
+
+2
+00:00:08,000 --> 00:00:10,200
+And I mean to keep it.

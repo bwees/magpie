@@ -54,6 +54,8 @@ type loginRequest struct {
 type loginResponse struct {
 	User  account `json:"user"`
 	Token string  `json:"token"`
+	// BaseURL is the API host for this account; VIP accounts get their own.
+	BaseURL string `json:"base_url"`
 }
 
 type userInfoResponse struct {
