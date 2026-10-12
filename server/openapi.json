@@ -756,6 +756,34 @@
 				],
 				"type": "object"
 			},
+			"CutoffStatusResponse": {
+				"description": "CutoffStatusResponse schema",
+				"properties": {
+					"cfScore": {
+						"type": "integer"
+					},
+					"cutoffMet": {
+						"type": "boolean"
+					},
+					"file": {
+						"type": "string"
+					},
+					"quality": {
+						"$ref": "#/components/schemas/Quality"
+					},
+					"upgradesAllowed": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"cfScore",
+					"cutoffMet",
+					"file",
+					"quality",
+					"upgradesAllowed"
+				],
+				"type": "object"
+			},
 			"DeclineRequestRequest": {
 				"description": "DeclineRequestRequest schema",
 				"properties": {
@@ -6749,6 +6777,80 @@
 					}
 				},
 				"summary": "Replace a custom format's name and specs (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/cutoff": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*CutoffController).list`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listCutoffStatus",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "query",
+						"name": "title",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/CutoffStatusResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Whether each of a title's files meets its profile's cutoff and may still be upgraded (admin)",
 				"tags": [
 					"api",
 					"acquisition"

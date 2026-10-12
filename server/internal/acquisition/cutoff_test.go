@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"testing"
 
@@ -13,6 +14,8 @@ import (
 	"magpie/internal/domain"
 	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
+	"magpie/internal/platform/config"
+	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/parse"
 
 	"github.com/mikestefanello/backlite"
@@ -335,6 +338,39 @@ func TestEditingACustomFormatRescoresEveryFile(t *testing.T) {
 	}
 	if profiles := f.rescore(t); !slices.Contains(profiles, "") {
 		t.Errorf("rescored %v, want every file", profiles)
+	}
+}
+
+func TestTheTitlePageReadsEachFilesCutoffStatus(t *testing.T) {
+	f := newSearchFixture(t)
+	f.useScoredProfile(t, cutoffAt2160p)
+	met := f.fileImported(high2160p, parse.QualityWEBDL2160p, domain.OriginDownload)
+	below := f.fileImported(low2160p, parse.QualityWEBDL2160p, domain.OriginDownload)
+	f.deliverScores(t, met)
+	f.deliverScores(t, below)
+	serve := func(principal *domain.Principal) http.Handler {
+		controllers := []httpserver.Controller{acquisition.NewCutoffController(f.cutoff)}
+		mux := httpserver.Build(config.Env{}, httpserver.ModeServe, controllers).Mux
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r = r.WithContext(domain.WithPrincipal(r.Context(), *principal))
+			mux.ServeHTTP(w, r)
+		})
+	}
+	path := "/api/acquisition/cutoff?title=" + string(f.title.ID)
+
+	if rec := do(serve(&domain.Principal{User: domain.NewID[domain.UserID]()}), http.MethodGet, path, ""); rec.Code != http.StatusForbidden {
+		t.Errorf("requester = %d, want 403", rec.Code)
+	}
+	if rec := do(serve(admin()), http.MethodGet, "/api/acquisition/cutoff", ""); rec.Code != http.StatusBadRequest {
+		t.Errorf("no title = %d, want 400", rec.Code)
+	}
+	rec := do(serve(admin()), http.MethodGet, path, "")
+	got := map[domain.MediaFileID]acquisition.CutoffStatusResponse{}
+	for _, s := range decode[[]acquisition.CutoffStatusResponse](t, rec) {
+		got[s.File] = s
+	}
+	if !got[met.MediaFile].CutoffMet || got[below.MediaFile].CutoffMet || got[below.MediaFile].CFScore != lowTierScore || !got[below.MediaFile].UpgradesAllowed {
+		t.Errorf("statuses = %+v, want one met and one at CF 1700 still upgrading", got)
 	}
 }
 

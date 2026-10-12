@@ -72,6 +72,20 @@ export type CustomFormatRequest = {
 export type BlockTermRequest = {
     term: string;
 };
+export type Quality = {
+    id: number;
+    name: string;
+    resolution: number;
+    revision: number;
+    source: string;
+};
+export type CutoffStatusResponse = {
+    cfScore: number;
+    cutoffMet: boolean;
+    file: string;
+    quality: Quality;
+    upgradesAllowed: boolean;
+};
 export type DownloadOptionsResponse = {
     blockedFilesEnabled: boolean;
     blockedPatterns: string[];
@@ -89,13 +103,6 @@ export type DownloadOptionsRequest = {
     seedRatio: number;
     seedingMode: string;
     stalledLimitMinutes: number;
-};
-export type Quality = {
-    id: number;
-    name: string;
-    resolution: number;
-    revision: number;
-    source: string;
 };
 export type DownloadResponse = {
     cfScore: number;
@@ -1643,6 +1650,30 @@ export function updateCustomFormat(id: string, customFormatRequest: CustomFormat
             Accept: accept
         })
     })));
+}
+/**
+ * Whether each of a title's files meets its profile's cutoff and may still be upgraded (admin)
+ */
+export function listCutoffStatus(title: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CutoffStatusResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/cutoff${QS.query(QS.explode({
+        title
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
 }
 /**
  * Blocked-file check, blocked patterns, metadata timeout and stalled limit (admin)

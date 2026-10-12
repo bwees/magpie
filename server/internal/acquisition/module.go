@@ -41,6 +41,7 @@ var Module = fx.Module(string(owner.Acquisition),
 var cutoffOptions = fx.Options(
 	fx.Provide(
 		NewCutoffService,
+		httpserver.AsController(NewCutoffController),
 		bus.AsHandler(newFileScoresHandler),
 		jobs.AsQueue(newRescoreQueue),
 	),
