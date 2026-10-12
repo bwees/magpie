@@ -33,6 +33,7 @@ var Module = fx.Module(string(owner.Activity),
 	fx.Provide(
 		fx.Annotate(NewRepository, fx.As(fx.Self()), fx.As(new(api.Reader))),
 		NewService,
+		fx.Annotate(NewImporter, fx.As(new(api.Importer))),
 		bus.AsHandler(NewTimelineHandler),
 		bus.AsHandler(NewHistoryHandler),
 		bus.AsHandler(NewPipelineHandler),
