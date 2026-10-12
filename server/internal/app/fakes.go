@@ -6,16 +6,17 @@ import (
 	"magpie/internal/adapters/disk"
 	"magpie/internal/adapters/ffprobe"
 	"magpie/internal/adapters/jellyfin"
+	"magpie/internal/adapters/opensubtitles"
 	"magpie/internal/adapters/prowlarr"
 	"magpie/internal/adapters/qbittorrent"
 	"magpie/internal/adapters/shoutrrr"
+	"magpie/internal/adapters/subsync"
 	"magpie/internal/adapters/tmdb"
 	"magpie/internal/adapters/trash"
 	"magpie/internal/catalog"
 	"magpie/internal/identity"
 	"magpie/internal/library"
 	"magpie/internal/subtitles"
-	subtitlesfakes "magpie/internal/subtitles/fakes"
 	"magpie/internal/transcode"
 	transcodefakes "magpie/internal/transcode/fakes"
 
@@ -34,8 +35,8 @@ var PortFakes = fx.Provide(
 	fx.Annotate(ffprobe.New, fx.As(new(library.MediaProber))),
 	fx.Annotate(disk.NewHasher, fx.As(new(library.Hasher))),
 	fx.Annotate(jellyfin.NewLibrary, fx.As(new(library.JellyfinLibrary))),
-	fx.Annotate(subtitlesfakes.NewOpenSubtitles, fx.As(new(subtitles.OpenSubtitles))),
-	fx.Annotate(subtitlesfakes.NewSyncer, fx.As(new(subtitles.Syncer))),
+	fx.Annotate(opensubtitles.New, fx.As(new(subtitles.OpenSubtitles))),
+	fx.Annotate(func() *subsync.Syncer { return subsync.New(subsync.FFmpeg{}) }, fx.As(new(subtitles.Syncer))),
 	fx.Annotate(disk.NewSidecarFiles, fx.As(new(subtitles.SidecarFiles))),
 	fx.Annotate(transcodefakes.NewFileStat, fx.As(new(transcode.FileStat))),
 	fx.Annotate(shoutrrr.New, fx.As(new(activity.NotificationSender))),
