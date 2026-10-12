@@ -1,4 +1,5 @@
-// Package disk implements Library's FileSystem and Hasher ports on the server's own disks.
+// Package disk implements Library's FileSystem and Hasher ports and Subtitles' SidecarFiles port on the
+// server's own disks.
 package disk
 
 import (
