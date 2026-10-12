@@ -2535,6 +2535,9 @@
 					"origin": {
 						"type": "string"
 					},
+					"prefetched": {
+						"type": "boolean"
+					},
 					"progress": {
 						"format": "double",
 						"type": "number"
@@ -2570,6 +2573,7 @@
 					"mediaFile",
 					"notBefore",
 					"origin",
+					"prefetched",
 					"progress",
 					"queuedAt",
 					"state",

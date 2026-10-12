@@ -29,10 +29,12 @@ type JobView struct {
 	AgentName   string
 	Attempt     int
 	Progress    float64
-	Error       string
-	QueuedAt    time.Time
-	NotBefore   *time.Time
-	FinishedAt  *time.Time
+	// Prefetched is a job an agent fetches while its slot is busy; it encodes once the slot frees.
+	Prefetched bool
+	Error      string
+	QueuedAt   time.Time
+	NotBefore  *time.Time
+	FinishedAt *time.Time
 }
 
 // JobList is a page of jobs with the queue's totals.
@@ -109,7 +111,7 @@ func displayedAgent(row jobRow) *domain.AgentID {
 func (s *JobService) view(ctx context.Context, row jobRow, names map[domain.TitleID]string, hostnames map[domain.AgentID]string) (JobView, error) {
 	view := JobView{
 		ID: row.ID, Kind: row.Kind, State: row.State, MediaFile: row.MediaFileID, Title: row.TitleID, Origin: row.Origin,
-		TargetCodec: row.TargetCodec, Agent: displayedAgent(row), Attempt: row.Attempt, Progress: row.Progress,
+		TargetCodec: row.TargetCodec, Agent: displayedAgent(row), Attempt: row.Attempt, Progress: row.Progress, Prefetched: row.Prefetch,
 		Error: row.Error, QueuedAt: row.QueuedAt, NotBefore: row.NotBefore, FinishedAt: row.FinishedAt,
 	}
 	if view.Agent != nil {

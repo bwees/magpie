@@ -101,7 +101,8 @@ type JobResponse struct {
 	AgentName   string          `json:"agentName" validate:"required"`
 	Attempt     int             `json:"attempt" validate:"required"`
 	MaxAttempts int             `json:"maxAttempts" validate:"required"`
-	Progress    float64         `json:"progress" validate:"required"` // 0..1 within the current state
+	Progress    float64         `json:"progress" validate:"required"`   // 0..1 within the current state
+	Prefetched  bool            `json:"prefetched" validate:"required"` // fetched ahead; encodes when its slot frees
 	Error       string          `json:"error" validate:"required"`
 	QueuedAt    time.Time       `json:"queuedAt" validate:"required"`
 	NotBefore   *time.Time      `json:"notBefore"` // a retry waits until then
@@ -406,7 +407,7 @@ func jobResponse(v JobView) JobResponse {
 		ID: string(v.ID), Kind: v.Kind, State: v.State, MediaFile: string(v.MediaFile), Title: string(v.Title),
 		TitleName: v.TitleName, Episodes: v.Episodes, FileName: v.FileName, Origin: v.Origin, TargetCodec: v.TargetCodec,
 		Agent: agent, AgentName: v.AgentName, Attempt: v.Attempt, MaxAttempts: MaxAttempts, Progress: v.Progress,
-		Error: v.Error, QueuedAt: v.QueuedAt, NotBefore: v.NotBefore, FinishedAt: v.FinishedAt,
+		Prefetched: v.Prefetched, Error: v.Error, QueuedAt: v.QueuedAt, NotBefore: v.NotBefore, FinishedAt: v.FinishedAt,
 	}
 }
 

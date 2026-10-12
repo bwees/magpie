@@ -93,7 +93,7 @@ func (s *JobService) check(ctx context.Context, row jobRow) (api.TranscodeVerifi
 	}
 	info, err := s.deps.Files.Stat(source.Path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return fail(final(ReasonSourceGone))
+		return fail(final(ReasonSourceMissing))
 	}
 	if err != nil {
 		return api.TranscodeVerified{}, nil, err

@@ -74,7 +74,7 @@ func (s *JobService) expireLeases(ctx context.Context) error {
 			return err
 		}
 		for _, row := range rows {
-			slog.WarnContext(ctx, "transcode: lease expired", "job", row.ID, "agent", row.AgentID, "state", row.State)
+			slog.WarnContext(ctx, "transcode: lease expired", "job", row.ID, "agent", agentOf(row), "state", row.State)
 			if err := s.failAttempt(tx, row, leaseExpired); err != nil {
 				return err
 			}
@@ -194,7 +194,7 @@ func (s *JobService) offer(ctx context.Context, row jobRow, offer Offer, agent a
 	}
 	info, err := s.deps.Files.Stat(source.Path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return s.failQueued(ctx, row, final(ReasonSourceGone))
+		return s.failQueued(ctx, row, final(ReasonSourceMissing))
 	}
 	if err != nil {
 		return err

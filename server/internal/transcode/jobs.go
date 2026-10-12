@@ -38,6 +38,7 @@ var failedOutcomes = []string{outcomeFailed, outcomeLeaseExpired}
 const (
 	ReasonLeaseExpired   = "The agent stopped reporting the job"
 	ReasonSourceGone     = "The source file is no longer in the library"
+	ReasonSourceMissing  = "The source file is missing from disk"
 	ReasonSourceChanged  = agentproto.ErrorSourceChanged
 	ReasonUploadMissing  = "The agent reported an upload the server never completed"
 	ReasonDigestMismatch = "The upload doesn't match the agent's SHA-256"

@@ -966,6 +966,7 @@ export type JobResponse = {
     mediaFile: string;
     notBefore: string | null;
     origin: string;
+    prefetched: boolean;
     progress: number;
     queuedAt: string;
     state: string;
