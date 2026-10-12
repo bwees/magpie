@@ -9,11 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"magpie/internal/catalog"
-	catalogfakes "magpie/internal/catalog/fakes"
 	"magpie/internal/domain"
 	"magpie/internal/identity"
-	identityfakes "magpie/internal/identity/fakes"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/live"
 	"magpie/internal/requests"
@@ -25,37 +22,29 @@ import (
 )
 
 const (
-	requestsPath       = "/api/requests"
 	otherRequesterName = "bob"
 	otherPassword      = "bob jellyfin password"
 	duneTmdb           = domain.TmdbID(693134)
 	conclaveTmdb       = domain.TmdbID(974576)
+	movieYear          = 2024
 	requestsEventType  = "requests."
 	socketBuffer       = 64
 )
 
-// requestFlow boots the app with two Jellyfin requesters and a TMDB stand-in that knows two movies.
+// requestFlow is the stack with two Jellyfin requesters and a TMDB that knows two movies.
 type requestFlow struct {
-	*harness
+	*stack
 	admin, alice, bob *http.Cookie
 }
 
-func newRequestFlow(t *testing.T) *requestFlow {
+func newRequestFlow(t *testing.T, options ...fx.Option) *requestFlow {
 	t.Helper()
-	jellyfin := identityfakes.NewJellyfinAuth()
-	jellyfin.AddUser(identity.JellyfinUser{ID: "jf-alice", Name: requesterName}, requesterPassword)
-	jellyfin.AddUser(identity.JellyfinUser{ID: "jf-bob", Name: otherRequesterName}, otherPassword)
-	tmdb := catalogfakes.NewTMDB()
-	released := time.Date(2024, time.March, 1, 0, 0, 0, 0, time.UTC)
-	for id, name := range map[domain.TmdbID]string{duneTmdb: "Dune: Part Two", conclaveTmdb: "Conclave"} {
-		tmdb.PutMovie(catalog.TmdbMovie{ID: id, Title: name, ReleaseDate: &released, ReleaseDates: []catalog.TmdbReleaseDate{{Type: catalog.TmdbReleaseDigital, Date: released}}})
-	}
-	h := boot(t,
-		fx.Decorate(func(identity.JellyfinAuth) identity.JellyfinAuth { return jellyfin }),
-		fx.Decorate(func(catalog.TMDB) catalog.TMDB { return tmdb }),
-	)
-	h.signInAsAdmin()
-	f := &requestFlow{harness: h, admin: h.session}
+	s := newStack(t, options...)
+	s.jellyfinAuth.AddUser(identity.JellyfinUser{ID: "jf-alice", Name: requesterName}, requesterPassword)
+	s.jellyfinAuth.AddUser(identity.JellyfinUser{ID: "jf-bob", Name: otherRequesterName}, otherPassword)
+	s.movieOnTMDB(duneTmdb, "Dune: Part Two", movieYear)
+	s.movieOnTMDB(conclaveTmdb, "Conclave", movieYear)
+	f := &requestFlow{stack: s, admin: s.session}
 	f.alice = f.signIn(requesterName, requesterPassword)
 	f.bob = f.signIn(otherRequesterName, otherPassword)
 	return f
@@ -75,25 +64,6 @@ func (f *requestFlow) signIn(name, password string) *http.Cookie {
 	}
 	f.t.Fatalf("no session cookie for %s", name)
 	return nil
-}
-
-func (f *requestFlow) as(session *http.Cookie, method, path string, body any) *httptest.ResponseRecorder {
-	f.t.Helper()
-	f.session = session
-	return f.do(method, path, body)
-}
-
-func (f *requestFlow) request(session *http.Cookie, tmdb domain.TmdbID) requests.RequestResponse {
-	f.t.Helper()
-	rec := f.as(session, http.MethodPost, requestsPath, requests.CreateRequestRequest{Kind: domain.MediaKindMovie, TmdbID: tmdb, Scope: requestsapi.ScopeMovie})
-	if rec.Code != http.StatusCreated {
-		f.t.Fatalf("request %d = %d: %s", tmdb, rec.Code, rec.Body)
-	}
-	var created requests.RequestResponse
-	if err := json.NewDecoder(rec.Body).Decode(&created); err != nil {
-		f.t.Fatal(err)
-	}
-	return created
 }
 
 // socket opens the live socket with a session and returns its request events as they arrive.
