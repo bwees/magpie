@@ -324,6 +324,21 @@ func (r *JobRepository) list(ctx context.Context, f JobFilter) ([]jobRow, error)
 	return rows, err
 }
 
+// stagedFile is where a job stages its output, and whether the job may still need the file.
+type stagedFile struct {
+	Path   string
+	Needed bool
+}
+
+// stagedFiles lists the staging path of every job that was ever offered.
+func (r *JobRepository) stagedFiles(ctx context.Context) ([]stagedFile, error) {
+	var files []stagedFile
+	err := r.db.Read(ctx).Model(&jobRow{}).
+		Select("staging_path AS path, state IN ? AS needed", stagedNeededStates).
+		Where("staging_path != ''").Scan(&files).Error
+	return files, err
+}
+
 func publicJobs(rows []jobRow) []api.Job {
 	jobs := make([]api.Job, 0, len(rows))
 	for _, row := range rows {

@@ -65,13 +65,18 @@ var Module = fx.Module(string(owner.Transcode),
 	fx.Invoke(startLoops),
 )
 
-// startLoops runs the agent sweep and the scheduler while the server runs. Its stop hook ends the
-// Lifetime too; it is appended after the HTTP server's, so it runs first and open transfers end before
-// the server waits for them.
+// startLoops sweeps orphaned staged files, then runs the agent sweep and the scheduler while the server
+// runs. Its stop hook ends the Lifetime too; it is appended after the HTTP server's, so it runs first and
+// open transfers end before the server waits for them.
 func startLoops(lc fx.Lifecycle, agents *AgentService, jobs *JobService, lifetime *Lifetime, wake *Wake, timings Timings) {
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			lifetime.Go(func(ctx context.Context) { runLoops(ctx, agents, jobs, wake, timings.SweepEvery) })
+			lifetime.Go(func(ctx context.Context) {
+				if err := jobs.SweepStaging(ctx); err != nil && ctx.Err() == nil {
+					slog.ErrorContext(ctx, "transcode: sweeping staged files failed", "error", err)
+				}
+				runLoops(ctx, agents, jobs, wake, timings.SweepEvery)
+			})
 			return nil
 		},
 		OnStop: func(context.Context) error {
