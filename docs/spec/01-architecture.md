@@ -201,7 +201,7 @@ Adapters live in `internal/adapters/<system>`. They are the only code that speak
 
 [Ticket 26](../../.scratch/v1-spec/issues/26-packaging.md).
 
-- goreleaser builds both images (`.goreleaser.yaml`): `mise run release` in CI on a `v*` tag, `mise run release:snapshot` locally (loads `latest-<arch>` tags, no push). The OpenSubtitles app key comes from `OPENSUBTITLES_APP_KEY` at build time.
+- goreleaser builds both images (`.goreleaser.yaml`): `mise run release` in CI after release-please creates a release (merging its release PR on `main` tags the version; GoReleaser adds the binaries and images to that release), `mise run release:snapshot` locally (loads `latest-<arch>` tags, no push). The OpenSubtitles app key comes from `OPENSUBTITLES_APP_KEY` at build time.
 - **Server image** (`ghcr.io/bwees/magpie`, amd64 + arm64, `Dockerfile`):
   - Go binary, SPA build, Alpine ffmpeg/ffprobe.
   - Never transcodes.

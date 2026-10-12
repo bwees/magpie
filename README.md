@@ -98,6 +98,10 @@ Tools come from [mise](https://mise.jdx.dev): `mise install`, then `mise run ins
 | `mise run release:snapshot` | Build binaries and load both images locally |
 | `mise run smoke` | Run the snapshot images with a CPU agent and check it comes online |
 
+## Releases
+
+[release-please](https://github.com/googleapis/release-please) keeps a release PR open on `main` from the conventional commits. Merging it tags the version and creates the GitHub release; GoReleaser then attaches the binaries and pushes `ghcr.io/bwees/magpie` and `ghcr.io/bwees/magpie-agent`.
+
 ## Licence
 
 GPL-3.0. The agent image bundles [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) (GPL-3.0) and [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT).
