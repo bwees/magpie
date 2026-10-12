@@ -41,7 +41,7 @@ Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md
 | `search_jobs` | `key` = `(title, episodes, trigger)`, `queued_at`: a queued search job; a second one with the key isn't queued. The job deletes its key when it starts. |
 | `blocklist` | `title_id`, `info_hash`, `release_name`, `indexer`, `reason` (`BLOCKED_FILE` \| `METADATA_TIMEOUT` \| `STALLED` \| `IMPORT_FAILED` \| `DOWNLOAD_FAILED` \| `USER` \| `ISSUE` \| `MIGRATED`), `at`, `expires_at?` (null = permanent) |
 | `downloads` | `id`, `info_hash`, `qbit_hash`, `title_id`, `episode_ids`, `release_name`, `release_id` (the search's release ID), `indexer_id`, `indexer` (name), `quality` (JSON), `cf_score`, `size_bytes`, `state`, `progress`, `seeding_mode`, `trigger`, `override`, `failure` (why it was dropped), `goal_ratio?`, `goal_time?`, `grabbed_at`, `completed_at?`, `removed_at?`, `search_id?` |
-| `file_scores` | `media_file_id`, `title_id`, `episode_ids`, `quality_id`, `cf_score`, `profile_id` (the Title's profile at the last evaluation), `cutoff_met bool`, `transcoded bool`, `origin` (Acquisition's own view of library files; built from `FileImported`/`FileTranscoded`/`FileDeleted`) |
+| `file_scores` | `media_file_id`, `title_id`, `episode_ids`, `quality` (JSON), `release_name`, `path`, `size_bytes` (what the score is computed from, as imported), `cf_score`, `profile_id` (the Title's profile at the last evaluation), `cutoff_met bool`, `transcoded bool`, `origin`, `evaluated_at` (Acquisition's own view of library files; built from `FileImported`/`FileTranscoded`/`FileDeleted`) |
 
 **Qualities** use Radarr's 30 IDs. Imported Sonarr IDs are remapped (13→20, 22→21, 20→30, 21→31). Profiles and custom formats are **one pool shared by movies and TV**; the title references a profile by `ProfileID` (stored in Catalog).
 
@@ -204,13 +204,13 @@ Idempotency: every handler records `event.ID` in `processed_events` within the s
 |---|---|---|---|
 | `catalog.TitleAdded` | Catalog | `Origin` = REQUEST or MANUAL, with "Search when a title is added" on: one AUTO search for the monitored items whose release date has passed (`catalog.Reader.Wanted`); others wait for `WantedReleased`. `Origin` = LIBRARY_SCAN or MIGRATION: no immediate search; once Library has linked the files (`FileImported` with that origin), the normal missing (daily) and cutoff-unmet (weekly) sweeps apply. | Search job retries with backoff; Prowlarr down → `SearchCompleted` with all indexers failed. |
 | `catalog.MonitoringChanged` | Catalog | Newly monitored and released → enqueue AUTO search. Unmonitored → drop matching pending releases. | — |
-| `catalog.ProfileChanged` | Catalog | Re-evaluate cutoff for the Title's `file_scores` against the new profile; publish `CutoffMet` for files that newly meet it. Files below the new cutoff become eligible for upgrade (unless transcoded). | — |
+| `catalog.ProfileChanged` | Catalog | Re-evaluate cutoff for the Title's `file_scores` against the Title's current profile; publish `CutoffMet` for files that newly meet it. Files below the new cutoff become eligible for upgrade (unless transcoded). Handled by the same handler as the `file_scores` events below, so a title's changes apply in order. | — |
 | `catalog.EpisodesAnnounced` | Catalog | No search. Episodes become eligible for RSS matching once released. | — |
 | `catalog.WantedReleased` | Catalog | Enqueue AUTO search for the listed items (movie digital/physical release date or episode air date reached). | — |
 | `catalog.TitleRemoved` | Catalog | Cancel running searches; drop pending releases; remove its downloads from qBittorrent (`deleteFiles=true` only if `deleteFiles`); keep blocklist rows. | qBit unreachable → retry job. |
-| `requests.IssueActionRequested{REGRAB}` | Requests | Resolve the current file for `Title`/`Episode` via `library.Reader` (its source info hash and release name). Blocklist that hash permanently (`ISSUE`) and enqueue a REGRAB search for the episode or movie. A transcoded file does **not** block a REGRAB. | No source hash (scan/migration file) → blocklist by release name + indexer if known, else just search. |
+| `requests.IssueActionRequested{REGRAB}` | Requests | Resolve the current file for `Title`/`Episode` via `library.Reader` (its source info hash and release name; without an episode, every file of the title). Blocklist that hash permanently (`ISSUE`) and enqueue a REGRAB search for the episode or movie. A transcoded file does **not** block a REGRAB: the upgrade and repack specs don't apply to REGRAB searches. A release that already has an `ISSUE` entry gets no second one. | No source hash (scan/migration file) → blocklist by release name + the indexer of its source download if known, else just search. |
 | `requests.IssueActionRequested{RERUN_SUBTITLES}` | Requests | Ignored. | — |
-| `library.FileImported` | Library | Compute CF score from `ReleaseName` (fall back to file name). Upsert `file_scores` with `Origin`. If cutoff met → publish `CutoffMet{Origin}`. If `Download` set: move the download `COMPLETED` or `IMPORT_PENDING_USER` → `IMPORTED` (once per download, however many files a pack had); if its mode is `DONT_SEED`, queue a job that removes the torrent (no data delete; Library moved it) and sets `removed_at`. `Replaces` is informational; cleanup of the old file happens on `FileDeleted`. | qBittorrent unreachable → the job retries. |
+| `library.FileImported` | Library | Compute CF score from `ReleaseName` (fall back to file name) under the Title's profile (the default profile when the Title has none or its profile is gone). Upsert `file_scores` with `Origin`, for every origin and whether or not the download was waiting for the user. If cutoff met and the stored row didn't meet it → publish `CutoffMet{Origin}`, so a redelivery publishes nothing. A Title that is gone records nothing. If `Download` set: move the download `COMPLETED` or `IMPORT_PENDING_USER` → `IMPORTED` (once per download, however many files a pack had); if its mode is `DONT_SEED`, queue a job that removes the torrent (no data delete; Library moved it) and sets `removed_at`. `Replaces` is informational; cleanup of the old file happens on `FileDeleted`. | qBittorrent unreachable → the job retries. |
 | `library.FileDeleted` | Library | Drop the file's `file_scores` row (any `Reason`). | — |
 | `library.ImportFailed` | Library | `Retryable:false` only. `Manual:true`: move the download `COMPLETED` → `IMPORT_PENDING_USER`; the torrent keeps seeding with its data, nothing is blocklisted and nothing else is grabbed. Otherwise queue a job that drops the download like any rejection: remove torrent with data, state `IMPORT_FAILED` with `removed_at`, blocklist (`IMPORT_FAILED`), `ReleaseRejected`, grab next cached release or search. A download already removed or imported is left alone. | qBittorrent unreachable → the job retries. |
 | `library.ImportRemoved` | Library | The user removed the import: queue the same drop job as a non-manual `ImportFailed`. A download already removed or imported is left alone, so a redelivery changes nothing. | qBittorrent unreachable → the job retries. |
@@ -298,6 +298,7 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 | GET · PUT | `/download-options` | Settings → Downloads: `blockedFilesEnabled`, `blockedPatterns` (glob or `regex:`; must compile), `metadataTimeoutMinutes` (1–60), `stalledLimitMinutes` (30–4320), and the global seeding settings `seedingMode` (`SEED_UNTIL_GOALS` \| `DONT_SEED`), `seedRatio` (0–100), `seedDays` (0–365). 400 on invalid values |
 | GET · PUT | `/settings` | Delay and settle window. Quality fields so far: `defaultProfileId` (must exist), `defaultDelayMinutes` (0–1440), `settleWindowSeconds` (5–120), `trashSyncEnabled` |
 | GET · PUT | `/search-options` | Settings → Downloads: `searchOnAdd` ("Search when a title is added", default on) |
+| GET | `/cutoff?title={id}` | Title page → Files: each scored file's `{file, quality, cfScore, cutoffMet, upgradesAllowed}` (the Reader's `CutoffStatus` per file). 400 `title-required` without a title (admin) |
 | GET · PUT | `/schedules` | Settings → General → Schedules: `rssIntervalMinutes` (10–120), `missingSweepDays` (1–7), `cutoffSweepDays` (1–30); the response adds the fixed `pendingCheckMinutes`. 400 on values out of bounds |
 
 ## Behaviour
@@ -364,8 +365,8 @@ Every release goes through the same specs, whatever triggered the search. Each s
 | AlreadyImported | P | all |
 | TorrentSeeding (seeders ≥ indexer minimum) | P | all |
 | BlockedIndexer (backoff) | T | all |
-| UpgradeAllowed / UpgradeDisk (upgrade rule below; file transcoded → reject) | P | all |
-| Repack (same group as existing file) and Proper (7-day window) | P | all / RSS |
+| UpgradeAllowed / UpgradeDisk (upgrade rule below; file transcoded → reject) | P | all but REGRAB |
+| Repack (same group as existing file) and Proper (7-day window) | P | all but REGRAB / RSS |
 | SameEpisodesGrab, Queue (a download already meets cutoff or is better), History | P | all / RSS |
 | FullSeason (season pack only once every episode has aired) | P | all |
 | MultiSeason: accepted only when every contained season is wanted | P | all |
@@ -408,6 +409,9 @@ How the specs read their inputs:
 A file with `transcoded = true` is never upgraded automatically; only REGRAB or an interactive grab replaces it.
 
 **Cutoff met** = quality ≥ cutoff AND CF score ≥ upgrade-until. Evaluated on every `FileImported`, on `ProfileChanged` for that Title, and when a profile's contents change (re-evaluated for files using it, emitting `CutoffMet` for newly met files). The resolution presets set upgrade-until to 0, so reaching the resolution is enough.
+- Editing or deleting a profile queues the job `acquisition.rescore-files` for the files scored under it. Editing or deleting a custom format, blocking a term and a TRaSH sync queue it for every file. The job rescores one title per transaction from each row's stored release name (else path), quality and size.
+- A transcoded file keeps its original score and is never published again.
+- The weekly cutoff-unmet sweep reads `file_scores`: rows below the cutoff, not transcoded, under a profile that allows upgrades, whatever their origin.
 
 ### Search and grab
 

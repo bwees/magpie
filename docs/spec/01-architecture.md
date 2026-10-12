@@ -133,7 +133,7 @@ web/                           SvelteKit SPA
 | DB backup | platform | backlite periodic | daily 03:00 |
 
 - Tickers only poll and enqueue. The real work runs as backlite jobs with retries.
-- One-off jobs: search, grab, import, subtitle fetch, transcode enqueue.
+- One-off jobs: search, grab, import, subtitle fetch, transcode enqueue, file rescore after a profile or custom format change, removing a removed title's files.
 
 ## Live updates to browsers
 

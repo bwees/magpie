@@ -160,7 +160,7 @@ type TranscodeSwapRejected struct { Job domain.JobID; MediaFile domain.MediaFile
 | `acquisition.DownloadCompleted` | Run import (below) as a backlite job | download ID (`imports` row) | Retry 3× with backoff for IO errors. Then `ImportFailed{Retryable:false}` and the import enters the manual queue. |
 | `transcode.TranscodeVerified` | Swap (below) | job ID | On check failure, publish `TranscodeSwapRejected`; the staged file is deleted. |
 | `catalog.EpisodeGroupChanged` | Rename affected files and their sidecars to new S/E numbers; relink `media_file_episodes`; publish `FileRenamed` per moved file | event ID | Per-file errors are logged; the file keeps its old name and is flagged for review. |
-| `catalog.TitleRemoved` | If `deleteFiles`: delete the title's files and publish `FileDeleted{Reason: TITLE_REMOVED}` for each. Otherwise unlink the records only and still publish `FileDeleted{TITLE_REMOVED}` so others drop their state. | event ID | Missing files are treated as already deleted. |
+| `catalog.TitleRemoved` | Queue the job `library.remove-title`. If `deleteFiles`, it deletes each file from disk; either way it then drops the record and publishes `FileDeleted{Reason: TITLE_REMOVED}`, one transaction per file. Unlinking only leaves the files on disk. Sidecars are Subtitles' to delete. | event ID; a rerun finds only the files still recorded | Missing files are treated as already deleted. A disk error fails the job, which retries. |
 | `catalog.ScanFolderMatched` | Link the files in that folder to the Title in place (no move or rename unless opted in); publish `FileImported{Origin: LIBRARY_SCAN}` per video | scan folder path | A folder with no playable video is marked IGNORED. |
 
 ## External ports
@@ -223,7 +223,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 | GET | `/api/library/files?titles={id}&titles={id}…&transcoded={bool}` | Batch files (same shape as above) for the Movies page, grouped by title in input order (`FilesForTitles`); `transcoded` filter optional. Pass exactly one of `title` or `titles`; more than 500 titles is 400 `too-many-titles` (admin) |
 | GET | `/api/library/files/{id}` | One file with media info |
 | GET | `/api/library/coverage?titles={id}&titles={id}…` | Episodes with a file / confirmed in Jellyfin and size per title, in input order (TV page; at most 500 titles, admin) |
-| DELETE | `/api/library/files/{id}` | Delete a file from disk → `FileDeleted{REMOVED}` (admin) |
+| DELETE | `/api/library/files/{id}` | Delete a file from disk → `FileDeleted{REMOVED}` (admin). 204; 404 `file-not-found` for an unknown or already deleted file |
 | GET | `/api/library/root-folders` · POST · DELETE `/{id}` | Root folders, each with its hardlink check (`link`: `HARDLINK` \| `COPY` \| `UNKNOWN`); POST validates the path is absolute, exists and is writable (400 `invalid-root-folder`, 409 `root-folder-exists`); DELETE refuses a folder that still holds media files (409 `root-folder-in-use`) |
 | GET | `/api/library/imports?status=FAILED,MANUAL` | Failed and manual imports, with each download's videos and subtitles, the matched episodes, and the series' episodes for the picker |
 | POST | `/api/library/imports/{downloadId}/manual` | Body `{files: [{path, episodes}]}`: imports the listed videos as those episodes (a movie's video has none) and skips the rest; 202, runs as the import job. 400 `invalid-file-mapping`, 409 `import-not-stopped` unless FAILED or MANUAL |
@@ -250,7 +250,9 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
    - Names are sanitised for the filesystem; numbering follows the title's current episode group.
 5. Place the file. If `seedingMode = SEED_UNTIL_GOALS`: hardlink, falling back to copy when the devices differ. If `DONT_SEED`: move. Hardlink/copy/move happens into a temp name, then an atomic rename.
 6. Compute OSHash and ETag. Store `release_name` and the download's info hash from the payload.
-7. Upgrade: if an existing file covers the same episodes, delete it after the new file is in place. In the same transaction publish `FileImported{Replaces: old}` for the new file, then `FileDeleted{Reason: UPGRADED}` for the old one.
+7. Upgrade: a new file replaces the title's existing files covering the same episodes (for a movie, any file of the title; for a series, any file sharing an episode with it). In the transaction that inserts the new row, the old rows are dropped and `FileImported{Replaces: old}` is published for the new file, then `FileDeleted{Reason: UPGRADED}` for each old one. `Replaces` names the first when there are several.
+   - After the commit the old file is removed from disk. An old file at the new file's path was already overwritten by the placement, so it isn't removed. A removal error is logged; the record is gone either way.
+   - Sidecars of the old file are Subtitles' to remove on `FileDeleted`.
 8. Release subtitles go to `<basename>.<lang>[.forced|.sdh].<ext>`, reported in `Sidecars`. The language (ISO 639-1/2 code or English name) is parsed from the end of the file name; files with no language are dropped. A subtitle belongs to the video whose name it starts with, the only video, or the video covering the episodes its own name gives.
 9. Commit and publish `FileImported`. Then refresh Jellyfin for the parent folder.
 
@@ -276,7 +278,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 - Linking: videos that aren't samples and aren't media files yet. A movie keeps its largest video. A series maps each video by its name (current numbering, then aired order); a video it can't map, or a second one for an episode, is left out. Quality comes from the name, else from the picture width (HDTV at that resolution, as Sonarr does). `release_name` keeps a release-style file name, else `""`. Subtitles named `<video basename>.<lang>…` are reported in `Sidecars`. No playable video → `IGNORED`. The rows, `FileImported`s and `LINKED` commit together; a redelivered `ScanFolderMatched` for a `LINKED` folder does nothing.
 - With "Rename matched folders on scan" on, each video and the files sharing its basename move to the fixed naming in the same root (temp name, then rename). A video that can't move is linked where it is.
 
-**Manual delete:** deleting a file from the UI removes it from disk and publishes `FileDeleted{Reason: REMOVED}`.
+**Manual delete:** deleting a file from the UI (title page → Files, with a confirmation) removes the video from disk, then drops its record and publishes `FileDeleted{Reason: REMOVED}`, and refreshes Jellyfin for its folder. A video already gone from disk counts as deleted.
 
 **Episode-group change:** rename each affected file and every sidecar sharing its basename to the new numbering, update links, then refresh Jellyfin.
 - A file is affected when one of its episodes is in `Moves` at its stored `From` numbers. Its new path keeps its show folder (the top folder under the root; a file loose in the root moves to the title's folder) and is `Season <NN>/<Show> S<NN>E<NN>[-E<NN>].<ext>` within it.
