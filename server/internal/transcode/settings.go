@@ -44,8 +44,12 @@ type Timings struct {
 	RetestDelay time.Duration
 	// HelloTimeout is how long a new socket has to send its Hello.
 	HelloTimeout time.Duration
-	// SweepEvery is how often the server looks for silent agents and due retests.
+	// SweepEvery is how often the server looks for silent agents and due retests, and schedules jobs.
 	SweepEvery time.Duration
+	// OfferTimeout returns an offer nobody accepted to the queue.
+	OfferTimeout time.Duration
+	// AvoidAgent keeps a job away from an agent that lost its lease or rejected it.
+	AvoidAgent time.Duration
 }
 
 var DefaultTimings = Timings{
@@ -55,6 +59,8 @@ var DefaultTimings = Timings{
 	RetestDelay:      10 * time.Minute,
 	HelloTimeout:     10 * time.Second,
 	SweepEvery:       5 * time.Second,
+	OfferTimeout:     10 * time.Second,
+	AvoidAgent:       2 * time.Minute,
 }
 
 func offlineAfter(t Timings) time.Duration {

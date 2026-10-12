@@ -15,17 +15,51 @@ type SlotKey struct {
 	Device string
 }
 
-// QueuedJob is what the scheduler needs to place a job: the capability its device must have passed
-// and the agents it may not go to.
+// QueuedJob is what the scheduler needs to place a job.
 type QueuedJob struct {
-	ID             domain.JobID
+	ID domain.JobID
+	// Needs is the capability the device must have passed.
 	Needs          agentproto.Capability
 	ExcludedAgents []domain.AgentID
+	SourceSize     int64
+	// LastAgent ran the previous attempt; other agents are preferred.
+	LastAgent *domain.AgentID
+	// Avoid may not get the job, unless it is ResumableOn.
+	Avoid *domain.AgentID
+	// ResumableOn still holds the job's scratch from before a restart.
+	ResumableOn *domain.AgentID
+}
+
+// Fleet is the agents the scheduler can offer to and the jobs they already run.
+type Fleet struct {
+	Agents []api.Agent
+	// Running counts the jobs each device runs or was offered, prefetched jobs aside.
+	Running map[SlotKey]int
+	// Prefetching are the agents that already hold a prefetched job.
+	Prefetching  map[domain.AgentID]bool
+	DefaultSlots int
 }
 
 type Offer struct {
 	Job  domain.JobID
 	Slot SlotKey
+	// Prefetch offers a busy agent its next job to download while the current one encodes.
+	Prefetch bool
+}
+
+// Scratch an agent needs per byte of source: the source and the output in download-first mode, the
+// output alone when ffmpeg reads the source over HTTP.
+const (
+	scratchFactorDownloadFirst = 2.2
+	scratchFactorDirectRead    = 1.2
+)
+
+func scratchNeeded(mode api.TransferMode, sourceSize int64) int64 {
+	factor := scratchFactorDownloadFirst
+	if mode == api.TransferDirectRead {
+		factor = scratchFactorDirectRead
+	}
+	return int64(factor * float64(sourceSize))
 }
 
 // SlotLimit is how many jobs a device may run at once: the agent's slots override or the default,
@@ -45,16 +79,10 @@ func SlotLimit(agent api.Agent, device api.Device, defaultSlots int) int {
 // can take more jobs, with how many more it can take.
 func FreeSlots(agents []api.Agent, running map[SlotKey]int, defaultSlots int) map[SlotKey]int {
 	free := map[SlotKey]int{}
-	for _, agent := range agents {
-		if !agent.Online || agent.Draining {
-			continue
-		}
+	for _, agent := range schedulable(agents) {
 		for _, device := range agent.Devices {
-			if !device.Healthy {
-				continue
-			}
 			key := SlotKey{Agent: agent.ID, Device: device.ID}
-			if left := SlotLimit(agent, device, defaultSlots) - running[key]; left > 0 {
+			if left := SlotLimit(agent, device, defaultSlots) - running[key]; device.Healthy && left > 0 {
 				free[key] = left
 			}
 		}
@@ -62,37 +90,135 @@ func FreeSlots(agents []api.Agent, running map[SlotKey]int, defaultSlots int) ma
 	return free
 }
 
-// Plan offers each job, in the order given, to a free slot whose device passed the capability the job
-// needs. Among those it picks the device running the fewest jobs.
-func Plan(jobs []QueuedJob, agents []api.Agent, running map[SlotKey]int, defaultSlots int) []Offer {
-	free := FreeSlots(agents, running, defaultSlots)
-	load := map[SlotKey]int{}
-	for key := range free {
-		load[key] = running[key]
+func schedulable(agents []api.Agent) []api.Agent {
+	return slices.DeleteFunc(slices.Clone(agents), func(a api.Agent) bool { return !a.Online || a.Draining })
+}
+
+// planner places queued jobs on a fleet, one offer at a time.
+type planner struct {
+	fleet    Fleet
+	free     map[SlotKey]int
+	load     map[SlotKey]int
+	scratch  map[domain.AgentID]int64
+	agents   map[domain.AgentID]api.Agent
+	passedBy map[SlotKey]map[agentproto.Capability]bool
+}
+
+// Plan offers each job, in the order given, to the best free slot (scheduler step 3), then gives each
+// busy download-first agent one job to prefetch.
+func Plan(jobs []QueuedJob, fleet Fleet) []Offer {
+	p := planner{
+		fleet:    fleet,
+		free:     FreeSlots(fleet.Agents, fleet.Running, fleet.DefaultSlots),
+		load:     map[SlotKey]int{},
+		scratch:  map[domain.AgentID]int64{},
+		agents:   map[domain.AgentID]api.Agent{},
+		passedBy: passedCapabilities(fleet.Agents),
 	}
-	passedBy := passedCapabilities(agents)
+	for _, agent := range schedulable(fleet.Agents) {
+		p.agents[agent.ID] = agent
+		p.scratch[agent.ID] = agent.ScratchFreeBytes
+		for _, device := range agent.Devices {
+			key := SlotKey{Agent: agent.ID, Device: device.ID}
+			p.load[key] = fleet.Running[key]
+		}
+	}
 
 	var offers []Offer
+	var waiting []QueuedJob
 	for _, job := range jobs {
-		var candidates []SlotKey
-		for key := range free {
-			if passedBy[key][job.Needs] && !slices.Contains(job.ExcludedAgents, key.Agent) {
-				candidates = append(candidates, key)
-			}
-		}
-		if len(candidates) == 0 {
+		slot, ok := p.best(job, p.freeSlots())
+		if !ok {
+			waiting = append(waiting, job)
 			continue
 		}
-		best := slices.MinFunc(candidates, func(a, b SlotKey) int {
-			return cmp.Or(cmp.Compare(load[a], load[b]), cmp.Compare(a.Agent, b.Agent), cmp.Compare(a.Device, b.Device))
-		})
-		offers = append(offers, Offer{Job: job.ID, Slot: best})
-		load[best]++
-		if free[best]--; free[best] == 0 {
-			delete(free, best)
+		offers = append(offers, p.take(job, slot, false))
+	}
+	prefetching := map[domain.AgentID]bool{}
+	for agent, holds := range fleet.Prefetching {
+		prefetching[agent] = holds
+	}
+	for _, job := range waiting {
+		slot, ok := p.best(job, p.prefetchSlots(prefetching))
+		if !ok {
+			continue
 		}
+		prefetching[slot.Agent] = true
+		offers = append(offers, p.take(job, slot, true))
 	}
 	return offers
+}
+
+func (p *planner) freeSlots() []SlotKey {
+	var slots []SlotKey
+	for key, left := range p.free {
+		if left > 0 {
+			slots = append(slots, key)
+		}
+	}
+	return slots
+}
+
+// prefetchSlots are the full devices of download-first agents that hold no prefetched job yet.
+func (p *planner) prefetchSlots(prefetching map[domain.AgentID]bool) []SlotKey {
+	var slots []SlotKey
+	for _, agent := range p.agents {
+		if agent.Mode != api.TransferDownloadFirst || prefetching[agent.ID] {
+			continue
+		}
+		for _, device := range agent.Devices {
+			key := SlotKey{Agent: agent.ID, Device: device.ID}
+			if device.Healthy && p.free[key] == 0 && p.load[key] > 0 {
+				slots = append(slots, key)
+			}
+		}
+	}
+	return slots
+}
+
+// best picks among the slots that can take the job: a resumable match first, then an agent other than
+// the last attempt's, then the fastest link, then the least busy device.
+func (p *planner) best(job QueuedJob, slots []SlotKey) (SlotKey, bool) {
+	candidates := slices.DeleteFunc(slots, func(key SlotKey) bool { return !p.fits(job, key) })
+	if len(candidates) == 0 {
+		return SlotKey{}, false
+	}
+	is := func(agent *domain.AgentID, key SlotKey) bool { return agent != nil && *agent == key.Agent }
+	rank := func(match bool) int {
+		if match {
+			return 0
+		}
+		return 1
+	}
+	return slices.MinFunc(candidates, func(a, b SlotKey) int {
+		return cmp.Or(
+			cmp.Compare(rank(is(job.ResumableOn, a)), rank(is(job.ResumableOn, b))),
+			cmp.Compare(rank(!is(job.LastAgent, a)), rank(!is(job.LastAgent, b))),
+			cmp.Compare(p.agents[b.Agent].ThroughputBps, p.agents[a.Agent].ThroughputBps),
+			cmp.Compare(p.load[a], p.load[b]),
+			cmp.Compare(a.Agent, b.Agent),
+			cmp.Compare(a.Device, b.Device),
+		)
+	}), true
+}
+
+func (p *planner) fits(job QueuedJob, key SlotKey) bool {
+	agent := p.agents[key.Agent]
+	resumable := job.ResumableOn != nil && *job.ResumableOn == key.Agent
+	avoided := job.Avoid != nil && *job.Avoid == key.Agent && !resumable
+	return p.passedBy[key][job.Needs] &&
+		!slices.Contains(job.ExcludedAgents, key.Agent) &&
+		!avoided &&
+		p.scratch[key.Agent] >= scratchNeeded(agent.Mode, job.SourceSize)
+}
+
+func (p *planner) take(job QueuedJob, slot SlotKey, prefetch bool) Offer {
+	p.scratch[slot.Agent] -= scratchNeeded(p.agents[slot.Agent].Mode, job.SourceSize)
+	if !prefetch {
+		p.free[slot]--
+		p.load[slot]++
+	}
+	return Offer{Job: job.ID, Slot: slot, Prefetch: prefetch}
 }
 
 func passedCapabilities(agents []api.Agent) map[SlotKey]map[agentproto.Capability]bool {

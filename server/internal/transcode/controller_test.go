@@ -23,7 +23,7 @@ type apiClient struct {
 }
 
 func (f *fixture) api() *apiClient {
-	controller := NewController(f.service, NewAgentSocket(f.service, NewAgentHub(), testSecret, DefaultTimings), testSecret)
+	controller := NewController(f.service, f.jobs, f.socket, f.transfers, testSecret)
 	return &apiClient{t: f.t, server: httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{controller})}
 }
 
@@ -145,5 +145,41 @@ func TestSettingsRoundTripWithinBounds(t *testing.T) {
 	}
 	if got := decodeJSON[TranscodeSettingsResponse](t, c.do(admin, http.MethodGet, "/transcode/settings", nil)); got != TranscodeSettingsResponse(updated) {
 		t.Fatalf("settings = %+v, want %+v", got, updated)
+	}
+}
+
+func TestJobEndpointsListCancelAndRetry(t *testing.T) {
+	f := newFixture(t)
+	queued := f.addFile(h264Movie(0))
+	f.cutoff(queued, domain.OriginLibraryScan)
+	c := f.api()
+	job := f.onlyJob(queued)
+
+	if rec := c.do(requester, http.MethodGet, "/transcode/jobs", nil); rec.Code != http.StatusForbidden {
+		t.Fatalf("requester list = %d, want 403", rec.Code)
+	}
+	list := decodeJSON[JobListResponse](t, c.do(admin, http.MethodGet, "/transcode/jobs?state=QUEUED", nil))
+	if len(list.Jobs) != 1 || list.Backlog != 1 || list.Counts[api.StateQueued] != 1 {
+		t.Fatalf("list = %+v", list)
+	}
+	if got := list.Jobs[0]; got.ID != string(job.ID) || got.TitleName != "Movie" || got.TargetCodec != api.TargetHEVC10 || got.MaxAttempts != MaxAttempts {
+		t.Fatalf("job = %+v", got)
+	}
+	if rec := c.do(admin, http.MethodGet, "/transcode/jobs?state=NOPE", nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown state = %d, want 400", rec.Code)
+	}
+
+	if rec := c.do(admin, http.MethodPost, "/transcode/jobs/"+string(job.ID)+"/retry", nil); rec.Code != http.StatusConflict {
+		t.Fatalf("retry of a queued job = %d, want 409", rec.Code)
+	}
+	rec := c.do(admin, http.MethodPost, "/transcode/jobs/"+string(job.ID)+"/cancel", nil)
+	if got := decodeJSON[JobResponse](t, rec); rec.Code != http.StatusOK || got.State != api.StateCancelled {
+		t.Fatalf("cancel = %d %+v", rec.Code, got)
+	}
+	if rec := c.do(admin, http.MethodPost, "/transcode/jobs/"+string(job.ID)+"/cancel", nil); rec.Code != http.StatusConflict {
+		t.Fatalf("second cancel = %d, want 409", rec.Code)
+	}
+	if rec := c.do(admin, http.MethodPost, "/transcode/jobs/"+string(domain.NewID[domain.JobID]())+"/cancel", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown job = %d, want 404", rec.Code)
 	}
 }

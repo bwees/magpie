@@ -11,10 +11,6 @@ import (
 	"time"
 
 	"magpie/internal/domain"
-	"magpie/internal/platform/bus"
-	"magpie/internal/platform/db"
-	"magpie/internal/platform/db/dbtest"
-	"magpie/internal/platform/settings"
 	"magpie/internal/transcode/api"
 	"magpie/internal/transcode/api/agentproto"
 
@@ -51,31 +47,11 @@ func (c *testClock) Advance(d time.Duration) {
 	c.now = c.now.Add(d)
 }
 
-type fixture struct {
-	t       *testing.T
-	db      *db.DB
-	service *AgentService
-	clock   *testClock
-	server  *httptest.Server
-}
-
-func newFixture(t *testing.T) *fixture {
-	t.Helper()
-	d := dbtest.Open(t, Migrations())
-	clock := &testClock{now: testStart}
-	hub := NewAgentHub()
-	service := NewAgentService(d, bus.New(), NewAgentRepository(d), hub, settings.NewStore(d), DefaultTimings)
-	service.now = clock.Now
-	server := httptest.NewServer(NewAgentSocket(service, hub, AgentSecret(testSecret), DefaultTimings))
-	t.Cleanup(server.Close)
-	return &fixture{t: t, db: d, service: service, clock: clock, server: server}
-}
-
 func (f *fixture) dial(id domain.AgentID, secret string) (*websocket.Conn, *http.Response, error) {
 	header := http.Header{}
 	header.Set(agentproto.HeaderAuthorization, agentproto.BearerPrefix+secret)
 	header.Set(agentproto.HeaderAgentID, string(id))
-	return websocket.Dial(context.Background(), f.server.URL, &websocket.DialOptions{HTTPHeader: header})
+	return websocket.Dial(context.Background(), f.server.URL+agentproto.ControlPath, &websocket.DialOptions{HTTPHeader: header})
 }
 
 func (f *fixture) agentRows() int64 {
@@ -217,8 +193,7 @@ func TestWrongSecretIsRejectedWithoutCreatingAnAgent(t *testing.T) {
 
 func TestUnsetSecretRefusesEveryAgent(t *testing.T) {
 	f := newFixture(t)
-	hub := NewAgentHub()
-	server := httptest.NewServer(NewAgentSocket(f.service, hub, "", DefaultTimings))
+	server := httptest.NewServer(NewAgentSocket(f.service, f.jobs, NewAgentHub(), NewWake(), "", DefaultTimings))
 	t.Cleanup(server.Close)
 
 	header := http.Header{}

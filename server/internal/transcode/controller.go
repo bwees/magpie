@@ -3,6 +3,8 @@ package transcode
 import (
 	"errors"
 	"net/http"
+	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -53,7 +55,7 @@ type AgentResponse struct {
 	LastSeenAt       time.Time        `json:"lastSeenAt" validate:"required"`
 	ScratchFreeBytes int64            `json:"scratchFreeBytes" validate:"required"`
 	ThroughputBps    int64            `json:"throughputBps" validate:"required"` // 0 until the agent has transferred a job
-	// LifetimeSavedBytes is what the agent's verified transcodes saved. Jobs arrive in ticket 24.
+	// LifetimeSavedBytes is what the agent's swapped transcodes saved.
 	LifetimeSavedBytes int64                 `json:"lifetimeSavedBytes" validate:"required"`
 	Devices            []AgentDeviceResponse `json:"devices" validate:"required"`
 }
@@ -84,18 +86,87 @@ type UpdateTranscodeSettingsRequest struct {
 	DefaultSlotsPerGPU int `json:"defaultSlotsPerGpu" validate:"required"` // 1–4
 }
 
-type Controller struct {
-	service *AgentService
-	socket  *AgentSocket
-	secret  AgentSecret
+type JobResponse struct {
+	ID          string          `json:"id" validate:"required"`
+	Kind        api.JobKind     `json:"kind" validate:"required"`  // TRANSCODE | WHISPER
+	State       api.JobState    `json:"state" validate:"required"` // QUEUED … CANCELLED
+	MediaFile   string          `json:"mediaFile" validate:"required"`
+	Title       string          `json:"title" validate:"required"`
+	TitleName   string          `json:"titleName" validate:"required"`
+	Episodes    string          `json:"episodes" validate:"required"` // S01E02; empty for a movie
+	FileName    string          `json:"fileName" validate:"required"`
+	Origin      domain.Origin   `json:"origin" validate:"required"`      // DOWNLOAD | LIBRARY_SCAN | MIGRATION
+	TargetCodec api.TargetCodec `json:"targetCodec" validate:"required"` // HEVC_10 | AV1_10
+	Agent       *string         `json:"agent"`                           // running it, or the last attempt's
+	AgentName   string          `json:"agentName" validate:"required"`
+	Attempt     int             `json:"attempt" validate:"required"`
+	MaxAttempts int             `json:"maxAttempts" validate:"required"`
+	Progress    float64         `json:"progress" validate:"required"` // 0..1 within the current state
+	Error       string          `json:"error" validate:"required"`
+	QueuedAt    time.Time       `json:"queuedAt" validate:"required"`
+	NotBefore   *time.Time      `json:"notBefore"` // a retry waits until then
+	FinishedAt  *time.Time      `json:"finishedAt"`
 }
 
-func NewController(service *AgentService, socket *AgentSocket, secret AgentSecret) *Controller {
-	return &Controller{service: service, socket: socket, secret: secret}
+type JobListResponse struct {
+	Jobs []JobResponse `json:"jobs" validate:"required"`
+	// Counts holds the jobs per state; states without jobs are absent.
+	Counts map[api.JobState]int `json:"counts" validate:"required"`
+	// Backlog is the queued jobs of files found by a library scan or a migration.
+	Backlog int `json:"backlog" validate:"required"`
+}
+
+const (
+	queryState = "state"
+	queryKind  = "kind"
+	queryLimit = "limit"
+
+	TypeJobNotFound  problem.Type = "urn:magpie:problem:job-not-found"
+	TypeJobFinished  problem.Type = "urn:magpie:problem:job-finished"
+	TypeJobNotFailed problem.Type = "urn:magpie:problem:job-not-failed"
+
+	// The byte endpoints, relative to the API group.
+	sourceRoute = "/transcode/agents/jobs/{" + pathJobID + "}/source"
+	outputRoute = "/transcode/agents/jobs/{" + pathJobID + "}/output"
+)
+
+type Controller struct {
+	service   *AgentService
+	jobs      *JobService
+	socket    *AgentSocket
+	transfers *Transfers
+	secret    AgentSecret
+}
+
+func NewController(service *AgentService, jobs *JobService, socket *AgentSocket, transfers *Transfers, secret AgentSecret) *Controller {
+	return &Controller{service: service, jobs: jobs, socket: socket, transfers: transfers, secret: secret}
 }
 
 func (c *Controller) Register(s *fuego.Server) {
 	fuego.GetStd(s, strings.TrimPrefix(agentproto.ControlPath, httpserver.APIPrefix), c.socket.ServeHTTP, fuego.OptionHide())
+	fuego.GetStd(s, sourceRoute, c.transfers.ServeSource, fuego.OptionHide())
+	fuego.Handle(s, outputRoute, http.HandlerFunc(c.output))
+
+	fuego.Get(s, "/transcode/jobs", c.listJobs,
+		fuego.OptionOperationID("listTranscodeJobs"),
+		fuego.OptionSummary("Jobs agents hold, then queued jobs in offer order, then finished ones (admin)"),
+		fuego.OptionTags(tagTranscode),
+		fuego.OptionQueryArray(queryState, "Only jobs in these states", reflect.String),
+		fuego.OptionQuery(queryKind, "Only TRANSCODE or WHISPER jobs"),
+		fuego.OptionQueryInt(queryLimit, "At most this many jobs (default 200)"),
+	)
+	fuego.Post(s, "/transcode/jobs/{id}/cancel", c.cancelJob,
+		fuego.OptionOperationID("cancelTranscodeJob"),
+		fuego.OptionSummary("Cancel an unfinished job; its agent drops it (admin)"),
+		fuego.OptionTags(tagTranscode),
+		fuego.OptionPath(pathID, "Job ID"),
+	)
+	fuego.Post(s, "/transcode/jobs/{id}/retry", c.retryJob,
+		fuego.OptionOperationID("retryTranscodeJob"),
+		fuego.OptionSummary("Queue a FAILED or NOT_WORTH_IT job again from its first attempt (admin)"),
+		fuego.OptionTags(tagTranscode),
+		fuego.OptionPath(pathID, "Job ID"),
+	)
 
 	fuego.Get(s, "/transcode/agents", c.listAgents,
 		fuego.OptionOperationID("listAgents"),
@@ -144,9 +215,15 @@ func (c *Controller) listAgents(ctx fuego.ContextNoBody) ([]AgentResponse, error
 	if err != nil {
 		return nil, err
 	}
+	saved, err := c.jobs.SavedBytes(ctx.Context())
+	if err != nil {
+		return nil, err
+	}
 	response := make([]AgentResponse, 0, len(agents))
 	for _, agent := range agents {
-		response = append(response, agentResponse(agent, defaultSlots))
+		r := agentResponse(agent, defaultSlots)
+		r.LifetimeSavedBytes = saved[agent.ID]
+		response = append(response, r)
 	}
 	return response, nil
 }
@@ -174,7 +251,13 @@ func (c *Controller) updateAgent(ctx fuego.ContextWithBody[UpdateAgentRequest]) 
 	if err != nil {
 		return AgentResponse{}, err
 	}
-	return agentResponse(agent, defaultSlots), nil
+	saved, err := c.jobs.SavedBytes(ctx.Context())
+	if err != nil {
+		return AgentResponse{}, err
+	}
+	response := agentResponse(agent, defaultSlots)
+	response.LifetimeSavedBytes = saved[agent.ID]
+	return response, nil
 }
 
 func (c *Controller) retestAgent(ctx fuego.ContextNoBody) (RetestResponse, error) {
@@ -223,6 +306,108 @@ func (c *Controller) updateSettings(ctx fuego.ContextWithBody[UpdateTranscodeSet
 		return TranscodeSettingsResponse{}, err
 	}
 	return TranscodeSettingsResponse(body), nil
+}
+
+// output takes HEAD for the committed offset and PUT for a chunk; the mux pattern has no method so both
+// reach it.
+func (c *Controller) output(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodHead:
+		c.transfers.OutputOffset(w, r)
+	case http.MethodPut:
+		c.transfers.PutOutput(w, r)
+	default:
+		w.Header().Set("Allow", http.MethodHead+", "+http.MethodPut)
+		problem.Write(w, r, problem.New(problem.TypeBadRequest, http.StatusMethodNotAllowed, "use HEAD or PUT"))
+	}
+}
+
+var jobStates = []api.JobState{
+	api.StateQueued, api.StateOffered, api.StateLeased, api.StateFetching, api.StateEncoding, api.StateUploading,
+	api.StateVerifying, api.StateVerified, api.StateSwapped, api.StateCompleted, api.StateFailed,
+	api.StateNotWorthIt, api.StateCancelled,
+}
+
+func (c *Controller) listJobs(ctx fuego.ContextNoBody) (JobListResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return JobListResponse{}, err
+	}
+	var filter JobFilter
+	for _, raw := range ctx.QueryParamArr(queryState) {
+		for state := range strings.SplitSeq(raw, ",") {
+			if !slices.Contains(jobStates, api.JobState(state)) {
+				return JobListResponse{}, problem.New(problem.TypeBadRequest, http.StatusBadRequest, "unknown state "+state)
+			}
+			filter.States = append(filter.States, api.JobState(state))
+		}
+	}
+	if kind := api.JobKind(ctx.QueryParam(queryKind)); kind != "" {
+		if kind != api.JobKindTranscode && kind != api.JobKindWhisper {
+			return JobListResponse{}, problem.New(problem.TypeBadRequest, http.StatusBadRequest, "kind must be TRANSCODE or WHISPER")
+		}
+		filter.Kind = kind
+	}
+	if ctx.QueryParam(queryLimit) != "" {
+		limit, err := ctx.QueryParamIntErr(queryLimit)
+		if err != nil || limit < 1 {
+			return JobListResponse{}, problem.New(problem.TypeBadRequest, http.StatusBadRequest, "limit must be a positive number")
+		}
+		filter.Limit = limit
+	}
+	list, err := c.jobs.Jobs(ctx.Context(), filter)
+	if err != nil {
+		return JobListResponse{}, err
+	}
+	response := JobListResponse{Jobs: make([]JobResponse, 0, len(list.Jobs)), Counts: list.Counts, Backlog: list.Backlog}
+	for _, view := range list.Jobs {
+		response.Jobs = append(response.Jobs, jobResponse(view))
+	}
+	return response, nil
+}
+
+func (c *Controller) cancelJob(ctx fuego.ContextNoBody) (JobResponse, error) {
+	return c.act(ctx, func(id domain.JobID) error { return c.jobs.Cancel(ctx.Context(), id, ReasonCancelled) })
+}
+
+func (c *Controller) retryJob(ctx fuego.ContextNoBody) (JobResponse, error) {
+	return c.act(ctx, func(id domain.JobID) error { return c.jobs.Retry(ctx.Context(), id) })
+}
+
+func (c *Controller) act(ctx fuego.ContextNoBody, action func(domain.JobID) error) (JobResponse, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return JobResponse{}, err
+	}
+	id := domain.JobID(ctx.PathParam(pathID))
+	err := action(id)
+	switch {
+	case errors.Is(err, ErrJobNotFound):
+		return JobResponse{}, problem.New(TypeJobNotFound, http.StatusNotFound, "no job "+string(id))
+	case errors.Is(err, ErrJobFinished):
+		return JobResponse{}, problem.New(TypeJobFinished, http.StatusConflict, "the job has already finished")
+	case errors.Is(err, ErrJobNotFailed):
+		return JobResponse{}, problem.New(TypeJobNotFailed, http.StatusConflict, "only a failed or not-worth-it job can be retried")
+	case err != nil:
+		return JobResponse{}, err
+	}
+	view, err := c.jobs.Job(ctx.Context(), id)
+	if err != nil {
+		return JobResponse{}, err
+	}
+	return jobResponse(view), nil
+}
+
+func jobResponse(v JobView) JobResponse {
+	var agent *string
+	if v.Agent != nil {
+		id := string(*v.Agent)
+		agent = &id
+	}
+	return JobResponse{
+		ID: string(v.ID), Kind: v.Kind, State: v.State, MediaFile: string(v.MediaFile), Title: string(v.Title),
+		TitleName: v.TitleName, Episodes: v.Episodes, FileName: v.FileName, Origin: v.Origin, TargetCodec: v.TargetCodec,
+		Agent: agent, AgentName: v.AgentName, Attempt: v.Attempt, MaxAttempts: MaxAttempts, Progress: v.Progress,
+		Error: v.Error, QueuedAt: v.QueuedAt, NotBefore: v.NotBefore, FinishedAt: v.FinishedAt,
+	}
 }
 
 func agentResponse(agent api.Agent, defaultSlots int) AgentResponse {

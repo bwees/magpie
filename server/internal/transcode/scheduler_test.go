@@ -61,7 +61,7 @@ func TestPlanOffersOnlyToADevicePassingTheTargetCapability(t *testing.T) {
 	first := queuedJob(agentproto.CapEncAV110)
 	second := queuedJob(agentproto.CapEncAV110)
 
-	offers := Plan([]QueuedJob{first, second}, []api.Agent{agentA, agentB}, nil, testDefault)
+	offers := Plan([]QueuedJob{first, second}, fleetOf(nil, agentA, agentB))
 
 	want := []Offer{{Job: first.ID, Slot: SlotKey{Agent: agentB.ID, Device: testDevice}}}
 	if !reflect.DeepEqual(offers, want) {
@@ -76,7 +76,7 @@ func TestPlanSkipsADeviceAtItsSessionLimit(t *testing.T) {
 	agent.SlotsOverride = &slots
 	running := map[SlotKey]int{{Agent: agent.ID, Device: testDevice}: geForceSessions}
 
-	if offers := Plan([]QueuedJob{queuedJob(agentproto.CapEncHEVC10)}, []api.Agent{agent}, running, testDefault); len(offers) != 0 {
+	if offers := Plan([]QueuedJob{queuedJob(agentproto.CapEncHEVC10)}, fleetOf(running, agent)); len(offers) != 0 {
 		t.Fatalf("offers = %+v, want none: the device runs %d of %d sessions", offers, geForceSessions, geForceSessions)
 	}
 }
@@ -86,7 +86,7 @@ func TestPlanSkipsExcludedAgents(t *testing.T) {
 	job := queuedJob(agentproto.CapEncHEVC10)
 	job.ExcludedAgents = []domain.AgentID{agent.ID}
 
-	if offers := Plan([]QueuedJob{job}, []api.Agent{agent}, nil, testDefault); len(offers) != 0 {
+	if offers := Plan([]QueuedJob{job}, fleetOf(nil, agent)); len(offers) != 0 {
 		t.Fatalf("offers = %+v, want none", offers)
 	}
 }
@@ -100,11 +100,105 @@ func TestPlanPrefersTheDeviceRunningFewestJobs(t *testing.T) {
 	running := map[SlotKey]int{{Agent: busy.ID, Device: testDevice}: 1}
 	job := queuedJob(agentproto.CapEncHEVC10)
 
-	offers := Plan([]QueuedJob{job}, []api.Agent{busy, idle}, running, testDefault)
+	offers := Plan([]QueuedJob{job}, fleetOf(running, busy, idle))
 
 	want := []Offer{{Job: job.ID, Slot: SlotKey{Agent: idle.ID, Device: testDevice}}}
 	if !reflect.DeepEqual(offers, want) {
 		t.Fatalf("offers = %+v, want %+v", offers, want)
+	}
+}
+
+func fleetOf(running map[SlotKey]int, agents ...api.Agent) Fleet {
+	return Fleet{Agents: agents, Running: running, DefaultSlots: testDefault}
+}
+
+func slotOn(a api.Agent) SlotKey { return SlotKey{Agent: a.ID, Device: testDevice} }
+
+// Seed 33, the scheduler's part: a retry prefers an agent other than the one that failed it.
+func TestPlanPrefersAnAgentOtherThanTheLastAttempts(t *testing.T) {
+	agentA := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+	agentB := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+	agentA.ThroughputBps = 1 << 30
+	job := queuedJob(agentproto.CapEncHEVC10)
+	job.LastAgent = &agentA.ID
+
+	offers := Plan([]QueuedJob{job}, fleetOf(nil, agentA, agentB))
+
+	if want := []Offer{{Job: job.ID, Slot: slotOn(agentB)}}; !reflect.DeepEqual(offers, want) {
+		t.Fatalf("offers = %+v, want B", offers)
+	}
+}
+
+// Seed 13, the scheduler's part: an agent back with the job's scratch gets it, even inside its
+// avoid window and ahead of a faster agent.
+func TestPlanGivesAResumableJobBackToTheAgentHoldingItsScratch(t *testing.T) {
+	restarted := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+	faster := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+	faster.ThroughputBps = 1 << 30
+	job := queuedJob(agentproto.CapEncHEVC10)
+	job.Avoid, job.LastAgent, job.ResumableOn = &restarted.ID, &restarted.ID, &restarted.ID
+
+	offers := Plan([]QueuedJob{job}, fleetOf(nil, restarted, faster))
+
+	if want := []Offer{{Job: job.ID, Slot: slotOn(restarted)}}; !reflect.DeepEqual(offers, want) {
+		t.Fatalf("offers = %+v, want the restarted agent", offers)
+	}
+}
+
+// Seed 11, the scheduler's part: an avoided agent isn't offered the job.
+func TestPlanSkipsAnAvoidedAgent(t *testing.T) {
+	agent := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+	job := queuedJob(agentproto.CapEncHEVC10)
+	job.Avoid = &agent.ID
+
+	if offers := Plan([]QueuedJob{job}, fleetOf(nil, agent)); len(offers) != 0 {
+		t.Fatalf("offers = %+v, want none", offers)
+	}
+}
+
+func TestPlanNeedsScratchForTheSourceAndTheOutput(t *testing.T) {
+	const source = 10 << 30
+	tests := []struct {
+		name    string
+		mode    api.TransferMode
+		scratch int64
+		offered bool
+	}{
+		{"download-first needs 2.2x", api.TransferDownloadFirst, 22 << 30, true},
+		{"download-first refuses less", api.TransferDownloadFirst, 21 << 30, false},
+		{"direct read needs 1.2x", api.TransferDirectRead, 12 << 30, true},
+		{"direct read refuses less", api.TransferDirectRead, 11 << 30, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+			agent.Mode, agent.ScratchFreeBytes = tt.mode, tt.scratch
+			job := queuedJob(agentproto.CapEncHEVC10)
+			job.SourceSize = source
+
+			if offers := Plan([]QueuedJob{job}, fleetOf(nil, agent)); (len(offers) == 1) != tt.offered {
+				t.Fatalf("offers = %+v, want offered %v", offers, tt.offered)
+			}
+		})
+	}
+}
+
+func TestPlanGivesABusyDownloadFirstAgentOnePrefetch(t *testing.T) {
+	agent := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+	agent.Mode = api.TransferDownloadFirst
+	running := map[SlotKey]int{slotOn(agent): testDefault}
+	next, after := queuedJob(agentproto.CapEncHEVC10), queuedJob(agentproto.CapEncHEVC10)
+
+	offers := Plan([]QueuedJob{next, after}, fleetOf(running, agent))
+
+	if want := []Offer{{Job: next.ID, Slot: slotOn(agent), Prefetch: true}}; !reflect.DeepEqual(offers, want) {
+		t.Fatalf("offers = %+v, want one prefetch", offers)
+	}
+
+	fleet := fleetOf(running, agent)
+	fleet.Prefetching = map[domain.AgentID]bool{agent.ID: true}
+	if offers := Plan([]QueuedJob{after}, fleet); len(offers) != 0 {
+		t.Fatalf("offers = %+v, want none: the agent already prefetches", offers)
 	}
 }
 

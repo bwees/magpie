@@ -5,12 +5,14 @@ import (
 	"embed"
 	"io/fs"
 	"log/slog"
-	"sync"
 	"time"
 
+	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/httpserver"
+	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/owner"
+	"magpie/internal/transcode/api"
 	"magpie/internal/transcode/api/agentproto"
 
 	"go.uber.org/fx"
@@ -33,37 +35,50 @@ func Migrations() db.MigrationSet {
 var Module = fx.Module(string(owner.Transcode),
 	db.ProvideMigrations(owner.Transcode, Migrations().FS),
 	fx.Supply(DefaultTimings),
-	// Agents present the shared secret instead of a session; the socket checks it itself.
+	// Agents present the shared secret instead of a session; these routes check it themselves.
 	httpserver.AsSelfAuthenticated(agentproto.ControlPath),
+	httpserver.AsSelfAuthenticated(agentproto.JobsPath),
 	fx.Provide(
 		newAgentSecret,
 		NewAgentRepository,
+		NewJobRepository,
+		func(r *JobRepository) api.Reader { return r },
 		NewAgentHub,
+		NewLifetime,
+		NewWake,
+		NewTransferGate,
 		NewAgentService,
+		NewJobService,
 		NewAgentSocket,
+		NewTransfers,
 		httpserver.AsController(NewController),
+		bus.AsHandler(newCutoffMetHandler),
+		bus.AsHandler(newFileTranscodedHandler),
+		bus.AsHandler(newSwapRejectedHandler),
+		bus.AsHandler(newFileDeletedHandler),
+		bus.AsHandler(newTitleRemovedHandler),
+		jobs.AsQueue(newVerifyQueue),
 	),
-	fx.Invoke(startSweeps),
+	fx.Invoke(startLoops),
 )
 
-// startSweeps checks for silent agents and due retests every SweepEvery while the server runs.
-func startSweeps(lc fx.Lifecycle, service *AgentService, timings Timings) {
-	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
+// startLoops runs the agent sweep and the scheduler while the server runs. Its stop hook ends the
+// Lifetime too; it is appended after the HTTP server's, so it runs first and open transfers end before
+// the server waits for them.
+func startLoops(lc fx.Lifecycle, agents *AgentService, jobs *JobService, lifetime *Lifetime, wake *Wake, timings Timings) {
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			wg.Go(func() { runSweeps(ctx, service, timings.SweepEvery) })
+			lifetime.Go(func(ctx context.Context) { runLoops(ctx, agents, jobs, wake, timings.SweepEvery) })
 			return nil
 		},
 		OnStop: func(context.Context) error {
-			cancel()
-			wg.Wait()
+			lifetime.Stop()
 			return nil
 		},
 	})
 }
 
-func runSweeps(ctx context.Context, service *AgentService, every time.Duration) {
+func runLoops(ctx context.Context, agents *AgentService, jobs *JobService, wake *Wake, every time.Duration) {
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 	for {
@@ -71,9 +86,13 @@ func runSweeps(ctx context.Context, service *AgentService, every time.Duration) 
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := service.Sweep(ctx); err != nil && ctx.Err() == nil {
+			if err := agents.Sweep(ctx); err != nil && ctx.Err() == nil {
 				slog.ErrorContext(ctx, "transcode: agent sweep failed", "error", err)
 			}
+		case <-wake.C():
+		}
+		if err := jobs.Schedule(ctx); err != nil && ctx.Err() == nil {
+			slog.ErrorContext(ctx, "transcode: scheduling failed", "error", err)
 		}
 	}
 }

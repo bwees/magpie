@@ -22,14 +22,45 @@ type frameSender interface {
 	replaced()
 }
 
-// AgentHub tracks the connected agents so the server can push frames to them.
+// AgentHub tracks the connected agents so the server can push frames to them, and the jobs whose scratch
+// each one kept across a restart.
 type AgentHub struct {
-	mu    sync.Mutex
-	conns map[domain.AgentID]frameSender
+	mu        sync.Mutex
+	conns     map[domain.AgentID]frameSender
+	resumable map[domain.AgentID][]agentproto.ResumableJob
 }
 
 func NewAgentHub() *AgentHub {
-	return &AgentHub{conns: map[domain.AgentID]frameSender{}}
+	return &AgentHub{conns: map[domain.AgentID]frameSender{}, resumable: map[domain.AgentID][]agentproto.ResumableJob{}}
+}
+
+// SetResumable records the jobs an agent kept scratch for, from its latest Hello.
+func (h *AgentHub) SetResumable(id domain.AgentID, jobs []agentproto.ResumableJob) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.resumable[id] = jobs
+}
+
+// resumableHold is an agent that can resume a job from its scratch, if the source still has etag.
+type resumableHold struct {
+	agent domain.AgentID
+	etag  string
+}
+
+// Resumable lists the jobs connected agents can resume.
+func (h *AgentHub) Resumable() map[domain.JobID]resumableHold {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	holds := map[domain.JobID]resumableHold{}
+	for agent, jobs := range h.resumable {
+		if _, connected := h.conns[agent]; !connected {
+			continue
+		}
+		for _, job := range jobs {
+			holds[job.Job] = resumableHold{agent: agent, etag: job.SourceETag}
+		}
+	}
+	return holds
 }
 
 func (h *AgentHub) attach(id domain.AgentID, conn frameSender) {

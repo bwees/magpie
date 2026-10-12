@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -35,13 +36,15 @@ var (
 // AgentSocket serves the control WebSocket agents dial.
 type AgentSocket struct {
 	service *AgentService
+	jobs    *JobService
 	hub     *AgentHub
+	wake    *Wake
 	secret  AgentSecret
 	timings Timings
 }
 
-func NewAgentSocket(service *AgentService, hub *AgentHub, secret AgentSecret, timings Timings) *AgentSocket {
-	return &AgentSocket{service: service, hub: hub, secret: secret, timings: timings}
+func NewAgentSocket(service *AgentService, jobs *JobService, hub *AgentHub, wake *Wake, secret AgentSecret, timings Timings) *AgentSocket {
+	return &AgentSocket{service: service, jobs: jobs, hub: hub, wake: wake, secret: secret, timings: timings}
 }
 
 // authenticateAgent checks the shared secret and agent ID headers every agent request carries.
@@ -94,7 +97,10 @@ func (s *AgentSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s.hub.attach(id, channel)
 	defer s.hub.detach(id, channel)
-	slog.InfoContext(ctx, "transcode: agent connected", "agent", id, "hostname", hello.Hostname, "devices", len(hello.Devices))
+	s.hub.SetResumable(id, hello.ResumableJobs)
+	s.wake.Kick()
+	slog.InfoContext(ctx, "transcode: agent connected", "agent", id, "hostname", hello.Hostname,
+		"devices", len(hello.Devices), "resumable", len(hello.ResumableJobs))
 
 	s.readLoop(ctx, id, channel)
 }
@@ -148,11 +154,20 @@ var acknowledged = map[agentproto.MessageType]bool{
 func (s *AgentSocket) handle(ctx context.Context, id domain.AgentID, env agentproto.Envelope) error {
 	switch env.Type {
 	case agentproto.TypeHeartbeat:
-		return handleBody(env, func(body agentproto.Heartbeat) error { return s.service.Heartbeat(ctx, id, body) })
+		return handleBody(env, func(body agentproto.Heartbeat) error {
+			return errors.Join(s.service.Heartbeat(ctx, id, body), s.jobs.Heartbeat(ctx, id, body))
+		})
 	case agentproto.TypeCapabilitiesChanged:
+		defer s.wake.Kick()
 		return handleBody(env, func(body agentproto.CapabilitiesChanged) error { return s.service.CapabilitiesChanged(ctx, id, body) })
 	case agentproto.TypeDeviceUnhealthy:
 		return handleBody(env, func(body agentproto.DeviceUnhealthy) error { return s.service.DeviceUnhealthy(ctx, id, body) })
+	case agentproto.TypeJobAccept:
+		return handleBody(env, func(body agentproto.JobAccept) error { return s.jobs.Accept(ctx, id, body) })
+	case agentproto.TypeJobReject:
+		return handleBody(env, func(body agentproto.JobReject) error { return s.jobs.Reject(ctx, id, body) })
+	case agentproto.TypeJobResult:
+		return handleBody(env, func(body agentproto.JobResult) error { return s.jobs.Result(ctx, id, body) })
 	default:
 		slog.DebugContext(ctx, "transcode: ignoring agent frame", "agent", id, "type", env.Type)
 		return nil
