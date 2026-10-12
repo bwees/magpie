@@ -24,11 +24,13 @@ const (
 	ImportFailed ImportStatus = "FAILED"
 	// ImportManual: a video couldn't be matched to an episode, so nothing was imported.
 	ImportManual ImportStatus = "MANUAL"
+	// ImportRemoved: the user removed a failed or manual import, and Acquisition was told to drop its download.
+	ImportRemoved ImportStatus = "REMOVED"
 )
 
 func (s ImportStatus) Valid() bool {
 	switch s {
-	case ImportPending, ImportImported, ImportFailed, ImportManual:
+	case ImportPending, ImportImported, ImportFailed, ImportManual, ImportRemoved:
 		return true
 	}
 	return false

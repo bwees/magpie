@@ -3,7 +3,7 @@
 Owns the media files on disk and what Jellyfin sees. Turns a finished download into a correctly named library file, swaps in transcoded files, and reports when Jellyfin confirms an item.
 
 - **Depends on (Readers):** `catalog.Reader`
-- **Publishes:** `FileImported`, `ImportFailed`, `FileTranscoded`, `FileDeleted`, `ItemAvailable`, `FolderFound`, `TranscodeSwapRejected`
+- **Publishes:** `FileImported`, `ImportFailed`, `ImportRemoved`, `FileTranscoded`, `FileDeleted`, `ItemAvailable`, `FolderFound`, `TranscodeSwapRejected`
 - **Consumes:** `acquisition.DownloadCompleted`, `transcode.TranscodeVerified`, `catalog.EpisodeGroupChanged`, `catalog.TitleRemoved`, `catalog.ScanFolderMatched`
 - **Importer entrypoint:** `api.Importer` (migration job only): link existing files with their original release names.
 
@@ -27,7 +27,7 @@ Decisions: [04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md), 
 | `root_folders` | id, kind (MOVIE/SERIES), path, device_id |
 | `media_files` | id, title_id, root_folder_id, path, size, quality (json), release_name, os_hash, media_info (json: streams, duration, HDR), etag, origin (DOWNLOAD/LIBRARY_SCAN/MIGRATION), imported_at, download_id?, info_hash?, transcoded, transcoded_at, original_size, jellyfin_item_id?, available_at? |
 | `media_file_episodes` | media_file_id, episode_id, season, number (many-to-many: multi-episode files; the numbers as imported) |
-| `imports` | download_id, title_id, release_name, status (PENDING/IMPORTED/FAILED/MANUAL), attempts, last_error, payload (the `DownloadCompleted`), files (json: the last attempt's videos and subtitles with their sample flag and matched episodes), mapping? (json: the user's file → episodes choice), created_at, updated_at |
+| `imports` | download_id, title_id, release_name, status (PENDING/IMPORTED/FAILED/MANUAL/REMOVED), attempts, last_error, payload (the `DownloadCompleted`), files (json: the last attempt's videos and subtitles with their sample flag and matched episodes), mapping? (json: the user's file → episodes choice), created_at, updated_at |
 | `scan_folders` | path, status (FOUND/LINKED/IGNORED), title_id? (set on `ScanFolderMatched`) |
 
 - `etag` = hash of (device, inode, size, mtime). It changes whenever the file is replaced or modified.
@@ -112,7 +112,14 @@ type FileImported struct {
 	Origin      domain.Origin       // DOWNLOAD | LIBRARY_SCAN | MIGRATION
 }
 
-type ImportFailed struct { Download domain.DownloadID; Reason string; Retryable bool }
+type ImportFailed struct {
+	Download  domain.DownloadID
+	Reason    string
+	Retryable bool
+	Manual    bool // MANUAL: the import waits for the user to map or remove it, so the download keeps its data
+}
+// ImportRemoved: the user chose Remove & blocklist on a FAILED or MANUAL import.
+type ImportRemoved struct { Download domain.DownloadID; Title domain.TitleID; ReleaseName string }
 type FileTranscoded struct { MediaFile domain.MediaFileID; Path string; OldSize, NewSize int64 }
 type FileDeleted struct {
 	MediaFile domain.MediaFileID
@@ -126,7 +133,7 @@ type FolderFound struct { Path string; Kind domain.MediaKind; ParsedTitle string
 type TranscodeSwapRejected struct { Job domain.JobID; MediaFile domain.MediaFileID; Reason SwapRejectReason } // SOURCE_CHANGED | HASH_MISMATCH | PROBE_FAILED | FILE_GONE
 ```
 
-- All of these are durable. `FileImported` is published in the same transaction that inserts the `media_files` row. Aggregate key: title ID; events without a title use their own subject (`ImportFailed` → download ID, `FileTranscoded` and `TranscodeSwapRejected` → media file ID, `FolderFound` → folder path).
+- All of these are durable. `FileImported` is published in the same transaction that inserts the `media_files` row. Aggregate key: title ID; events without a title use their own subject (`ImportFailed` and `ImportRemoved` → download ID, `FileTranscoded` and `TranscodeSwapRejected` → media file ID, `FolderFound` → folder path).
 - `FileDeleted` is the **only** cleanup signal for a removed file, whatever the reason. Consumers (Acquisition, Subtitles, Transcode) never infer deletion from `FileImported.Replaces`.
 
 ## Events and commands consumed
@@ -203,7 +210,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrItemNotFound, ErrJellyfinUnavailable erro
 | GET | `/api/library/imports?status=FAILED,MANUAL` | Failed and manual imports, with each download's videos and subtitles, the matched episodes, and the series' episodes for the picker |
 | POST | `/api/library/imports/{downloadId}/manual` | Body `{files: [{path, episodes}]}`: imports the listed videos as those episodes (a movie's video has none) and skips the rest; 202, runs as the import job. 400 `invalid-file-mapping`, 409 `import-not-stopped` unless FAILED or MANUAL |
 | POST | `/api/library/imports/{downloadId}/retry` | Runs a FAILED or MANUAL import again with automatic mapping; 202 |
-| DELETE | `/api/library/imports/{downloadId}` | Drops a FAILED or MANUAL import from the queue (Acquisition already blocklisted its release); 204 |
+| DELETE | `/api/library/imports/{downloadId}` | Remove & blocklist: marks a FAILED or MANUAL import `REMOVED` and publishes `ImportRemoved` in the same transaction; Acquisition then blocklists the release, deletes the torrent with its data and grabs the next one (a FAILED import's release is already blocklisted). 204; 409 `import-not-stopped` otherwise |
 | POST | `/api/library/scan` | Start a library scan (backlite job) |
 | GET | `/api/library/hardlink-check` | Whether the qBittorrent download path (from `DownloadLocation`) and each root folder share a device; `problem` says why the result is `UNKNOWN` |
 
@@ -215,7 +222,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrItemNotFound, ErrJellyfinUnavailable erro
    - The blocked-file backstop runs in Acquisition before it publishes `DownloadCompleted`. Library never imports unknown extensions and never reads Acquisition's block list.
    - A single-file torrent's `contentPath` is the file. `Files` paths are relative to `contentPath`, or to its parent when they start with its folder name (as qBittorrent lists them).
 2. Probe each video. Skip samples: runtime ≤ the threshold for the expected runtime (≤3 min → 15 s, ≤10 → 90 s, ≤30 → 300 s, else 600 s). A video ffprobe can't read counts as a sample ([04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md)). The expected runtime is the episode's, else the title's, else 45 min.
-3. Map videos to episodes. A single file maps to the payload's episodes. Season packs parse each file name, falling back to the folder name, then the release name, and match the current numbering, then TMDB's aired order. Any video that can't be mapped, two videos for one episode, or several videos for a movie make the import `MANUAL` (no partial import). No video at all (or only samples) makes it `FAILED`. Both publish `ImportFailed{Retryable:false}`.
+3. Map videos to episodes. A single file maps to the payload's episodes. Season packs parse each file name, falling back to the folder name, then the release name, and match the current numbering, then TMDB's aired order. Any video that can't be mapped, two videos for one episode, or several videos for a movie make the import `MANUAL` (no partial import). No video at all (or only samples), no root folder, or a title that's gone makes it `FAILED`. Both publish `ImportFailed{Retryable:false}`; `Manual` is set for `MANUAL`, and Acquisition keeps that download's torrent and data until the user maps (Map files, Retry) or removes (Remove & blocklist) the import.
 4. Build the target path from `catalog.Reader` (fixed Jellyfin naming, no editor):
    - Movie: `<movies root>/<Title> (<Year>) [tmdbid-<id>]/<Title> (<Year>).<ext>`
    - Episode: `<tv root>/<Show> (<Year>) [tmdbid-<id>]/Season <NN>/<Show> S<NN>E<NN>[-E<NN>].<ext>`
@@ -251,7 +258,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrItemNotFound, ErrJellyfinUnavailable erro
 2. **Given** SEED mode on different devices, **when** importing, **then** the file is copied and the source remains.
 3. **Given** DONT_SEED mode, **when** importing, **then** the file is moved and the source no longer exists.
 4. **Given** a season pack with E01–E10 and a 40 s `sample.mkv`, **when** importing, **then** ten files are imported, the sample is skipped, and one `FileImported` is published per file.
-5. **Given** a pack where one video can't be mapped to an episode, **when** importing, **then** nothing is imported, the import is `MANUAL`, and `ImportFailed{Retryable:false}` is published.
+5. **Given** a pack where one video can't be mapped to an episode, **when** importing, **then** nothing is imported, the import is `MANUAL`, and `ImportFailed{Retryable:false, Manual:true}` is published. A pack with only a sample is `FAILED` and publishes `ImportFailed{Manual:false}`.
 6. **Given** `DownloadCompleted` is delivered twice, **when** handled, **then** only one `media_files` row exists and `FileImported` is published once.
 7. **Given** an existing file F1 for S01E01, **when** an upgrade imports F2, **then** F1 is deleted from disk, `FileImported{MediaFile: F2, Replaces: F1}` and then `FileDeleted{MediaFile: F1, Reason: UPGRADED}` are published in that order, once each.
 8. **Given** a release containing `Movie.en.srt` and `Movie.nfo`, **when** importing, **then** the sidecar `Title (Year).en.srt` exists, the nfo is not copied, and `Sidecars` lists the srt.
@@ -266,3 +273,4 @@ var ErrCrossDevice, ErrProbeFailed, ErrItemNotFound, ErrJellyfinUnavailable erro
 17. **Given** `TitleRemoved{DeleteFiles: false}` for a title with two files, **then** the files stay on disk, their records are gone, and two `FileDeleted{Reason: TITLE_REMOVED}` are published.
 18. **Given** a file, **when** `SourceForProcessing` is called, **then** it returns the current ETag and a `StagingDir` on the same device as the file; after the file is replaced by an upgrade, the ETag differs.
 19. **Given** a series with 10 episodes, 7 with files and 6 confirmed in Jellyfin, **then** `Coverage` returns `EpisodesWithFile = 7`, `EpisodesAvailable = 6`.
+20. **Given** a `MANUAL` import, **when** the user removes it (Remove & blocklist), **then** the import is `REMOVED` and leaves the imports queue, `ImportRemoved{Download}` is published once, and removing it again answers 409 `import-not-stopped`.

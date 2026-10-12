@@ -127,7 +127,7 @@ type ImportResponse struct {
 	TitleName   string            `json:"titleName"`
 	Kind        domain.MediaKind  `json:"kind"`
 	ReleaseName string            `json:"releaseName"`
-	// Status is PENDING, IMPORTED, FAILED or MANUAL.
+	// Status is PENDING, IMPORTED, FAILED, MANUAL or REMOVED.
 	Status    ImportStatus         `json:"status"`
 	Reason    string               `json:"reason"`
 	Attempts  int                  `json:"attempts"`
@@ -186,7 +186,7 @@ func (c *Controller) Register(s *fuego.Server) {
 	fuego.Get(s, "/library/imports", c.imports, tags,
 		fuego.OptionOperationID("listImports"),
 		fuego.OptionSummary("Imports in the given statuses, most recently changed first (admin)"),
-		fuego.OptionQuery(queryStatus, "Comma-separated statuses: PENDING, IMPORTED, FAILED, MANUAL", fuego.ParamRequired()))
+		fuego.OptionQuery(queryStatus, "Comma-separated statuses: PENDING, IMPORTED, FAILED, MANUAL, REMOVED", fuego.ParamRequired()))
 	fuego.Post(s, "/library/imports/{downloadId}/manual", c.importManually, tags, downloadPath,
 		fuego.OptionOperationID("importManually"),
 		fuego.OptionSummary("Import a failed or manual import with a file → episodes mapping (admin)"),
@@ -197,7 +197,7 @@ func (c *Controller) Register(s *fuego.Server) {
 		fuego.OptionDefaultStatusCode(http.StatusAccepted))
 	fuego.Delete(s, "/library/imports/{downloadId}", c.removeImport, tags, downloadPath,
 		fuego.OptionOperationID("removeImport"),
-		fuego.OptionSummary("Drop a failed or manual import from the queue (admin)"),
+		fuego.OptionSummary("Remove & blocklist a failed or manual import; Acquisition drops its download and grabs another (admin)"),
 		fuego.OptionDefaultStatusCode(http.StatusNoContent))
 }
 

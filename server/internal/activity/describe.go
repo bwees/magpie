@@ -328,6 +328,9 @@ func init() {
 	on(func(e libraryapi.ImportFailed) description {
 		return description{subject: subject{Download: &e.Download}, Severity: api.SeverityError, Text: "Import failed", Detail: e.Reason}
 	})
+	on(func(e libraryapi.ImportRemoved) description {
+		return description{subject: titled(e.Title), Text: "Import removed and blocklisted", Detail: e.ReleaseName}
+	})
 	on(func(e libraryapi.FileTranscoded) description {
 		d := description{subject: ofFile(e.MediaFile), Text: "Transcoded"}
 		if saved := savedPercentOf(e.OldSize, e.NewSize); saved != nil {

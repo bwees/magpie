@@ -1811,6 +1811,9 @@
 					"download": {
 						"type": "string"
 					},
+					"manual": {
+						"type": "boolean"
+					},
 					"reason": {
 						"type": "string"
 					},
@@ -1820,6 +1823,7 @@
 				},
 				"required": [
 					"download",
+					"manual",
 					"reason",
 					"retryable"
 				],
@@ -1853,6 +1857,26 @@
 					"path",
 					"sample",
 					"size"
+				],
+				"type": "object"
+			},
+			"ImportRemoved": {
+				"description": "ImportRemoved schema",
+				"properties": {
+					"download": {
+						"type": "string"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"download",
+					"releaseName",
+					"title"
 				],
 				"type": "object"
 			},
@@ -11706,7 +11730,7 @@
 				"operationId": "listImports",
 				"parameters": [
 					{
-						"description": "Comma-separated statuses: PENDING, IMPORTED, FAILED, MANUAL",
+						"description": "Comma-separated statuses: PENDING, IMPORTED, FAILED, MANUAL, REMOVED",
 						"in": "query",
 						"name": "status",
 						"required": true,
@@ -11838,7 +11862,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Drop a failed or manual import from the queue (admin)",
+				"summary": "Remove \u0026 blocklist a failed or manual import; Acquisition drops its download and grabs another (admin)",
 				"tags": [
 					"api",
 					"library"

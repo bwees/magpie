@@ -162,7 +162,8 @@ type Event struct {
 | `acquisition.DownloadFailed` | Acquisition | download, reason | Activity → notify |
 | `acquisition.CutoffMet` | Acquisition | mediaFile, title, episodes, quality, cfScore, origin | Transcode → evaluate policy and queue (DOWNLOAD origin ahead of LIBRARY_SCAN/MIGRATION) |
 | `library.FileImported` | Library | mediaFile, title, episodes, path, quality, releaseName, osHash, size, mediaInfo, replaces? (informational), download? (nil for scan/migration), sidecars, origin | Acquisition → cutoff check + seeding/remove; Subtitles → find subtitles; Requests → resolve REGRAB issues; Activity |
-| `library.ImportFailed` | Library | download, reason, retryable | Acquisition → blocklist, try next; Activity → notify |
+| `library.ImportFailed` | Library | download, reason, retryable, manual | Acquisition → manual: keep the torrent and its data and wait for the user; otherwise blocklist, try next; Activity → notify |
+| `library.ImportRemoved` | Library | download, title, releaseName (the user chose Remove & blocklist on a failed or manual import) | Acquisition → blocklist, delete with data, try next; Activity |
 | `library.FileTranscoded` | Library | mediaFile, oldSize, newSize | Acquisition → stop upgrades; Subtitles → re-check embedded tracks; Transcode → job SWAPPED; Activity |
 | `library.TranscodeSwapRejected` | Library | job, mediaFile, reason `SOURCE_CHANGED` \| `HASH_MISMATCH` \| `PROBE_FAILED` \| `FILE_GONE` | Transcode → job FAILED / retry |
 | `library.FileDeleted` | Library | mediaFile, title, episodes, path, reason `UPGRADED` \| `REMOVED` \| `TITLE_REMOVED` | **Only cleanup signal for a removed file.** Acquisition → drop file score; Subtitles → drop sidecars; Transcode → cancel jobs; Activity |

@@ -1044,8 +1044,14 @@ export type FolderFound = {
 };
 export type ImportFailed = {
     download: string;
+    manual: boolean;
     reason: string;
     retryable: boolean;
+};
+export type ImportRemoved = {
+    download: string;
+    releaseName: string;
+    title: string;
 };
 export type IssueActionRequested = {
     action: string;
@@ -3354,7 +3360,7 @@ export function listImports(status: string, { accept }: {
     }));
 }
 /**
- * Drop a failed or manual import from the queue (admin)
+ * Remove & blocklist a failed or manual import; Acquisition drops its download and grabs another (admin)
  */
 export function removeImport(downloadId: string, { accept }: {
     accept?: string;

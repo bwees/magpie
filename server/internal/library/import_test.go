@@ -356,8 +356,8 @@ func TestAPackWithAnUnmappableVideoImportsNothing(t *testing.T) {
 	if len(failed) != 1 {
 		t.Fatalf("%d ImportFailed, want 1", len(failed))
 	}
-	if got := payload[api.ImportFailed](t, failed[0]); got.Download != c.Download || got.Retryable || got.Reason == "" {
-		t.Errorf("ImportFailed = %+v", got)
+	if got := payload[api.ImportFailed](t, failed[0]); got.Download != c.Download || got.Retryable || !got.Manual || got.Reason == "" {
+		t.Errorf("ImportFailed = %+v, want manual and not retryable", got)
 	}
 	i := slices.IndexFunc(imp.Files, func(file library.ImportFile) bool { return file.Path == extra })
 	if i < 0 || imp.Files[i].Kind != library.FileVideo || len(imp.Files[i].Episodes) != 0 {
@@ -433,8 +433,67 @@ func TestAFileErrorIsRetriedThenFailsTheImport(t *testing.T) {
 	if imp.Status != library.ImportFailed || imp.LastError == "" {
 		t.Errorf("import = %+v, want FAILED with the error", imp)
 	}
-	if n := len(f.events.ofType(api.TypeImportFailed)); n != 1 {
-		t.Errorf("%d ImportFailed, want 1", n)
+	failed := f.events.ofType(api.TypeImportFailed)
+	if len(failed) != 1 {
+		t.Fatalf("%d ImportFailed, want 1", len(failed))
+	}
+	if got := payload[api.ImportFailed](t, failed[0]); got.Manual {
+		t.Errorf("ImportFailed = %+v, want a failed import not to wait for the user", got)
+	}
+}
+
+// Seed library #5, the failed part.
+func TestAPackWithOnlyASampleFailsWithoutWaitingForTheUser(t *testing.T) {
+	f := newImportFixture(t, oneDevice)
+	f.download(t, "Dune.2021.1080p/sample.mkv", sampleRuntime)
+	c := f.movieDownload(acquisitionapi.SeedUntilGoals, "Dune.2021.1080p", "Dune.2021.1080p/sample.mkv")
+
+	f.deliver(t, c)
+
+	if imp := f.imp(t, c.Download); imp.Status != library.ImportFailed {
+		t.Errorf("import status = %s, want FAILED", imp.Status)
+	}
+	failed := f.events.ofType(api.TypeImportFailed)
+	if len(failed) != 1 {
+		t.Fatalf("%d ImportFailed, want 1", len(failed))
+	}
+	if got := payload[api.ImportFailed](t, failed[0]); got.Manual || got.Retryable {
+		t.Errorf("ImportFailed = %+v, want neither manual nor retryable", got)
+	}
+}
+
+// Seed library #20.
+func TestRemovingAManualImportTellsAcquisitionOnce(t *testing.T) {
+	f := newImportFixture(t, oneDevice)
+	folder := "Show.2020.S01.1080p"
+	rels := f.packFiles(t, folder)
+	extra := folder + "/Behind.The.Scenes.mkv"
+	f.download(t, extra, fullRuntime)
+	c := f.completed(f.show.ID, f.episodeIDs(), packRelease, acquisitionapi.SeedUntilGoals, folder, append(rels, extra)...)
+	f.deliver(t, c)
+	ctx := context.Background()
+
+	if err := f.service.RemoveImport(ctx, c.Download); err != nil {
+		t.Fatal(err)
+	}
+
+	if imp := f.imp(t, c.Download); imp.Status != library.ImportRemoved {
+		t.Errorf("import status = %s, want REMOVED", imp.Status)
+	}
+	queue, err := f.service.Imports(ctx, []library.ImportStatus{library.ImportFailed, library.ImportManual})
+	if err != nil || len(queue) != 0 {
+		t.Errorf("imports queue = %+v, %v; want it empty", queue, err)
+	}
+	if err := f.service.RemoveImport(ctx, c.Download); !errors.Is(err, library.ErrImportNotStopped) {
+		t.Errorf("second remove = %v, want ErrImportNotStopped", err)
+	}
+	removed := f.events.ofType(api.TypeImportRemoved)
+	if len(removed) != 1 {
+		t.Fatalf("%d ImportRemoved, want 1", len(removed))
+	}
+	want := api.ImportRemoved{Download: c.Download, Title: f.show.ID, ReleaseName: packRelease}
+	if got := payload[api.ImportRemoved](t, removed[0]); got != want {
+		t.Errorf("ImportRemoved = %+v, want %+v", got, want)
 	}
 }
 

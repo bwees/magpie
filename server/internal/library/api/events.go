@@ -5,6 +5,7 @@ import "magpie/internal/domain"
 const (
 	TypeFileImported          = "library.FileImported"
 	TypeImportFailed          = "library.ImportFailed"
+	TypeImportRemoved         = "library.ImportRemoved"
 	TypeFileTranscoded        = "library.FileTranscoded"
 	TypeFileDeleted           = "library.FileDeleted"
 	TypeItemAvailable         = "library.ItemAvailable"
@@ -63,11 +64,25 @@ type ImportFailed struct {
 	Download  domain.DownloadID `json:"download"`
 	Reason    string            `json:"reason"`
 	Retryable bool              `json:"retryable"`
+	// Manual is set when the import waits for the user to map its files or remove it, so the download
+	// must keep its data.
+	Manual bool `json:"manual"`
 }
 
 func (ImportFailed) Type() string          { return TypeImportFailed }
 func (e ImportFailed) AggregateID() string { return string(e.Download) }
 func (ImportFailed) Durable() bool         { return true }
+
+// ImportRemoved is published when the user removes a failed or manual import (Remove & blocklist).
+type ImportRemoved struct {
+	Download    domain.DownloadID `json:"download"`
+	Title       domain.TitleID    `json:"title"`
+	ReleaseName string            `json:"releaseName"`
+}
+
+func (ImportRemoved) Type() string          { return TypeImportRemoved }
+func (e ImportRemoved) AggregateID() string { return string(e.Download) }
+func (ImportRemoved) Durable() bool         { return true }
 
 type FileTranscoded struct {
 	MediaFile domain.MediaFileID `json:"mediaFile"`
@@ -128,7 +143,7 @@ func (TranscodeSwapRejected) Durable() bool         { return true }
 // Messages lists every event and command this package declares, for the bus registry and the live schemas.
 func Messages() []domain.Message {
 	return []domain.Message{
-		FileImported{}, ImportFailed{}, FileTranscoded{}, FileDeleted{},
+		FileImported{}, ImportFailed{}, ImportRemoved{}, FileTranscoded{}, FileDeleted{},
 		ItemAvailable{}, FolderFound{}, TranscodeSwapRejected{},
 	}
 }

@@ -566,7 +566,8 @@ func (s *Service) failImport(ctx context.Context, id domain.DownloadID, problem 
 		if err != nil || !moved {
 			return err
 		}
-		return s.deps.Bus.Publish(tx, bus.EventOf(api.ImportFailed{Download: id, Reason: problem.reason, Retryable: false}))
+		failed := api.ImportFailed{Download: id, Reason: problem.reason, Retryable: false, Manual: problem.status == ImportManual}
+		return s.deps.Bus.Publish(tx, bus.EventOf(failed))
 	})
 }
 

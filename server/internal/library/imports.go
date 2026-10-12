@@ -8,6 +8,8 @@ import (
 
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
+	"magpie/internal/library/api"
+	"magpie/internal/platform/bus"
 
 	"gorm.io/gorm"
 )
@@ -145,17 +147,21 @@ func (s *Service) restart(ctx context.Context, id domain.DownloadID, mapping []F
 	return s.view(ctx, imp)
 }
 
-// RemoveImport drops a failed or manual import from the queue. Acquisition already blocklisted its
-// release when the import failed.
+// RemoveImport takes a failed or manual import off the queue and tells Acquisition to blocklist its
+// release, delete the download with its data and grab another.
 func (s *Service) RemoveImport(ctx context.Context, id domain.DownloadID) error {
 	return s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
-		if _, err := importIn(tx, id); err != nil {
+		imp, err := importIn(tx, id)
+		if err != nil {
 			return err
 		}
-		result := tx.Where("download_id = ? AND status IN ?", id, stoppedImports).Delete(&importRow{})
-		if result.Error == nil && result.RowsAffected == 0 {
+		moved, err := moveImport(tx, id, stoppedImports, map[string]any{"status": ImportRemoved, "updated_at": s.now().UTC()})
+		if err != nil {
+			return err
+		}
+		if !moved {
 			return ErrImportNotStopped
 		}
-		return result.Error
+		return s.deps.Bus.Publish(tx, bus.EventOf(api.ImportRemoved{Download: id, Title: imp.Title, ReleaseName: imp.ReleaseName}))
 	})
 }
