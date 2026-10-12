@@ -158,6 +158,11 @@ func (q *Queue) Enqueue(ctx context.Context, task backlite.Task) error {
 }
 
 func (q *Queue) EnqueueTx(tx *gorm.DB, task backlite.Task) error {
+	return q.EnqueueTxAt(tx, task, time.Time{})
+}
+
+// EnqueueTxAt is EnqueueTx for a task that must not run before at. A zero at runs it as soon as possible.
+func (q *Queue) EnqueueTxAt(tx *gorm.DB, task backlite.Task, at time.Time) error {
 	sqlTx, ok := tx.Statement.ConnPool.(*sql.Tx)
 	if !ok {
 		return ErrNotInTransaction
@@ -165,6 +170,10 @@ func (q *Queue) EnqueueTx(tx *gorm.DB, task backlite.Task) error {
 	if err := db.AfterCommit(tx, q.client.Notify); err != nil {
 		return err
 	}
-	_, err := q.client.Add(task).Ctx(tx.Statement.Context).Tx(sqlTx).Save()
+	add := q.client.Add(task).Ctx(tx.Statement.Context).Tx(sqlTx)
+	if !at.IsZero() {
+		add = add.At(at)
+	}
+	_, err := add.Save()
 	return err
 }

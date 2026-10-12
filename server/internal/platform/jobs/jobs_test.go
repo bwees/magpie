@@ -18,6 +18,7 @@ import (
 const (
 	testQueueName = "platform.test"
 	waitForJob    = 5 * time.Second
+	quietWait     = 300 * time.Millisecond
 )
 
 type pingTask struct {
@@ -93,6 +94,37 @@ func TestEnqueueTxRunsOnlyAfterCommit(t *testing.T) {
 		}
 	case <-time.After(waitForJob):
 		t.Fatal("committed job never ran")
+	}
+}
+
+func TestEnqueueTxAtWaitsUntilItsTime(t *testing.T) {
+	const later = time.Hour
+	d := dbtest.Open(t)
+	q, ran := newRunningQueue(t, d)
+	ctx := context.Background()
+
+	err := d.Write(ctx, func(tx *gorm.DB) error {
+		if err := q.EnqueueTxAt(tx, pingTask{Note: "later"}, time.Now().Add(later)); err != nil {
+			return err
+		}
+		return q.EnqueueTxAt(tx, pingTask{Note: "now"}, time.Time{})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case task := <-ran:
+		if task.Note != "now" {
+			t.Errorf("ran %q first, want the task due now", task.Note)
+		}
+	case <-time.After(waitForJob):
+		t.Fatal("the task due now never ran")
+	}
+	select {
+	case task := <-ran:
+		t.Errorf("ran %q an hour early", task.Note)
+	case <-time.After(quietWait):
 	}
 }
 
