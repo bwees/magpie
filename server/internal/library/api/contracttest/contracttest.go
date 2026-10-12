@@ -35,6 +35,8 @@ const (
 	tvRoot       = "/media/tv"
 	movieETag    = "100-2000-1700000000"
 	seriesSeason = 1
+	// replacedMovieETag is the movie file the upgrade replaced.
+	replacedMovieETag = "99-1900-1600000000"
 	// Seed 19: a series with 10 episodes, 7 with files and 6 of those confirmed in Jellyfin.
 	seriesEpisodes   = 10
 	episodesWithFile = 7
@@ -58,7 +60,7 @@ func Run(t *testing.T, newReader Factory) {
 		episodes = append(episodes, domain.EpisodeRef{Episode: domain.NewID[domain.EpisodeID](), Season: seriesSeason, Number: number})
 	}
 	fixture := Fixture{Files: []StoredFile{
-		{File: oldMovieFile, ETag: movieETag},
+		{File: oldMovieFile, ETag: replacedMovieETag},
 		{File: newMovieFile, ETag: movieETag},
 	}}
 	for i, ep := range episodes[:episodesWithFile] {
@@ -123,6 +125,21 @@ func Run(t *testing.T, newReader Factory) {
 		}
 		if _, err := r.SourceForProcessing(ctx, domain.NewID[domain.MediaFileID]()); !errors.Is(err, api.ErrNotFound) {
 			t.Errorf("unknown file err = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("SourceForProcessing gives each file the ETag Library stored for it, which a swap compares", func(t *testing.T) {
+		r := newReader(t, fixture)
+		replaced, err := r.SourceForProcessing(ctx, oldMovieFile.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		current, err := r.SourceForProcessing(ctx, newMovieFile.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if replaced.ETag != replacedMovieETag || current.ETag != movieETag || replaced.StagingDir != current.StagingDir {
+			t.Errorf("replaced %+v, current %+v: want their own ETags and one staging dir per root", replaced, current)
 		}
 	})
 

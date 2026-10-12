@@ -13,7 +13,19 @@ import (
 	"gorm.io/gorm"
 )
 
-var NewDownloadCompletedHandler = newDownloadCompletedHandler
+var (
+	NewDownloadCompletedHandler = newDownloadCompletedHandler
+	NewTranscodeVerifiedHandler = newTranscodeVerifiedHandler
+)
+
+// RunSwapTask runs a queued swap task. It reports false for a task of another queue.
+func RunSwapTask(ctx context.Context, s *Service, task backlite.Task) (bool, error) {
+	t, ok := task.(swapTask)
+	if !ok {
+		return false, nil
+	}
+	return true, s.Swap(ctx, t.Verified)
+}
 
 // RunImportTask runs a queued import task; later receives the retries it books. It reports false for
 // a task of another queue.
