@@ -20,12 +20,9 @@
 </script>
 
 <div class="grid gap-6">
-	<div>
-		<h2 class="text-xl font-semibold">Downloads</h2>
-		<p class="text-sm text-muted-foreground">
-			Magpie checks every torrent's file list before any content downloads.
-		</p>
-	</div>
+	<p class="text-sm text-muted-foreground">
+		Magpie checks every torrent's file list before any content downloads.
+	</p>
 
 	{#if manager.status === LoadStatus.LOADING}
 		<div class="grid gap-4" aria-busy="true" aria-label="Loading download settings">
