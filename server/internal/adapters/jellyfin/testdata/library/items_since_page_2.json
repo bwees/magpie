@@ -1,0 +1,27 @@
+{
+  "Items": [
+    {
+      "Name": "Dune",
+      "ServerId": "9e1d4f3a0c6b4a7e8f2d5c1b3a9e7d6f",
+      "Id": "5d1e3c2b7a9f4e6d8c0b1a2f3e4d5c6b",
+      "DateCreated": "2026-10-11T12:04:31.4426071Z",
+      "CanDelete": false,
+      "CanDownload": true,
+      "Container": "mkv",
+      "SortName": "dune",
+      "Path": "/data/media/movies/Dune (2021) [tmdbid-438631]/Dune (2021).mkv",
+      "ChannelId": null,
+      "RunTimeTicks": 93120000000,
+      "ProductionYear": 2021,
+      "IsFolder": false,
+      "Type": "Movie",
+      "VideoType": "VideoFile",
+      "ImageTags": {},
+      "BackdropImageTags": [],
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 3,
+  "StartIndex": 2
+}

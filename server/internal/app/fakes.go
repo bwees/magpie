@@ -14,7 +14,6 @@ import (
 	"magpie/internal/catalog"
 	"magpie/internal/identity"
 	"magpie/internal/library"
-	libraryfakes "magpie/internal/library/fakes"
 	"magpie/internal/subtitles"
 	subtitlesfakes "magpie/internal/subtitles/fakes"
 	"magpie/internal/transcode"
@@ -34,7 +33,7 @@ var PortFakes = fx.Provide(
 	fx.Annotate(disk.NewFileSystem, fx.As(new(library.FileSystem))),
 	fx.Annotate(ffprobe.New, fx.As(new(library.MediaProber))),
 	fx.Annotate(disk.NewHasher, fx.As(new(library.Hasher))),
-	fx.Annotate(libraryfakes.NewJellyfinLibrary, fx.As(new(library.JellyfinLibrary))),
+	fx.Annotate(jellyfin.NewLibrary, fx.As(new(library.JellyfinLibrary))),
 	fx.Annotate(subtitlesfakes.NewOpenSubtitles, fx.As(new(subtitles.OpenSubtitles))),
 	fx.Annotate(subtitlesfakes.NewSyncer, fx.As(new(subtitles.Syncer))),
 	fx.Annotate(transcodefakes.NewFileStat, fx.As(new(transcode.FileStat))),
