@@ -270,8 +270,12 @@ func TestIssueRepliesByTheReporterGoToAdmins(t *testing.T) {
 	}
 
 	h.deliver(requestsapi.IssueCommented{Issue: issue, Author: admin.User, Reporter: reporter.User})
-	if got := h.notifications(reporter); !slices.Equal(kindsOf(got), []string{api.KindIssueReply}) {
-		t.Errorf("reporter notifications = %+v, want the admin's reply", got)
+	got := h.notifications(reporter)
+	if !slices.Equal(kindsOf(got), []string{api.KindIssueReply}) {
+		t.Fatalf("reporter notifications = %+v, want the admin's reply", got)
+	}
+	if want := "/requests?issue=" + string(issue); got[0].Link != want {
+		t.Errorf("link = %q, want the issue's thread %q", got[0].Link, want)
 	}
 }
 

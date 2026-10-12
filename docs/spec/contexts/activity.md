@@ -272,6 +272,7 @@ Shown beside the bar; they never change the main stage.
 - **In-app:** created for every recipient of the non-opt-in kinds. Opt-in kinds go only to URLs that subscribe to them, never in-app.
 - **Admin scope for requester kinds:** admins may subscribe their URLs to requester-scoped kinds for *any* user.
 - **Requester limits:** requesters may subscribe only to requester-scoped kinds for their own requests. Saving any other kind returns `422`; at send time it's also skipped.
+- **Issue links:** issue notifications link to the issue's thread, `/requests?issue={id}`.
 - **Request lookups:** recipients and titles come from `requests.Reader` (request → user) and `catalog.Reader` (title name for message text).
 - **Recipients:** "Admins" means the enabled admins (`identity.Reader.Admins`); a disabled user gets nothing, in-app or by URL. Failures that carry only a download or file ID find their title through `activity_refs`.
 - **Links:** in-app links are app paths: the title (`/titles/{id}`) when known, else `/requests`, `/settings/connections` (service unreachable), `/activity/agents` (agent offline) or `/activity`. External messages carry the same path joined to `MAGPIE_BASE_URL`, or no link when it is unset.

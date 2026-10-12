@@ -34,6 +34,8 @@ const (
 	linkConnections = "/settings/connections"
 	linkAgents      = "/activity/agents"
 	linkActivity    = "/activity"
+	// linkIssueQuery names the issue whose thread the Requests page opens.
+	linkIssueQuery = "issue"
 )
 
 const (
@@ -121,16 +123,20 @@ func requestLink(title *domain.TitleID) string {
 	return titleLink(*title)
 }
 
-func (l lookup) issueTitle(ctx context.Context, issue domain.IssueID) (string, *domain.TitleID, error) {
+// issueLink opens the issue's thread on the Requests page.
+func issueLink(issue domain.IssueID) string {
+	return linkRequests + "?" + linkIssueQuery + "=" + string(issue)
+}
+
+func (l lookup) issueTitle(ctx context.Context, issue domain.IssueID) (string, error) {
 	i, err := l.s.requests.Issue(ctx, issue)
 	if errors.Is(err, requestsapi.ErrNotFound) {
-		return someIssueSubject, nil, nil
+		return someIssueSubject, nil
 	}
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
-	name, err := l.titleName(ctx, i.Title)
-	return name, &i.Title, err
+	return l.titleName(ctx, i.Title)
 }
 
 // refTitle finds the title a download or media file belongs to.
@@ -210,25 +216,25 @@ func init() {
 		user, err := l.userName(ctx, e.User)
 		return []notice{{
 			Kind: api.KindIssueReported, To: toAdmins, Title: "Issue reported on " + name,
-			Body: fmt.Sprintf("%s reported a %s issue.", user, humanize(e.Kind)), Link: titleLink(e.Title),
+			Body: fmt.Sprintf("%s reported a %s issue.", user, humanize(e.Kind)), Link: issueLink(e.Issue),
 		}}, err
 	})
 	onNotice(func(ctx context.Context, l lookup, e requestsapi.IssueCommented) ([]notice, error) {
-		name, title, err := l.issueTitle(ctx, e.Issue)
+		name, err := l.issueTitle(ctx, e.Issue)
 		if err != nil {
 			return nil, err
 		}
-		n := notice{Kind: api.KindIssueReply, To: toUser, User: e.Reporter, Title: "New reply on your issue about " + name, Link: requestLink(title)}
+		n := notice{Kind: api.KindIssueReply, To: toUser, User: e.Reporter, Title: "New reply on your issue about " + name, Link: issueLink(e.Issue)}
 		if e.Author == e.Reporter {
 			n.To, n.User, n.Title = toAdmins, "", "New reply on the issue about "+name
 		}
 		return []notice{n}, nil
 	})
 	onNotice(func(ctx context.Context, l lookup, e requestsapi.IssueResolved) ([]notice, error) {
-		name, title, err := l.issueTitle(ctx, e.Issue)
+		name, err := l.issueTitle(ctx, e.Issue)
 		return []notice{{
 			Kind: api.KindIssueResolved, To: toUser, User: e.Reporter,
-			Title: "Your issue about " + name + " was resolved", Link: requestLink(title),
+			Title: "Your issue about " + name + " was resolved", Link: issueLink(e.Issue),
 		}}, err
 	})
 
