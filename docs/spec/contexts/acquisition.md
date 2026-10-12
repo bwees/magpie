@@ -39,7 +39,7 @@ Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md
 | `searches` | `id`, `title_id`, `episode_ids`, `trigger` (`RSS` \| `AUTO` \| `USER_AUTO` \| `INTERACTIVE` \| `REGRAB`), `started_at`, `completed_at`, counts. Results are not persisted. |
 | `pending_releases` | `id`, `title_id`, `episode_ids`, release snapshot, `publish_at`, `reason` (delay) |
 | `blocklist` | `title_id`, `info_hash`, `release_name`, `indexer`, `reason` (`BLOCKED_FILE` \| `METADATA_TIMEOUT` \| `STALLED` \| `IMPORT_FAILED` \| `DOWNLOAD_FAILED` \| `USER` \| `ISSUE` \| `MIGRATED`), `at`, `expires_at?` (null = permanent) |
-| `downloads` | `id`, `info_hash`, `qbit_hash`, `title_id`, `episode_ids`, `release_name`, `indexer_id`, `quality_id`, `cf_score`, `state`, `seeding_mode`, `goal_ratio?`, `goal_time?`, `grabbed_at`, `completed_at?`, `removed_at?`, `search_id?` |
+| `downloads` | `id`, `info_hash`, `qbit_hash`, `title_id`, `episode_ids`, `release_name`, `release_id` (the search's release ID), `indexer_id`, `indexer` (name), `quality` (JSON), `cf_score`, `size_bytes`, `state`, `progress`, `seeding_mode`, `trigger`, `override`, `failure` (why it was dropped), `goal_ratio?`, `goal_time?`, `grabbed_at`, `completed_at?`, `removed_at?`, `search_id?` |
 | `file_scores` | `media_file_id`, `title_id`, `episode_ids`, `quality_id`, `cf_score`, `profile_id` (the Title's profile at the last evaluation), `cutoff_met bool`, `transcoded bool`, `origin` (Acquisition's own view of library files; built from `FileImported`/`FileTranscoded`/`FileDeleted`) |
 
 **Qualities** use Radarr's 30 IDs. Imported Sonarr IDs are remapped (13→20, 22→21, 20→30, 21→31). Profiles and custom formats are **one pool shared by movies and TV**; the title references a profile by `ProfileID` (stored in Catalog).
@@ -281,9 +281,9 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 |---|---|---|
 | POST | `/searches` | Start a search `{title, episodes?, interactive}` → `201` with the search state below and its `searchId`. Results arrive over the live WebSocket. Only `interactive: true` is accepted until automatic search lands (400 otherwise). |
 | GET | `/searches/{id}` | The cached state for reconnect/refresh: indexers with `PENDING`/`DONE`/`FAILED`/`SKIPPED` and message, releases in arrival order with current ranks, `completed`, `cancelled`, and the profile's buckets (allowed items in order, quality IDs, `meetsCutoff` on the cutoff item and those above it) and penalized formats (scored below 0). 404 `search-not-found` once expired. |
-| POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results. 404 `release-not-found`; 409 `release-rejected` for a rejected release without `override` |
+| POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results → 202 `{status, download?, blockedFile?, next?}`. `status`: `CHECKING` (a magnet waits for its file list), `DOWNLOADING`, or `REJECTED` (a .torrent held a Blocked file; `next` is the fallback grab). 404 `release-not-found`; 409 `release-rejected` for a rejected release without `override`, `release-already-grabbed` for a release tried before in this search; 502 `release-unavailable` (Prowlarr couldn't fetch it), `qbittorrent-unavailable`, `qbittorrent-unsupported` (below 5.2) |
 | DELETE | `/searches/{id}` | Cancel in-flight indexer queries; indexers still asked report `FAILED` ("Search cancelled") and `SearchCompleted` follows. Results stay cached. |
-| GET | `/downloads` · DELETE `/downloads/{id}?deleteData=` | Queue view; remove |
+| GET | `/downloads` · DELETE `/downloads/{id}?deleteData=` | Queue view: downloads not yet removed, newest first, with title name and the last polled state, progress, speed, ETA and ratio. Remove (204) deletes the torrent, with its data when `deleteData`, and blocklists nothing |
 | GET | `/qualities` | Radarr's 30 qualities |
 | GET/POST/PUT/DELETE | `/profiles`, `/custom-formats` | Profile and CF CRUD; `POST /profiles/from-preset {preset}`. `GET /profiles` is open to every signed-in user (profile pickers); the rest is admin-only. Deleting the default profile is a 409. |
 | POST | `/custom-formats/block-term` | `{term}` → a format matching release names that contain the term (literal, any case), scored −10000 in every profile |
@@ -291,8 +291,9 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 | GET · PUT | `/indexers` · `/indexers/{id}` | List (from Prowlarr, gone ones left out, with the last sync error and Prowlarr's URL) and per-indexer settings |
 | POST | `/indexers/sync` | Pull the list from Prowlarr now; 502 `prowlarr-unavailable` / `prowlarr-unauthorized` on failure |
 | GET · PUT | `/indexer-options` | Sync interval, search timeout and result cache (apply to every indexer) |
-| GET · DELETE | `/blocklist` · `/blocklist/{id}` | View and remove |
-| GET · PUT | `/settings` | Blocked patterns, metadata timeout, delay, settle window, seeding defaults, search-on-add. Quality fields so far: `defaultProfileId` (must exist), `defaultDelayMinutes` (0–1440), `settleWindowSeconds` (5–120), `trashSyncEnabled` |
+| GET · DELETE | `/blocklist` · `/blocklist/{id}` | Every entry with its title name, newest first, expired temporary ones included; remove (204) |
+| GET · PUT | `/download-options` | Settings → Downloads: `blockedFilesEnabled`, `blockedPatterns` (glob or `regex:`; must compile), `metadataTimeoutMinutes` (1–60), `stalledLimitMinutes` (30–4320). 400 on invalid values |
+| GET · PUT | `/settings` | Delay, settle window, seeding defaults, search-on-add. Quality fields so far: `defaultProfileId` (must exist), `defaultDelayMinutes` (0–1440), `settleWindowSeconds` (5–120), `trashSyncEnabled` |
 
 ## Behaviour
 
@@ -381,7 +382,7 @@ How the specs read their inputs:
 - MaximumSize reads `acquisition.maximumSize` (bytes, 0 = no cap; no UI yet). NotSample rejects a release named "sample" under 70 MB. RawDisk rejects `BDMV` / `VIDEO_TS` in the name.
 - AlreadyImported matches the info hash against the title's library files (`library.Reader`). The upgrade, Repack, Proper and SameEpisodesGrab specs score each library file the release would replace by its original release name, else its path, with the library's quality.
 - BlockedIndexer rejects releases from an indexer that was `FAILING` when the search started.
-- Queue, History and Pending read the downloads and pending releases once those exist (grab, automatic search); until then they never reject.
+- Queue reads the title's downloads still in qBittorrent (awaiting metadata, downloading or completed); History reads its grabs from the last 12 h. Failed downloads count for neither. Each is scored against the search's profile by its release name and stored quality. Pending reads pending releases once automatic search exists; until then it never rejects.
 - FreeSpace asks qBittorrent for the download disk's free space once per search and rejects a release that would leave less than 100 MB. Unknown free space skips the check.
 - Every rejection carries a message for the dialog, such as "WEBDL-720p isn't wanted by 1080p".
 
@@ -443,7 +444,9 @@ The check is on by default and can be turned off in settings.
    - No metadata after 5 min (setting) → delete, then a **temporary** blocklist entry (`METADATA_TIMEOUT`, expires after 24 h), publish `ReleaseRejected`, fall back.
 4. **Fallback:**
    - Take the next accepted, not-yet-tried release from the search's cached ranking. Grab it and set `ReleaseRejected.Next`.
+   - A release is tried once per search, whether the user grabbed it or the fallback did; the same info hash from another indexer counts as tried. A fallback .torrent that is blocked in turn is rejected the same way and the next one is taken.
    - Cache empty or expired → enqueue a fresh AUTO search.
+   - A rejected download is kept with state `FAILED` and `removed_at` set, so it leaves the queue view.
 5. **Patterns:**
    - Editable glob or `regex:` list.
    - Default: `*.exe *.msi *.bat *.cmd *.com *.scr *.lnk *.ps1 *.vbs *.js *.jar *.apk *.dmg *.iso *.rar *.r[0-9][0-9] *.zip *.7z`.
@@ -464,6 +467,7 @@ The check is on by default and can be turned off in settings.
   - Every 5 min, check ratio and seeding time against the indexer's goals, else the global defaults (ratio 2.0 or 14 days, whichever first). When either goal is met: `Delete(deleteFiles=true)`. The library copy is a hardlink or copy, so it survives.
 - **DONT_SEED:** after `FileImported`, `Delete(deleteFiles=false)`. Library has already moved the files.
 - Downloads not grabbed by Magpie (other categories) are ignored.
+- The poll ticker only syncs, emits progress and enqueues one check job per download that needs action (metadata arrived, metadata timeout, completion, failure, stall). The job re-reads the state, so a repeated check changes nothing. A torrent missing from qBittorrent for over a minute is marked `REMOVED`.
 
 ## Test seeds
 

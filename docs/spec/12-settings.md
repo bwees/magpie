@@ -55,6 +55,7 @@ Owner: **Platform** (`platform.connections.*`). Each adapter is configured once 
 | TMDB API key | none (required) | Test: key valid. The user supplies the key; none is bundled ([ticket 09](../../.scratch/v1-spec/issues/09-choose-metadata-source.md)). |
 | qBittorrent URL, API key | none (required) | Test: version ≥ 5.2 ([ticket 18](../../.scratch/v1-spec/issues/18-import-and-library.md)), category `magpie` created |
 | qBittorrent category | `magpie` | `[a-z0-9-]` |
+| qBittorrent download path / same path in Magpie | none (paths match) | both or neither. The adapter rewrites qBittorrent's `content_path` from the first prefix to the second, whole folders only. |
 | Prowlarr URL, API key | none (required) | Test: lists indexers |
 | Jellyfin URL, API key | none (required) | Test: version ≥ 12, libraries listed, WebSocket connects. Auth header `Authorization: MediaBrowser Token=…` only. |
 | OpenSubtitles app key | bundled with Magpie | not user-editable ([ticket 16](../../.scratch/v1-spec/issues/16-subtitle-design.md)) |
@@ -109,7 +110,7 @@ The per-indexer rows live on each indexer (`PUT /api/acquisition/indexers/{id}`)
 
 ## Downloads
 
-Owner: **Acquisition**. Decided in [ticket 11](../../.scratch/v1-spec/issues/11-blocked-file-policy.md).
+Owner: **Acquisition**. Decided in [ticket 11](../../.scratch/v1-spec/issues/11-blocked-file-policy.md). The first four rows are `GET · PUT /api/acquisition/download-options`; patterns and the switch save on change, the timeouts with Save.
 
 | Setting | Default | Validation |
 |---|---|---|
