@@ -363,6 +363,10 @@ func TestAPackWithAnUnmappableVideoImportsNothing(t *testing.T) {
 	if i < 0 || imp.Files[i].Kind != library.FileVideo || len(imp.Files[i].Episodes) != 0 {
 		t.Errorf("import files = %+v, want the unmapped video listed", imp.Files)
 	}
+	first := slices.IndexFunc(imp.Files, func(file library.ImportFile) bool { return file.Path == rels[0] })
+	if first < 0 || len(imp.Files[first].Episodes) != 1 || imp.Files[first].Episodes[0].Episode != f.episodes[0].ID {
+		t.Errorf("import files = %+v, want the mapped videos' episodes kept for the picker", imp.Files)
+	}
 }
 
 // Seed library #6.

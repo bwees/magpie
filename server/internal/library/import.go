@@ -266,15 +266,27 @@ func (p *importPlan) mapAutomatically(index episodeIndex) error {
 	case len(p.videos) == 1:
 		return p.mapToPayload(index)
 	}
+	var unmapped []string
 	for i := range p.videos {
 		v := &p.videos[i]
 		episodes, ok := index.fromName(v.source.abs, p.imp.ReleaseName)
 		if !ok {
-			return manual(fmt.Sprintf("Couldn't tell which episode %s is", filepath.Base(v.source.rel)), p.files)
+			unmapped = append(unmapped, filepath.Base(v.source.rel))
+			continue
 		}
 		v.episodes = refs(episodes)
+		p.noteEpisodes(*v)
+	}
+	if len(unmapped) > 0 {
+		return manual(fmt.Sprintf("Couldn't tell which episode %s is", strings.Join(unmapped, ", ")), p.files)
 	}
 	return p.checkMapped()
+}
+
+// noteEpisodes records a video's episodes in the file list the imports queue shows.
+func (p *importPlan) noteEpisodes(v plannedVideo) {
+	i := slices.IndexFunc(p.files, func(f ImportFile) bool { return f.Path == v.source.rel })
+	p.files[i].Episodes = v.episodes
 }
 
 // mapToPayload maps a download's only video to the episodes it was grabbed for.
@@ -335,8 +347,7 @@ func (p *importPlan) checkMapped() error {
 			}
 			seen[ref.Episode] = true
 		}
-		i := slices.IndexFunc(p.files, func(f ImportFile) bool { return f.Path == v.source.rel })
-		p.files[i].Episodes = v.episodes
+		p.noteEpisodes(v)
 	}
 	for i := range p.videos {
 		v := &p.videos[i]
