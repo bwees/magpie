@@ -17,11 +17,29 @@ builds:
       - CGO_ENABLED=0
     flags:
       - -trimpath
+    ldflags:
+      - -s -w
+      - -X magpie/internal/adapters/opensubtitles.AppKey={{ envOrDefault "OPENSUBTITLES_APP_KEY" "" }}
     goos:
       - linux
     goarch:
       - amd64
       - arm64
+
+  - id: magpie-agent
+    dir: server
+    main: ./agent
+    binary: magpie-agent
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+    goarch:
+      - amd64
 
 archives:
   - id: magpie
@@ -38,7 +56,7 @@ dockers_v2:
     ids:
       - magpie
     images:
-      - ghcr.io/{{ .Env.REGISTRY_IMAGE }}
+      - ghcr.io/{{ envOrDefault "REGISTRY_IMAGE" "bwees/magpie" }}
     tags:
       - "v{{ .Version }}"
       - latest
@@ -50,6 +68,22 @@ dockers_v2:
       - web/build
     labels:
       org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+
+  - id: magpie-agent
+    ids:
+      - magpie-agent
+    images:
+      - ghcr.io/{{ envOrDefault "REGISTRY_IMAGE" "bwees/magpie" }}-agent
+    tags:
+      - "v{{ .Version }}"
+      - latest
+    platforms:
+      - linux/amd64
+    dockerfile: Dockerfile.agent
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}-agent"
       org.opencontainers.image.version: "{{ .Version }}"
       org.opencontainers.image.revision: "{{ .FullCommit }}"
 

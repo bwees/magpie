@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+ARG DEBIAN_RELEASE=trixie
+
+FROM debian:${DEBIAN_RELEASE}-slim AS whisper
+ARG WHISPER_CPP_VERSION=v1.9.5
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential ca-certificates cmake git glslc libvulkan-dev spirv-headers \
+ && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch "${WHISPER_CPP_VERSION}" https://github.com/ggml-org/whisper.cpp /src
+RUN cmake -S /src -B /build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGGML_VULKAN=ON \
+      -DGGML_NATIVE=OFF \
+      -DBUILD_SHARED_LIBS=OFF \
+      -DWHISPER_BUILD_TESTS=OFF \
+      -DWHISPER_BUILD_SERVER=OFF \
+ && cmake --build /build --config Release --target whisper-cli -j"$(nproc)"
+
+FROM debian:${DEBIAN_RELEASE}-slim AS runtime
+ARG DEBIAN_RELEASE
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG JELLYFIN_FFMPEG_VERSION=8.1.3-1
+ARG JELLYFIN_FFMPEG_SHA256=fbef9f81a53e175194e3f67832618a86111f7bd37197df21a5d748c34289f9c0
+
+ADD --checksum=sha256:${JELLYFIN_FFMPEG_SHA256} \
+    https://github.com/jellyfin/jellyfin-ffmpeg/releases/download/v${JELLYFIN_FFMPEG_VERSION}/jellyfin-ffmpeg8_${JELLYFIN_FFMPEG_VERSION}-${DEBIAN_RELEASE}_${TARGETARCH}.deb \
+    /tmp/jellyfin-ffmpeg.deb
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates tini libgomp1 libvulkan1 /tmp/jellyfin-ffmpeg.deb \
+ && rm -rf /var/lib/apt/lists/* /tmp/jellyfin-ffmpeg.deb \
+ && ln -s /usr/lib/jellyfin-ffmpeg/ffmpeg /usr/local/bin/ffmpeg \
+ && ln -s /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe
+
+COPY --from=whisper /build/bin/whisper-cli /usr/local/bin/whisper-cli
+COPY ${TARGETPLATFORM}/magpie-agent /usr/local/bin/magpie-agent
+
+# whisper-cli uses the system Vulkan loader; these add jellyfin-ffmpeg's Mesa drivers for Intel and AMD.
+# The NVIDIA Container Toolkit adds its own driver when graphics is in the capabilities.
+ENV VK_ADD_DRIVER_FILES=/usr/lib/jellyfin-ffmpeg/share/vulkan/icd.d/intel_icd.x86_64.json:/usr/lib/jellyfin-ffmpeg/share/vulkan/icd.d/radeon_icd.x86_64.json
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,video,utility,graphics
+ENV MAGPIE_SCRATCH_DIR=/scratch
+
+VOLUME /scratch
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/magpie-agent"]
