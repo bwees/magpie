@@ -312,11 +312,15 @@ func pickEpisodes(all []catalogapi.Episode, ids []domain.EpisodeID) ([]catalogap
 func scoreFiles(files []libraryapi.MediaFile, title catalogapi.Title, p ScoringProfile) []existingFile {
 	scored := make([]existingFile, 0, len(files))
 	for _, f := range files {
-		release := fileRelease(f, title.Kind)
-		facts := ReleaseFacts{Release: release, SizeBytes: f.Size, OriginalLanguage: title.OriginalLanguage}
-		scored = append(scored, existingFile{File: f, Eval: Evaluate(facts, p), Group: release.Group})
+		scored = append(scored, scoreFile(f, title, p))
 	}
 	return scored
+}
+
+func scoreFile(f libraryapi.MediaFile, title catalogapi.Title, p ScoringProfile) existingFile {
+	release := fileRelease(f, title.Kind)
+	facts := ReleaseFacts{Release: release, SizeBytes: f.Size, OriginalLanguage: title.OriginalLanguage}
+	return existingFile{File: f, Eval: Evaluate(facts, p), Group: release.Group}
 }
 
 func fileRelease(f libraryapi.MediaFile, kind domain.MediaKind) parse.Release {

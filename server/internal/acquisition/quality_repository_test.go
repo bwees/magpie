@@ -7,7 +7,6 @@ import (
 
 	"magpie/internal/acquisition/api"
 	"magpie/internal/acquisition/api/contracttest"
-	"magpie/internal/domain"
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/db/dbtest"
 	"magpie/internal/platform/parse"
@@ -15,27 +14,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// profileReader serves the profile part of the contract from the real repository; downloads,
-// blocklist and cutoff status come later and stay with the fake until then.
-type profileReader struct {
-	api.Reader
-	repo *QualityRepository
-}
-
-func (r profileReader) Profile(ctx context.Context, id domain.ProfileID) (api.Profile, error) {
-	return r.repo.Profile(ctx, id)
-}
-
-func (r profileReader) Profiles(ctx context.Context) ([]api.ProfileSummary, error) {
-	return r.repo.Profiles(ctx)
-}
-
-func (r profileReader) DefaultProfile(ctx context.Context) (domain.ProfileID, error) {
-	return r.repo.DefaultProfile(ctx)
-}
-
-func TestRepositoryMeetsTheProfileContract(t *testing.T) {
-	contracttest.RunProfiles(t, func(t *testing.T, f contracttest.Fixture) api.Reader {
+func TestReaderMeetsTheContract(t *testing.T) {
+	contracttest.Run(t, func(t *testing.T, f contracttest.Fixture) api.Reader {
 		d := dbtest.Open(t, Migrations())
 		now := time.Now()
 		err := d.Write(context.Background(), func(tx *gorm.DB) error {
@@ -49,22 +29,6 @@ func TestRepositoryMeetsTheProfileContract(t *testing.T) {
 					return err
 				}
 			}
-			if f.DefaultProfile == "" {
-				return nil
-			}
-			return DefaultProfileKey.SetTx(tx, f.DefaultProfile)
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return profileReader{Reader: contracttest.NewFake(contracttest.Fixture{}), repo: NewQualityRepository(d)}
-	})
-}
-
-func TestReaderMeetsTheDownloadAndBlocklistContract(t *testing.T) {
-	contracttest.RunDownloadsAndBlocklist(t, func(t *testing.T, f contracttest.Fixture) api.Reader {
-		d := dbtest.Open(t, Migrations())
-		err := d.Write(context.Background(), func(tx *gorm.DB) error {
 			for _, dl := range f.Downloads {
 				if err := insertDownload(tx, download{Download: dl}); err != nil {
 					return err
@@ -75,7 +39,19 @@ func TestReaderMeetsTheDownloadAndBlocklistContract(t *testing.T) {
 					return err
 				}
 			}
-			return nil
+			for _, s := range f.FileScores {
+				score := FileScore{
+					File: s.File, Title: s.Title, Quality: s.Quality, CFScore: s.CFScore, Profile: s.Profile,
+					CutoffMet: s.CutoffMet, Transcoded: s.Transcoded, Origin: s.Origin,
+				}
+				if err := saveFileScore(tx, score, now); err != nil {
+					return err
+				}
+			}
+			if f.DefaultProfile == "" {
+				return nil
+			}
+			return DefaultProfileKey.SetTx(tx, f.DefaultProfile)
 		})
 		if err != nil {
 			t.Fatal(err)

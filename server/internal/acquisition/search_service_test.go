@@ -116,6 +116,7 @@ type searchFixture struct {
 	quality   *acquisition.QualityService
 	searches  *acquisition.SearchService
 	downloads *acquisition.DownloadService
+	cutoff    *acquisition.CutoffService
 	jobs      *recordingQueue
 	clock     *clock
 	catalog   *catalogtest.Fake
@@ -175,6 +176,7 @@ func newSearchFixture(t *testing.T) searchFixture {
 		Store: store, Bus: b, Jobs: f.jobs, Searches: registry,
 	})
 	acquisition.SetDownloadClock(f.downloads, f.clock.Now)
+	f.cutoff = acquisition.NewCutoffService(acquisition.CutoffDeps{DB: d, Repo: repo, Catalog: f.catalog, Bus: b})
 	return f
 }
 

@@ -7,9 +7,8 @@ import (
 	"magpie/internal/domain"
 )
 
-// Reader is Acquisition's api.Reader. Profiles come from the quality tables, downloads and the blocklist
-// from the repository. File scores aren't stored yet, so CutoffStatus answers ErrNotFound until the
-// cutoff slice builds them.
+// Reader is Acquisition's api.Reader. Profiles come from the quality tables; downloads, the blocklist and
+// file scores from the repository.
 type Reader struct {
 	*QualityRepository
 	repo *Repository
@@ -33,6 +32,6 @@ func (r Reader) Blocklist(ctx context.Context, title domain.TitleID) ([]api.Bloc
 	return r.repo.Blocklist(ctx, title)
 }
 
-func (Reader) CutoffStatus(context.Context, domain.MediaFileID) (api.CutoffStatus, error) {
-	return api.CutoffStatus{}, api.ErrNotFound
+func (r Reader) CutoffStatus(ctx context.Context, file domain.MediaFileID) (api.CutoffStatus, error) {
+	return r.repo.CutoffStatus(ctx, file)
 }

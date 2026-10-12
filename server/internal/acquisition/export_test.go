@@ -14,7 +14,14 @@ var (
 	NewMonitoringChangedHandler = newMonitoringChangedHandler
 	NewWantedReleasedHandler    = newWantedReleasedHandler
 	NewTitleRemovedHandler      = newTitleRemovedHandler
+	NewFileScoresHandler        = newFileScoresHandler
 )
+
+// RescoreOf is the profile a queued rescore job scores files under again; "" means every file.
+func RescoreOf(task any) (domain.ProfileID, bool) {
+	r, ok := task.(rescoreTask)
+	return r.Profile, ok
+}
 
 func SetDownloadClock(s *DownloadService, now func() time.Time) { s.now = now }
 

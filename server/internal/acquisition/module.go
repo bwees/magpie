@@ -34,6 +34,16 @@ var Module = fx.Module(string(owner.Acquisition),
 	searchOptions,
 	downloadOptions,
 	automaticSearchOptions,
+	cutoffOptions,
+)
+
+// cutoffOptions wires Acquisition's scores of library files and the cutoff they're held to.
+var cutoffOptions = fx.Options(
+	fx.Provide(
+		NewCutoffService,
+		bus.AsHandler(newFileScoresHandler),
+		jobs.AsQueue(newRescoreQueue),
+	),
 )
 
 // automaticSearchOptions wires the searches nobody starts by hand: on add and release, RSS, the pending

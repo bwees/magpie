@@ -133,11 +133,15 @@ func (r *QualityRepository) DefaultProfile(ctx context.Context) (domain.ProfileI
 
 // ScoringProfile loads a profile with every custom format compiled, ready for Evaluate.
 func (r *QualityRepository) ScoringProfile(ctx context.Context, id domain.ProfileID) (ScoringProfile, error) {
-	p, err := r.Profile(ctx, id)
+	return loadScoringProfile(r.db.Read(ctx), id)
+}
+
+func loadScoringProfile(conn *gorm.DB, id domain.ProfileID) (ScoringProfile, error) {
+	p, err := loadProfile(conn, id)
 	if err != nil {
 		return ScoringProfile{}, err
 	}
-	formats, err := r.Formats(ctx)
+	formats, err := loadFormats(conn)
 	if err != nil {
 		return ScoringProfile{}, err
 	}
