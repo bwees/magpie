@@ -31,7 +31,7 @@ Knows what exists (from TMDB) and what is wanted: Titles, seasons, episodes, the
 | `catalog_episodes` | `id`, `titleId`, `tmdbEpisodeId` (unique), `seasonNumber`, `episodeNumber` (current numbering), `airedSeason`, `airedNumber` (TMDB aired order), `name`, `airDate?`, `runtimeMinutes?`, `monitored`, `released`, `releasedAt?` |
 | `catalog_images` | `titleId`, `kind` (`POSTER` \| `BACKDROP` \| `LOGO`), `tmdbPath`, `localPath`, `fetchedAt` |
 | `catalog_languages` | `position`, `language`, `forced`, `hearingImpaired` (global wanted languages, ordered) |
-| `catalog_scan_review` | `id`, `folderPath`, `parsedTitle`, `parsedYear?`, `tmdbHint?`, `candidates` JSON, `state` (`PENDING` \| `MATCHED` \| `IGNORED`), `createdAt` |
+| `catalog_scan_review` | `id`, `folderPath` (unique), `kind`, `parsedTitle`, `parsedYear?`, `tmdbHint?`, `candidates` JSON (`tmdbId`, `kind`, `name`, `year`, `overview`, `posterPath`, `score`), `state` (`PENDING` \| `MATCHED` \| `IGNORED`), `titleId?` (set when `MATCHED`), `createdAt`, `updatedAt`. Every folder Catalog has seen has a row: an automatic match is stored `MATCHED`. |
 
 - Columns are snake_case in SQL (`tmdb_id`), like the platform tables.
 - Settings live in the platform settings store, not a table: `catalog.metadata` (`language`, default `en-US`; `releaseRegion`, default `US`), `catalog.schedule.movieRefresh` (`168h`), `catalog.schedule.continuingSeriesRefresh` (`24h`), `catalog.schedule.endedSeriesRefresh` (`168h`), `catalog.schedule.releaseClock` (`1h`) and `catalog.refresh.paused` (set by a `401`).
@@ -289,6 +289,8 @@ Routes under `/api/catalog`. Schemas come from fuego's OpenAPI.
 - `PATCH /titles/{id}/seasons/{n}` and `PATCH /titles/{id}/episodes/{episodeId}` take `{monitored}` and return the Title. `n` is in the current numbering. Unknown seasons and episodes answer `404`; a movie answers `409 not-a-series`. So do the episode-group routes.
 - `GET /titles/{id}/episode-groups` items: `id`, `name`, `type` (`ORIGINAL_AIR_DATE` \| `ABSOLUTE` \| `DVD` \| `DIGITAL` \| `STORY_ARC` \| `PRODUCTION` \| `TV`), `episodeCount`, `groupCount`. `PUT /titles/{id}/episode-group {groupId}` answers `400 unknown-episode-group` for a group TMDB doesn't list for the series. `TitleResponse.episodeGroupId` is the selected group (`""` = aired order).
 - `GET /scan-review`, `POST /scan-review/{id}/match {tmdbId}`, `POST /scan-review/{id}/ignore` library-scan review queue (admin).
+  - `GET` lists `PENDING` rows, oldest first: `id`, `folderPath`, `kind`, `parsedTitle`, `parsedYear`, `tmdbHint`, `state`, `titleId`, `createdAt`, and `candidates` (`tmdbId`, `kind`, `name`, `year`, `overview`, `posterUrl` hotlinked from TMDB, `score` 0–1).
+  - `match` takes any TMDB ID of the row's kind (a candidate, or one the admin found with `/discover`). It fetches the Title synchronously, then creates it if new and publishes `ScanFolderMatched` like an automatic match. Both answer the row: `404 scan-review-not-found`, `409 scan-review-resolved` unless `PENDING`, `404 title-not-found` when TMDB has no such ID, `503 tmdb-unavailable`. A failed match leaves the row `PENDING`.
 - `GET /attribution` TMDB logo and notice for the About page.
 
 Adding a Title from the top-bar search goes through Requests (`POST /api/requests`). An admin's request is approved immediately. Catalog has no direct add endpoint.
@@ -350,6 +352,12 @@ Adding a Title from the top-bar search goes through Requests (`POST /api/request
 **Library scan matching** ([ticket 18](../../../.scratch/v1-spec/issues/18-import-and-library.md))
 - Catalog owns matching and the review queue; Library only reports folders (`FolderFound`) and links files after `ScanFolderMatched`.
 - Titles created by a scan get `Origin = LIBRARY_SCAN`. Acquisition doesn't search them until Library has linked their files.
+- `FolderFound` queues a `catalog.match-folder` job (handlers can't call TMDB). A folder with a review row is left alone, so a redelivery or a rescan publishes nothing.
+- A tag (`TmdbHint`) is fetched directly; if TMDB doesn't know it, the folder is searched instead.
+- Search: TMDB `/search/multi` for the parsed title, results of the folder's kind. Score = name similarity (1 − Levenshtein distance / longer length, over lowercased names with punctuation as spaces and `&` as "and"; the better of name and original name), × 0.95 when the years differ by one or TMDB has no year, × 0.6 when they differ by more; no folder year leaves it as is. Exactly one result ≥ 0.9 matches; otherwise the best five are stored as candidates on a `PENDING` row.
+- A new Title is created on the default profile (`Profile` empty, which Acquisition reads as its default profile), monitored; a series monitors every regular season and future seasons, like a whole-series request.
+- TMDB errors other than not-found retry the job after 30 s, doubling up to 1 h, until TMDB answers.
+- Removing a Title deletes the review rows matched to it, so a later scan can match the folder again.
 
 **Origin**
 - `REQUEST`: created from `RequestApproved` (including admin adds from the top-bar search, which go through Requests).

@@ -72,8 +72,8 @@ Owner: **Library** unless noted.
 | After download (seeding mode) | Seed until goals | `SEED_UNTIL_GOALS` \| `DONT_SEED`. Owner: Acquisition (`acquisition.seedingMode`, in `GET · PUT /api/acquisition/download-options`; also shown under Downloads); Library receives it in `DownloadCompleted.SeedingMode`. |
 | Hardlink check | automatic | Shows the result per root folder against qBittorrent's save path for Magpie's category. Copy fallback when downloads and library are on different filesystems. |
 | Naming | fixed Jellyfin convention | read-only: `Movies/Title (Year) [tmdbid-N]/Title (Year).mkv`, `TV/Show (Year) [tmdbid-N]/Season 01/Show S01E02.mkv` |
-| Scan existing library | action | match by `[tmdbid-N]`, else fuzzy title+year → review |
-| Rename matched folders on scan | off | |
+| Scan existing library | action | match by `[tmdbid-N]`, else fuzzy title+year → review. `POST /api/library/scan`; status and counts from `GET /api/library/scan`; review queue from Catalog's `/api/catalog/scan-review` |
+| Rename matched folders on scan | off | `library.scan.options` `{renameMatched}`, `PUT /api/library/scan/options` |
 
 ## Quality
 

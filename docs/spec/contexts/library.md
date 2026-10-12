@@ -28,9 +28,10 @@ Decisions: [04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md), 
 | `media_files` | id, title_id, root_folder_id, path, size, quality (json), release_name, os_hash, media_info (json: streams, duration, HDR), etag, origin (DOWNLOAD/LIBRARY_SCAN/MIGRATION), imported_at, download_id?, info_hash?, transcoded, transcoded_at, original_size, jellyfin_item_id?, available_at? |
 | `media_file_episodes` | media_file_id, episode_id, season, number (many-to-many: multi-episode files; the numbers as imported) |
 | `imports` | download_id, title_id, release_name, status (PENDING/IMPORTED/FAILED/MANUAL/REMOVED), attempts, last_error, payload (the `DownloadCompleted`), files (json: the last attempt's videos and subtitles with their sample flag and matched episodes), mapping? (json: the user's file → episodes choice), created_at, updated_at |
-| `scan_folders` | path, status (FOUND/LINKED/IGNORED), title_id? (set on `ScanFolderMatched`) |
+| `scan_folders` | path, root_folder_id, kind, status (FOUND/LINKED/IGNORED), title_id? (set on `ScanFolderMatched`), found_at, updated_at |
 
 - `etag` = hash of (device, inode, size, mtime). It changes whenever the file is replaced or modified.
+- `media_files.rename_problem` (default `''`) says why a file kept its old name after an episode-group change; a later successful rename clears it.
 - `os_hash` and `release_name` are captured once at import and never recomputed. Subtitle matching depends on the original file ([16](../../../.scratch/v1-spec/issues/16-subtitle-design.md)).
 
 ## Query port
@@ -208,7 +209,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/library/files?title={id}` | Files for the title page Files tab; each has `available` and `jellyfinOverdue` (not confirmed 24 h after import) |
+| GET | `/api/library/files?title={id}` | Files for the title page Files tab; each has `available`, `jellyfinOverdue` (not confirmed 24 h after import) and `renameProblem` (set when an episode-group rename failed) |
 | GET | `/api/library/files?titles={id}&titles={id}…&transcoded={bool}` | Batch files (same shape as above) for the Movies page, grouped by title in input order (`FilesForTitles`); `transcoded` filter optional. Pass exactly one of `title` or `titles`; more than 500 titles is 400 `too-many-titles` (admin) |
 | GET | `/api/library/files/{id}` | One file with media info |
 | GET | `/api/library/coverage?titles={id}&titles={id}…` | Episodes with a file / confirmed in Jellyfin and size per title, in input order (TV page; at most 500 titles, admin) |
@@ -218,7 +219,9 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 | POST | `/api/library/imports/{downloadId}/manual` | Body `{files: [{path, episodes}]}`: imports the listed videos as those episodes (a movie's video has none) and skips the rest; 202, runs as the import job. 400 `invalid-file-mapping`, 409 `import-not-stopped` unless FAILED or MANUAL |
 | POST | `/api/library/imports/{downloadId}/retry` | Runs a FAILED or MANUAL import again with automatic mapping; 202 |
 | DELETE | `/api/library/imports/{downloadId}` | Remove & blocklist: marks a FAILED or MANUAL import `REMOVED` and publishes `ImportRemoved` in the same transaction; Acquisition then blocklists the release, deletes the torrent with its data and grabs the next one (a FAILED import's release is already blocklisted). 204; 409 `import-not-stopped` otherwise |
-| POST | `/api/library/scan` | Start a library scan (backlite job) |
+| POST | `/api/library/scan` | Start a library scan (backlite job); 202 with the scan status. Nothing new starts while one runs (a run older than an hour counts as stale) |
+| GET | `/api/library/scan` | `{running, startedAt, finishedAt, error, reported, found, linked, ignored, renameMatched}`: the last scan, how many folders it reported, and the scan folders by status (admin) |
+| PUT | `/api/library/scan/options` | `{renameMatched}`: "Rename matched folders on scan" (setting `library.scan.options`); answers the scan status (admin) |
 | GET | `/api/library/hardlink-check` | Whether the qBittorrent download path (from `DownloadLocation`) and each root folder share a device; `problem` says why the result is `UNKNOWN` |
 | GET · PUT | `/api/library/schedules` | `{jellyfinReconcileHours}`: the Jellyfin full reconcile interval, 6–168 (400 outside); Settings → General → Schedules (admin) |
 
@@ -258,10 +261,17 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 7. A rejection deletes the staged file and publishes `TranscodeSwapRejected`.
 
 **Library scan:** walk the root folders. For each top-level folder not linked to a title, publish `FolderFound` with the parsed title/year and any `[tmdbid-N]`/`{tmdb-N}` hint. Catalog decides the match (exact ID, else fuzzy with a review queue it owns) and publishes `ScanFolderMatched` (plus `TitleAdded{Origin: LIBRARY_SCAN}` for new Titles). Library then links that folder's files in place, without moving or renaming unless the user opted in ([18](../../../.scratch/v1-spec/issues/18-import-and-library.md)), and publishes `FileImported{Origin: LIBRARY_SCAN}`.
+- The scan skips hidden folders (`.magpie-staging`), folders that already hold a media file (imports) and `LINKED` scan folders. `FOUND` folders are reported again (Catalog ignores folders it has seen). An `IGNORED` folder whose title is known is relinked without asking Catalog, in case a video was added.
+- Folder names: the `[tmdbid-N]`, `{tmdb-N}` (also with `=`) tag gives the hint; ID tags are dropped from the title; `Title (Year)` gives title and year; else the release parser reads a release-style name; else the whole name is the title.
+- Linking: videos that aren't samples and aren't media files yet. A movie keeps its largest video. A series maps each video by its name (current numbering, then aired order); a video it can't map, or a second one for an episode, is left out. Quality comes from the name, else from the picture width (HDTV at that resolution, as Sonarr does). `release_name` keeps a release-style file name, else `""`. Subtitles named `<video basename>.<lang>…` are reported in `Sidecars`. No playable video → `IGNORED`. The rows, `FileImported`s and `LINKED` commit together; a redelivered `ScanFolderMatched` for a `LINKED` folder does nothing.
+- With "Rename matched folders on scan" on, each video and the files sharing its basename move to the fixed naming in the same root (temp name, then rename). A video that can't move is linked where it is.
 
 **Manual delete:** deleting a file from the UI removes it from disk and publishes `FileDeleted{Reason: REMOVED}`.
 
 **Episode-group change:** rename each affected file and every sidecar sharing its basename to the new numbering, update links, then refresh Jellyfin.
+- A file is affected when one of its episodes is in `Moves` at its stored `From` numbers. Its new path keeps its show folder (the top folder under the root; a file loose in the root moves to the title's folder) and is `Season <NN>/<Show> S<NN>E<NN>[-E<NN>].<ext>` within it.
+- Every file first moves to a temporary name in the target folder, then to its final name, so episodes can trade names. A move that would overwrite a file outside the batch, or fails, is put back: the file keeps its old name and numbers and gets `rename_problem`. A rename an interrupted run already made (old path gone, new one there) is just recorded.
+- Then `RefreshPath` runs for the old and new folders, and emptied folders are removed. No event is published; the renamed file gets a new Jellyfin item, which confirms it again.
 
 ## Test seeds
 
