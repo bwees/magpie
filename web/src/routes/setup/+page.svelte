@@ -10,6 +10,7 @@
 	import ConnectionFields from '$lib/connections/ConnectionFields.svelte';
 	import HealthBadge from '$lib/connections/HealthBadge.svelte';
 	import { LoadStatus } from '$lib/load-status';
+	import MigrationWizard from '$lib/migration/MigrationWizard.svelte';
 	import AuthFrame from '$lib/session/AuthFrame.svelte';
 	import { getSession } from '$lib/session/session.svelte';
 	import QualityPresetStep from '$lib/settings/quality/QualityPresetStep.svelte';
@@ -143,6 +144,14 @@
 					onDone={() => wizard.complete()}
 					onSkip={() => wizard.skip()}
 				/>
+			{:else if step.kind === StepKind.ARR_IMPORT}
+				<Card.Content>
+					<MigrationWizard />
+				</Card.Content>
+				<Card.Footer class="justify-end gap-2">
+					<Button variant="ghost" onclick={() => wizard.skip()}>Skip</Button>
+					<Button onclick={() => wizard.complete()}>{wizard.isLast ? 'Finish' : 'Continue'}</Button>
+				</Card.Footer>
 			{:else}
 				<Card.Content>
 					<div

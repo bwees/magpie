@@ -20,6 +20,7 @@ export enum StepKind {
 	CONNECTION = 'CONNECTION',
 	QUALITY_PRESET = 'QUALITY_PRESET',
 	LANGUAGES = 'LANGUAGES',
+	ARR_IMPORT = 'ARR_IMPORT',
 	/** Owned by a later slice, which replaces the placeholder. */
 	COMING_SOON = 'COMING_SOON'
 }
@@ -109,6 +110,6 @@ export const WIZARD_STEPS: StepSpec[] = [
 		step: WizardStep.ARR_IMPORT,
 		label: 'Import from Sonarr/Radarr',
 		description: 'Bring over your existing library and history. Optional.',
-		kind: StepKind.COMING_SOON
+		kind: StepKind.ARR_IMPORT
 	}
 ];

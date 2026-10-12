@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BackupsCard from '$lib/backups/BackupsCard.svelte';
+	import MigrationCard from '$lib/migration/MigrationCard.svelte';
 	import LocalPasswordCard from '$lib/session/LocalPasswordCard.svelte';
 	import { getSession } from '$lib/session/session.svelte';
 	import SchedulesCard from '$lib/settings/schedules/SchedulesCard.svelte';
@@ -13,4 +14,5 @@
 	{/if}
 	<BackupsCard />
 	<SchedulesCard />
+	<MigrationCard />
 </div>
