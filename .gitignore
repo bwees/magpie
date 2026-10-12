@@ -9,3 +9,4 @@ tmp/
 .env.*
 !.env.example
 .claude/worktrees/
+.scratch/
