@@ -234,8 +234,10 @@ func (c *controlChannel) send(ctx context.Context, env agentproto.Envelope) erro
 	return c.write(ctx, env)
 }
 
+// write ignores ctx's cancellation: the websocket library drops the whole connection when a write's
+// context ends, even after the frame went out. closeOnStop ends the socket cleanly instead.
 func (c *controlChannel) write(ctx context.Context, env agentproto.Envelope) error {
-	ctx, cancel := context.WithTimeout(ctx, frameWriteTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), frameWriteTimeout)
 	defer cancel()
 	return wsjson.Write(ctx, c.conn, env)
 }
