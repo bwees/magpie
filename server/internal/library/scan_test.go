@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -281,6 +282,74 @@ func TestAnEpisodeGroupChangeRenamesTheVideoAndItsSidecar(t *testing.T) {
 	}
 	if !slices.Contains(f.jellyfin.Refreshed(), newDir) {
 		t.Errorf("Jellyfin refreshed %v, want %s", f.jellyfin.Refreshed(), newDir)
+	}
+}
+
+func (f *importFixture) renamed(t *testing.T) []api.FileRenamed {
+	t.Helper()
+	var out []api.FileRenamed
+	for _, ev := range f.events.ofType(api.TypeFileRenamed) {
+		out = append(out, payload[api.FileRenamed](t, ev))
+	}
+	return out
+}
+
+// Seed library #21.
+func TestAnEpisodeGroupRenamePublishesFileRenamedWithItsSidecars(t *testing.T) {
+	f := newImportFixture(t, oneDevice)
+	episode := domain.NewID[domain.EpisodeID]()
+	file := f.seedEpisodeFile(t, episodeAt(episode, 2, 1))
+	move := catalogapi.EpisodeMove{Episode: episode, FromSeason: 2, FromNo: 1, ToSeason: 1, ToNo: 11}
+
+	f.changeGroup(t, move)
+	f.changeGroup(t, move)
+
+	newDir := filepath.Join(f.layout.tv, showFolder, "Season 01")
+	want := api.FileRenamed{
+		MediaFile: file.ID, Title: f.show.ID, Episodes: []domain.EpisodeRef{episodeAt(episode, 1, 11)},
+		OldPath: file.Path, NewPath: filepath.Join(newDir, "Show S01E11.mkv"),
+		Sidecars: []api.SidecarMove{{
+			OldPath: filepath.Join(filepath.Dir(file.Path), "Show S02E01.en.srt"),
+			NewPath: filepath.Join(newDir, "Show S01E11.en.srt"),
+		}},
+	}
+	if got := f.renamed(t); len(got) != 1 || !reflect.DeepEqual(got[0], want) {
+		t.Errorf("FileRenamed = %+v, want once %+v", got, want)
+	}
+}
+
+func TestARenameAnInterruptedRunMadeIsPublishedWithItsSidecars(t *testing.T) {
+	f := newImportFixture(t, oneDevice)
+	episode := f.episodes[0].ID
+	file := f.seedEpisodeFile(t, episodeAt(episode, 1, 1))
+	oldSidecar := filepath.Join(filepath.Dir(file.Path), "Show S01E01.en.srt")
+	newPath := filepath.Join(filepath.Dir(file.Path), "Show S01E03.mkv")
+	newSidecar := filepath.Join(filepath.Dir(file.Path), "Show S01E03.en.srt")
+	for from, to := range map[string]string{file.Path: newPath, oldSidecar: newSidecar} {
+		if err := f.files.Rename(from, to); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	f.changeGroup(t, catalogapi.EpisodeMove{Episode: episode, FromSeason: 1, FromNo: 1, ToSeason: 1, ToNo: 3})
+
+	got := f.renamed(t)
+	want := []api.SidecarMove{{OldPath: oldSidecar, NewPath: newSidecar}}
+	if len(got) != 1 || got[0].NewPath != newPath || !slices.Equal(got[0].Sidecars, want) {
+		t.Errorf("FileRenamed = %+v, want %s with sidecars %+v", got, newPath, want)
+	}
+}
+
+func TestAFileThatCouldntBeRenamedPublishesNoFileRenamed(t *testing.T) {
+	f := newImportFixture(t, oneDevice)
+	episode := f.episodes[0].ID
+	f.seedEpisodeFile(t, episodeAt(episode, 1, 1))
+	f.libraryFile(t, filepath.Join(f.layout.tv, showFolder, "Season 01", "Show S01E05.mkv"), fullRuntime)
+
+	f.changeGroup(t, catalogapi.EpisodeMove{Episode: episode, FromSeason: 1, FromNo: 1, ToSeason: 1, ToNo: 5})
+
+	if got := f.renamed(t); len(got) != 0 {
+		t.Errorf("FileRenamed = %+v, want none", got)
 	}
 }
 

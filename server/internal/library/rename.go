@@ -13,6 +13,8 @@ import (
 
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
+	"magpie/internal/library/api"
+	"magpie/internal/platform/bus"
 
 	"gorm.io/gorm"
 )
@@ -33,6 +35,21 @@ type fileMove struct {
 // pathMove is one file of a fileMove with the temporary name it passes through.
 type pathMove struct {
 	from, to, temp string
+}
+
+// moveResult is how one fileMove went: the sidecars that moved with the video, or why nothing moved.
+type moveResult struct {
+	sidecars []api.SidecarMove
+	err      error
+}
+
+// sidecarMoves lists the sidecars of a moved video; the video itself comes first in paths.
+func sidecarMoves(paths []pathMove) []api.SidecarMove {
+	moves := []api.SidecarMove{}
+	for _, p := range paths[1:] {
+		moves = append(moves, api.SidecarMove{OldPath: p.from, NewPath: p.to})
+	}
+	return moves
 }
 
 func stem(path string) string { return strings.TrimSuffix(path, filepath.Ext(path)) }
@@ -71,30 +88,51 @@ func (s *Service) sidecarsOf(video string) ([]string, error) {
 	return sidecars, err
 }
 
-// moveFiles renames each video with its sidecars and returns each move's error. Every file passes through a
+// moveFiles renames each video with its sidecars and says how each move went. Every file passes through a
 // temporary name first, so videos can trade names. A move that fails is put back, and the others go ahead.
-func (s *Service) moveFiles(moves []fileMove) []error {
-	errs := make([]error, len(moves))
+func (s *Service) moveFiles(moves []fileMove) []moveResult {
+	results := make([]moveResult, len(moves))
 	staged := make([][]pathMove, len(moves))
 	sources := make(map[string]bool, len(moves))
 	for _, m := range moves {
 		sources[m.from] = true
 	}
 	for i, m := range moves {
-		if m.from == m.to || (!sources[m.to] && s.alreadyMoved(m)) {
+		switch {
+		case m.from == m.to:
+			continue
+		case !sources[m.to] && s.alreadyMoved(m):
+			results[i].sidecars = s.movedSidecars(m)
 			continue
 		}
-		staged[i], errs[i] = s.pathsOf(m)
-		if errs[i] == nil {
-			errs[i] = s.stage(staged[i])
+		staged[i], results[i].err = s.pathsOf(m)
+		if results[i].err == nil {
+			results[i].err = s.stage(staged[i])
 		}
 	}
 	for i, paths := range staged {
-		if errs[i] == nil {
-			errs[i] = s.unstage(paths)
+		if len(paths) == 0 || results[i].err != nil {
+			continue
+		}
+		if results[i].err = s.unstage(paths); results[i].err == nil {
+			results[i].sidecars = sidecarMoves(paths)
 		}
 	}
-	return errs
+	return results
+}
+
+// movedSidecars finds the sidecars that went with a video an interrupted run already moved.
+func (s *Service) movedSidecars(m fileMove) []api.SidecarMove {
+	moves := []api.SidecarMove{}
+	sidecars, err := s.sidecarsOf(m.to)
+	if err != nil {
+		slog.Warn("library: couldn't list the sidecars of a renamed file", "path", m.to, "error", err)
+		return moves
+	}
+	for _, sidecar := range sidecars {
+		moves = append(moves, api.SidecarMove{OldPath: stem(m.from) + strings.TrimPrefix(sidecar, stem(m.to)), NewPath: sidecar})
+	}
+	return moves
 }
 
 // stage moves every path to its temporary name, or none of them.
@@ -199,8 +237,8 @@ func (s *Service) RenameForGroup(ctx context.Context, changed catalogapi.Episode
 		return nil
 	}
 	// Once files have moved, their records must follow even during shutdown.
-	errs := s.moveFiles(movesOf(plans))
-	return s.commitRenames(context.WithoutCancel(ctx), plans, errs)
+	results := s.moveFiles(movesOf(plans))
+	return s.commitRenames(context.WithoutCancel(ctx), plans, results)
 }
 
 // renumber applies the moves to a file's episodes; moved is false when none of them moved.
@@ -244,16 +282,16 @@ func (s *Service) alreadyMoved(m fileMove) bool {
 	return errors.Is(fromErr, fs.ErrNotExist) && toErr == nil
 }
 
-// commitRenames records the files that moved and flags the ones that didn't, then asks Jellyfin to rescan
-// the folders on both sides.
-func (s *Service) commitRenames(ctx context.Context, plans []renumbered, errs []error) error {
+// commitRenames records the files that moved, with a FileRenamed for each, and flags the ones that didn't,
+// then asks Jellyfin to rescan the folders on both sides.
+func (s *Service) commitRenames(ctx context.Context, plans []renumbered, results []moveResult) error {
 	var touched []string
 	err := s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
 		touched = touched[:0]
 		for i, p := range plans {
-			if errs[i] != nil {
-				slog.WarnContext(ctx, "library: a file kept its name after an episode-group change", "path", p.file.Path, "want", p.target, "error", errs[i])
-				if err := flagRenameProblem(tx, p.file.ID, renameProblem(p.target, errs[i])); err != nil {
+			if err := results[i].err; err != nil {
+				slog.WarnContext(ctx, "library: a file kept its name after an episode-group change", "path", p.file.Path, "want", p.target, "error", err)
+				if err := flagRenameProblem(tx, p.file.ID, renameProblem(p.target, err)); err != nil {
 					return err
 				}
 				continue
@@ -266,6 +304,16 @@ func (s *Service) commitRenames(ctx context.Context, plans []renumbered, errs []
 				return err
 			}
 			touched = append(touched, p.file.Path, p.target)
+			if p.file.Path == p.target {
+				continue
+			}
+			renamed := api.FileRenamed{
+				MediaFile: p.file.ID, Title: p.file.Title, Episodes: p.episodes,
+				OldPath: p.file.Path, NewPath: p.target, Sidecars: results[i].sidecars,
+			}
+			if err := s.deps.Bus.Publish(tx, bus.EventOf(renamed)); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -273,7 +321,7 @@ func (s *Service) commitRenames(ctx context.Context, plans []renumbered, errs []
 		return err
 	}
 	for i, p := range plans {
-		if errs[i] == nil {
+		if results[i].err == nil {
 			s.removeEmptyDirs(filepath.Dir(p.file.Path), p.file.RootFolder)
 		}
 	}

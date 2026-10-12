@@ -3,7 +3,7 @@
 Owns the media files on disk and what Jellyfin sees. Turns a finished download into a correctly named library file, swaps in transcoded files, and reports when Jellyfin confirms an item.
 
 - **Depends on (Readers):** `catalog.Reader`
-- **Publishes:** `FileImported`, `ImportFailed`, `ImportRemoved`, `FileTranscoded`, `FileDeleted`, `ItemAvailable`, `FolderFound`, `TranscodeSwapRejected`
+- **Publishes:** `FileImported`, `ImportFailed`, `ImportRemoved`, `FileTranscoded`, `FileDeleted`, `FileRenamed`, `ItemAvailable`, `FolderFound`, `TranscodeSwapRejected`
 - **Consumes:** `acquisition.DownloadCompleted`, `transcode.TranscodeVerified`, `catalog.EpisodeGroupChanged`, `catalog.TitleRemoved`, `catalog.ScanFolderMatched`
 - **Importer entrypoint:** `api.Importer` (migration job only): link existing files with their original release names.
 
@@ -135,6 +135,15 @@ type FileDeleted struct {
 	Path      string
 	Reason    DeleteReason // UPGRADED | REMOVED | TITLE_REMOVED
 }
+// FileRenamed: a media file moved to a new path, with every file sharing its basename.
+type FileRenamed struct {
+	MediaFile domain.MediaFileID
+	Title     domain.TitleID
+	Episodes  []domain.EpisodeRef // the numbers after the rename
+	OldPath   string
+	NewPath   string
+	Sidecars  []SidecarMove // { OldPath, NewPath string }
+}
 type ItemAvailable struct { Title domain.TitleID; Episodes []domain.EpisodeID; JellyfinItem string }
 type FolderFound struct { Path string; Kind domain.MediaKind; ParsedTitle string; Year *int; TmdbHint *domain.TmdbID }
 type TranscodeSwapRejected struct { Job domain.JobID; MediaFile domain.MediaFileID; Reason SwapRejectReason } // SOURCE_CHANGED | HASH_MISMATCH | PROBE_FAILED | FILE_GONE
@@ -142,6 +151,7 @@ type TranscodeSwapRejected struct { Job domain.JobID; MediaFile domain.MediaFile
 
 - All of these are durable. `FileImported` is published in the same transaction that inserts the `media_files` row. Aggregate key: title ID; events without a title use their own subject (`ImportFailed` and `ImportRemoved` → download ID, `FileTranscoded` and `TranscodeSwapRejected` → media file ID, `FolderFound` → folder path).
 - `FileDeleted` is the **only** cleanup signal for a removed file, whatever the reason. Consumers (Acquisition, Subtitles, Transcode) never infer deletion from `FileImported.Replaces`.
+- `FileRenamed` is published in the transaction that records the new path, for every move of a stored media file. `Sidecars` lists the files that moved with it (subtitles and anything else named `<video basename>.…`). Moves that happen before a file is stored (rename-on-scan) need no event: `FileImported` already carries the new paths. A transcode swap that changes the extension is reported by `FileTranscoded.Path`; its sidecars don't move.
 
 ## Events and commands consumed
 
@@ -149,7 +159,7 @@ type TranscodeSwapRejected struct { Job domain.JobID; MediaFile domain.MediaFile
 |---|---|---|---|
 | `acquisition.DownloadCompleted` | Run import (below) as a backlite job | download ID (`imports` row) | Retry 3× with backoff for IO errors. Then `ImportFailed{Retryable:false}` and the import enters the manual queue. |
 | `transcode.TranscodeVerified` | Swap (below) | job ID | On check failure, publish `TranscodeSwapRejected`; the staged file is deleted. |
-| `catalog.EpisodeGroupChanged` | Rename affected files and their sidecars to new S/E numbers; relink `media_file_episodes` | event ID | Per-file errors are logged; the file keeps its old name and is flagged for review. |
+| `catalog.EpisodeGroupChanged` | Rename affected files and their sidecars to new S/E numbers; relink `media_file_episodes`; publish `FileRenamed` per moved file | event ID | Per-file errors are logged; the file keeps its old name and is flagged for review. |
 | `catalog.TitleRemoved` | If `deleteFiles`: delete the title's files and publish `FileDeleted{Reason: TITLE_REMOVED}` for each. Otherwise unlink the records only and still publish `FileDeleted{TITLE_REMOVED}` so others drop their state. | event ID | Missing files are treated as already deleted. |
 | `catalog.ScanFolderMatched` | Link the files in that folder to the Title in place (no move or rename unless opted in); publish `FileImported{Origin: LIBRARY_SCAN}` per video | scan folder path | A folder with no playable video is marked IGNORED. |
 
@@ -271,7 +281,8 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 **Episode-group change:** rename each affected file and every sidecar sharing its basename to the new numbering, update links, then refresh Jellyfin.
 - A file is affected when one of its episodes is in `Moves` at its stored `From` numbers. Its new path keeps its show folder (the top folder under the root; a file loose in the root moves to the title's folder) and is `Season <NN>/<Show> S<NN>E<NN>[-E<NN>].<ext>` within it.
 - Every file first moves to a temporary name in the target folder, then to its final name, so episodes can trade names. A move that would overwrite a file outside the batch, or fails, is put back: the file keeps its old name and numbers and gets `rename_problem`. A rename an interrupted run already made (old path gone, new one there) is just recorded.
-- Then `RefreshPath` runs for the old and new folders, and emptied folders are removed. No event is published; the renamed file gets a new Jellyfin item, which confirms it again.
+- Each moved file's new path and numbers are recorded with a `FileRenamed` listing its sidecars' old and new paths, so Subtitles keeps its stored sidecar paths current. A file whose path stays the same publishes nothing.
+- Then `RefreshPath` runs for the old and new folders, and emptied folders are removed. The renamed file gets a new Jellyfin item, which confirms it again.
 
 ## Test seeds
 
@@ -295,3 +306,4 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 18. **Given** a file, **when** `SourceForProcessing` is called, **then** it returns the current ETag and a `StagingDir` on the same device as the file; after the file is replaced by an upgrade, the ETag differs.
 19. **Given** a series with 10 episodes, 7 with files and 6 confirmed in Jellyfin, **then** `Coverage` returns `EpisodesWithFile = 7`, `EpisodesAvailable = 6`.
 20. **Given** a `MANUAL` import, **when** the user removes it (Remove & blocklist), **then** the import is `REMOVED` and leaves the imports queue, `ImportRemoved{Download}` is published once, and removing it again answers 409 `import-not-stopped`.
+21. **Given** an S02E01 file with a `.en.srt` sidecar, **when** `EpisodeGroupChanged` maps S02E01→S01E11, **then** `FileRenamed` is published once with the video's and the sidecar's old and new paths and the new numbers; a redelivered `EpisodeGroupChanged` publishes no second one.

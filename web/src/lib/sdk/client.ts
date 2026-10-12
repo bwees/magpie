@@ -1182,6 +1182,18 @@ export type FileImported = {
     size: number;
     title: string;
 };
+export type SidecarMove = {
+    newPath: string;
+    oldPath: string;
+};
+export type FileRenamed = {
+    episodes: EpisodeRef[] | null;
+    mediaFile: string;
+    newPath: string;
+    oldPath: string;
+    sidecars: SidecarMove[] | null;
+    title: string;
+};
 export type FileTranscoded = {
     mediaFile: string;
     newSize: number;

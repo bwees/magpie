@@ -8,6 +8,7 @@ const (
 	TypeImportRemoved         = "library.ImportRemoved"
 	TypeFileTranscoded        = "library.FileTranscoded"
 	TypeFileDeleted           = "library.FileDeleted"
+	TypeFileRenamed           = "library.FileRenamed"
 	TypeItemAvailable         = "library.ItemAvailable"
 	TypeFolderFound           = "library.FolderFound"
 	TypeTranscodeSwapRejected = "library.TranscodeSwapRejected"
@@ -108,6 +109,26 @@ func (FileDeleted) Type() string          { return TypeFileDeleted }
 func (e FileDeleted) AggregateID() string { return string(e.Title) }
 func (FileDeleted) Durable() bool         { return true }
 
+// SidecarMove is one file that moved with a renamed video because it shares the video's basename.
+type SidecarMove struct {
+	OldPath string `json:"oldPath"`
+	NewPath string `json:"newPath"`
+}
+
+// FileRenamed is published in the same transaction that records a media file's new path.
+type FileRenamed struct {
+	MediaFile domain.MediaFileID  `json:"mediaFile"`
+	Title     domain.TitleID      `json:"title"`
+	Episodes  []domain.EpisodeRef `json:"episodes"` // the numbers after the rename
+	OldPath   string              `json:"oldPath"`
+	NewPath   string              `json:"newPath"`
+	Sidecars  []SidecarMove       `json:"sidecars"`
+}
+
+func (FileRenamed) Type() string          { return TypeFileRenamed }
+func (e FileRenamed) AggregateID() string { return string(e.Title) }
+func (FileRenamed) Durable() bool         { return true }
+
 type ItemAvailable struct {
 	Title        domain.TitleID     `json:"title"`
 	Episodes     []domain.EpisodeID `json:"episodes"`
@@ -143,7 +164,7 @@ func (TranscodeSwapRejected) Durable() bool         { return true }
 // Messages lists every event and command this package declares, for the bus registry and the live schemas.
 func Messages() []domain.Message {
 	return []domain.Message{
-		FileImported{}, ImportFailed{}, ImportRemoved{}, FileTranscoded{}, FileDeleted{},
+		FileImported{}, ImportFailed{}, ImportRemoved{}, FileTranscoded{}, FileDeleted{}, FileRenamed{},
 		ItemAvailable{}, FolderFound{}, TranscodeSwapRejected{},
 	}
 }

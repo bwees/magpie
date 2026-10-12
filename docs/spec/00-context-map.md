@@ -141,7 +141,7 @@ type Event struct {
 | `catalog.ScanFolderMatched` | Catalog | folder, title | Library → link files in place |
 | `catalog.EpisodesAnnounced` | Catalog | title, episodes | Acquisition → RSS eligibility; Requests → add items in scope |
 | `catalog.WantedReleased` | Catalog | title, episodes (release point reached) | Acquisition → search; Requests → add items |
-| `catalog.EpisodeGroupChanged` | Catalog | title, old→new numbering | Library → rename/re-link files |
+| `catalog.EpisodeGroupChanged` | Catalog | title, old→new numbering | Library → rename/re-link files, `FileRenamed` per moved file |
 | `catalog.TitleRemoved` | Catalog | title, deleteFiles | Acquisition → cancel; Library → delete/unlink + `FileDeleted`; Transcode → cancel jobs; Requests → close issues; Activity → drop timeline |
 | `requests.RequestCreated` | Requests | request, user, kind, tmdb, scope (pending only) | Activity → admin notification + attention item |
 | `requests.RequestApproved` | Requests | request, user, tmdb, kind, scope, seasons, profile, auto | Catalog → add title / monitor seasons; Activity → requester notification, clear attention |
@@ -167,6 +167,7 @@ type Event struct {
 | `library.FileTranscoded` | Library | mediaFile, oldSize, newSize | Acquisition → stop upgrades; Subtitles → re-check embedded tracks; Transcode → job SWAPPED; Activity |
 | `library.TranscodeSwapRejected` | Library | job, mediaFile, reason `SOURCE_CHANGED` \| `HASH_MISMATCH` \| `PROBE_FAILED` \| `FILE_GONE` | Transcode → job FAILED / retry |
 | `library.FileDeleted` | Library | mediaFile, title, episodes, path, reason `UPGRADED` \| `REMOVED` \| `TITLE_REMOVED` | **Only cleanup signal for a removed file.** Acquisition → drop file score; Subtitles → drop sidecars; Transcode → cancel jobs; Activity |
+| `library.FileRenamed` | Library | mediaFile, title, episodes (new numbering), oldPath, newPath, sidecars [{oldPath, newPath}] (published with the new path) | Subtitles → rewrite stored sidecar paths; Activity → timeline |
 | `library.FolderFound` | Library | path, kind, parsed title/year, tmdbHint | Catalog → match against TMDB or review queue |
 | `library.ItemAvailable` | Library | title, episodes, jellyfinItem | Requests → mark available; Activity |
 | `subtitles.SubtitleAdded` | Subtitles | mediaFile, language, source, synced | Requests → resolve RERUN_SUBTITLES issues; Activity |

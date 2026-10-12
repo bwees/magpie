@@ -1590,6 +1590,50 @@
 				],
 				"type": "object"
 			},
+			"FileRenamed": {
+				"description": "FileRenamed schema",
+				"properties": {
+					"episodes": {
+						"items": {
+							"$ref": "#/components/schemas/EpisodeRef"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"newPath": {
+						"type": "string"
+					},
+					"oldPath": {
+						"type": "string"
+					},
+					"sidecars": {
+						"items": {
+							"$ref": "#/components/schemas/SidecarMove"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodes",
+					"mediaFile",
+					"newPath",
+					"oldPath",
+					"sidecars",
+					"title"
+				],
+				"type": "object"
+			},
 			"FileSubtitlesResponse": {
 				"description": "FileSubtitlesResponse schema",
 				"properties": {
@@ -4888,6 +4932,21 @@
 					"language",
 					"path",
 					"sdh"
+				],
+				"type": "object"
+			},
+			"SidecarMove": {
+				"properties": {
+					"newPath": {
+						"type": "string"
+					},
+					"oldPath": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"newPath",
+					"oldPath"
 				],
 				"type": "object"
 			},

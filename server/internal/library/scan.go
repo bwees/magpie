@@ -456,9 +456,9 @@ func (s *Service) renameLinked(plan *linkPlan) {
 			moves[i].to = episodePath(plan.root.Path, plan.title, v.episodes, ext)
 		}
 	}
-	for i, err := range s.moveFiles(moves) {
-		if err != nil {
-			slog.Warn("library: a scanned video stays where it is", "path", moves[i].from, "want", moves[i].to, "error", err)
+	for i, result := range s.moveFiles(moves) {
+		if result.err != nil {
+			slog.Warn("library: a scanned video stays where it is", "path", moves[i].from, "want", moves[i].to, "error", result.err)
 			continue
 		}
 		v := &plan.videos[i]
