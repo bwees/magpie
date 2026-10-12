@@ -105,7 +105,7 @@ func (c *Client) Sync(ctx context.Context, rid int64) (acquisition.SyncState, er
 
 	state := acquisition.SyncState{RID: data.RID, Torrents: map[string]acquisition.Torrent{}}
 	for hash, raw := range c.merged {
-		t, err := torrentOf(hash, raw, conn)
+		t, err := torrentOf(hash, raw)
 		if err != nil {
 			return acquisition.SyncState{}, err
 		}
@@ -116,7 +116,7 @@ func (c *Client) Sync(ctx context.Context, rid int64) (acquisition.SyncState, er
 	return state, nil
 }
 
-func torrentOf(hash string, raw map[string]json.RawMessage, conn settings.QBittorrentConnection) (acquisition.Torrent, error) {
+func torrentOf(hash string, raw map[string]json.RawMessage) (acquisition.Torrent, error) {
 	encoded, err := json.Marshal(raw)
 	if err != nil {
 		return acquisition.Torrent{}, err
@@ -140,7 +140,7 @@ func torrentOf(hash string, raw map[string]json.RawMessage, conn settings.QBitto
 		DownloadBps:  f.DLSpeed,
 		Ratio:        f.Ratio,
 		SeedingTime:  time.Duration(f.SeedingTime) * time.Second,
-		ContentPath:  localPath(f.ContentPath, conn),
+		ContentPath:  f.ContentPath,
 		AddedAt:      unix(f.AddedOn),
 		LastActivity: unix(f.LastActivity),
 	}

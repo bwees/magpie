@@ -31,3 +31,13 @@ func TestSavePathFallsBackToTheDefault(t *testing.T) {
 		t.Errorf("SavePath = %q, %v; want %q", got, err, want)
 	}
 }
+
+func TestLocalPathUsesTheMappingSetNow(t *testing.T) {
+	w := newWebAPI(t)
+	client := newClient(t, w, settings.QBittorrentConnection{RemotePath: "/data/torrents", LocalPath: "/mnt/downloads"})
+
+	got, err := client.LocalPath(context.Background(), "/data/torrents/magpie/Movie")
+	if want := "/mnt/downloads/magpie/Movie"; err != nil || got != want {
+		t.Errorf("LocalPath = %q, %v; want %q", got, err, want)
+	}
+}

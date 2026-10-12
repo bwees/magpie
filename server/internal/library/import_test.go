@@ -57,19 +57,20 @@ var (
 )
 
 type importFixture struct {
-	db       *db.DB
-	files    *fakes.FileSystem
-	prober   *fakes.MediaProber
-	hasher   *fakes.Hasher
-	jellyfin *fakes.JellyfinLibrary
-	catalog  *catalogtest.Fake
-	service  *library.Service
-	repo     *library.Repository
-	queue    *queue
-	events   *recorder
-	layout   layout
-	movie    catalogapi.Title
-	show     catalogapi.Title
+	db        *db.DB
+	files     *fakes.FileSystem
+	prober    *fakes.MediaProber
+	hasher    *fakes.Hasher
+	jellyfin  *fakes.JellyfinLibrary
+	downloads *fakes.DownloadLocation
+	catalog   *catalogtest.Fake
+	service   *library.Service
+	repo      *library.Repository
+	queue     *queue
+	events    *recorder
+	layout    layout
+	movie     catalogapi.Title
+	show      catalogapi.Title
 	// episodes are the show's season 1, in order.
 	episodes []catalogapi.Episode
 }
@@ -110,13 +111,14 @@ func newImportFixture(t *testing.T, l layout) *importFixture {
 	b := bus.New()
 	f := &importFixture{
 		db: d, files: files, prober: fakes.NewMediaProber(), hasher: fakes.NewHasher(files), jellyfin: fakes.NewJellyfinLibrary(),
-		catalog: catalogtest.NewFake(catalogtest.Fixture{Titles: []catalogapi.Title{movie, show}, Episodes: episodes}),
-		repo:    library.NewRepository(d), queue: &queue{}, events: newRecorder(b), layout: l,
+		downloads: fakes.NewDownloadLocation(),
+		catalog:   catalogtest.NewFake(catalogtest.Fixture{Titles: []catalogapi.Title{movie, show}, Episodes: episodes}),
+		repo:      library.NewRepository(d), queue: &queue{}, events: newRecorder(b), layout: l,
 		movie: movie, show: show, episodes: episodes,
 	}
 	f.service = library.NewService(library.Deps{
 		DB: d, Repo: f.repo, Catalog: f.catalog, Files: files, Prober: f.prober, Hasher: f.hasher,
-		Downloads: fakes.NewDownloadLocation(), Bus: b, Jobs: f.queue,
+		Downloads: f.downloads, Bus: b, Jobs: f.queue,
 		Jellyfin: f.jellyfin, Store: settings.NewStore(d),
 	})
 	for kind, path := range map[domain.MediaKind]string{domain.MediaKindMovie: l.movies, domain.MediaKindSeries: l.tv} {
@@ -415,6 +417,32 @@ func TestReleaseSubtitlesBecomeSidecarsAndExtrasAreDropped(t *testing.T) {
 	want := []api.Sidecar{{Path: sidecar, Language: "en"}}
 	if !slices.Equal(events[0].Sidecars, want) {
 		t.Errorf("Sidecars = %+v, want %+v", events[0].Sidecars, want)
+	}
+}
+
+func TestARetryUsesThePathMappingSetSinceTheDownloadFinished(t *testing.T) {
+	f := newImportFixture(t, oneDevice)
+	ctx := context.Background()
+	const qbittorrentDownloads = "/qbittorrent/downloads"
+	f.download(t, "Dune.2021.1080p.mkv", 2*time.Hour)
+	c := f.movieDownload(acquisitionapi.SeedUntilGoals, "Dune.2021.1080p.mkv")
+	c.ContentPath = filepath.Join(qbittorrentDownloads, "Dune.2021.1080p.mkv")
+	f.deliver(t, c)
+	for f.imp(t, c.Download).Status == library.ImportPending {
+		f.runJobs(t)
+	}
+
+	f.downloads.Map(qbittorrentDownloads, f.layout.downloads)
+	if _, err := f.service.RetryImport(ctx, c.Download); err != nil {
+		t.Fatal(err)
+	}
+	f.runJobs(t)
+
+	if imp := f.imp(t, c.Download); imp.Status != library.ImportImported {
+		t.Errorf("import = %+v, want IMPORTED after the mapping was fixed", imp)
+	}
+	if len(f.imported(t)) != 1 {
+		t.Errorf("%d FileImported, want 1", len(f.imported(t)))
 	}
 }
 

@@ -39,10 +39,13 @@ type FileInfo struct {
 
 func (i FileInfo) IsDir() bool { return i.Mode.IsDir() }
 
-// DownloadLocation is implemented by internal/adapters/qbittorrent, for the hardlink check.
+// DownloadLocation is implemented by internal/adapters/qbittorrent, for the hardlink check and imports.
 type DownloadLocation interface {
 	// SavePath is where qBittorrent saves Magpie's downloads, as a path the server can read.
 	SavePath(ctx context.Context) (string, error)
+	// LocalPath maps a path as qBittorrent reports it to the same place as the server sees it, with the
+	// remote path mapping set now.
+	LocalPath(ctx context.Context, path string) (string, error)
 }
 
 type MediaProber interface {

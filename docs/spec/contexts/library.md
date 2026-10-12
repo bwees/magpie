@@ -179,10 +179,13 @@ type FileSystem interface {
 	Walk(root string, fn func(path string, info FileInfo) error) error
 }
 
-// DownloadLocation is implemented by the qBittorrent adapter, for the hardlink check.
+// DownloadLocation is implemented by the qBittorrent adapter, for the hardlink check and imports.
 type DownloadLocation interface {
 	// SavePath is where qBittorrent saves Magpie's category (else its default), path mapping applied.
 	SavePath(ctx context.Context) (string, error)
+	// LocalPath applies the current path mapping to a path qBittorrent reported. Every import run maps
+	// DownloadCompleted.ContentPath with it, so a retry picks up a corrected mapping.
+	LocalPath(ctx context.Context, path string) (string, error)
 }
 
 type MediaProber interface {

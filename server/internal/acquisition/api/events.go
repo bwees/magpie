@@ -232,7 +232,7 @@ type DownloadCompleted struct {
 	Download    domain.DownloadID  `json:"download"`
 	Title       domain.TitleID     `json:"title"`
 	Episodes    []domain.EpisodeID `json:"episodes"`
-	ContentPath string             `json:"contentPath"` // as qBittorrent reports it (remote path mapping already applied)
+	ContentPath string             `json:"contentPath"` // as qBittorrent reports it; Library applies the remote path mapping on import
 	Files       []DownloadFile     `json:"files"`       // only files with priority > 0
 	ReleaseName string             `json:"releaseName"`
 	InfoHash    string             `json:"infoHash"`

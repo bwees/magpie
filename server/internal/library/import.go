@@ -123,7 +123,7 @@ func (s *Service) plan(ctx context.Context, imp Import) (importPlan, error) {
 	if err != nil {
 		return importPlan{}, err
 	}
-	sources, err := s.sourceFiles(imp.Payload)
+	sources, err := s.sourceFiles(ctx, imp.Payload)
 	if err != nil {
 		return importPlan{}, err
 	}
@@ -161,24 +161,29 @@ func noRootFolderReason(kind domain.MediaKind) string {
 
 // sourceFiles lists the download's videos and subtitles. A single-file torrent's content path is the
 // file itself; a folder's files are listed relative to it, or to its parent when they start with the
-// folder's own name, as qBittorrent lists them.
-func (s *Service) sourceFiles(p acquisitionapi.DownloadCompleted) ([]sourceFile, error) {
-	content, err := s.deps.Files.Stat(p.ContentPath)
+// folder's own name, as qBittorrent lists them. The content path is mapped on every run, so a retry
+// picks up a corrected path mapping.
+func (s *Service) sourceFiles(ctx context.Context, p acquisitionapi.DownloadCompleted) ([]sourceFile, error) {
+	root, err := s.deps.Downloads.LocalPath(ctx, p.ContentPath)
+	if err != nil {
+		return nil, err
+	}
+	content, err := s.deps.Files.Stat(root)
 	if err != nil {
 		return nil, err
 	}
 	if !content.IsDir() {
-		return keepMedia([]sourceFile{{rel: filepath.Base(p.ContentPath), abs: p.ContentPath, size: content.Size}}), nil
+		return keepMedia([]sourceFile{{rel: filepath.Base(root), abs: root, size: content.Size}}), nil
 	}
 	if len(p.Files) == 0 {
-		return s.walk(p.ContentPath)
+		return s.walk(root)
 	}
 	files := make([]sourceFile, 0, len(p.Files))
 	for _, f := range p.Files {
 		if fileKind(f.Path) == FileIgnored {
 			continue
 		}
-		abs, err := s.resolve(p.ContentPath, f.Path)
+		abs, err := s.resolve(root, f.Path)
 		if err != nil {
 			return nil, err
 		}

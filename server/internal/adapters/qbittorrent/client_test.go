@@ -241,7 +241,7 @@ func TestSyncMergesUpdatesAndKeepsOnlyMagpiesCategory(t *testing.T) {
 		t.Error("a torrent from another category came back")
 	}
 	downloading := full.Torrents[downloadingHash]
-	wantPath := "/mnt/downloads/magpie/Movie.Title.2024.1080p.WEB-DL.DDP5.1.H.264-GRP"
+	wantPath := "/data/torrents/magpie/Movie.Title.2024.1080p.WEB-DL.DDP5.1.H.264-GRP"
 	if downloading.Status != acquisition.TorrentDownloading || downloading.Progress != 0.5 || downloading.DownloadBps != 5242880 ||
 		downloading.ETA != 819*time.Second || downloading.ContentPath != wantPath || !downloading.HasMetadata || downloading.CompletedAt != nil {
 		t.Errorf("downloading = %+v", downloading)

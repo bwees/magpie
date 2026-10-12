@@ -198,7 +198,7 @@ type Torrent struct {
 	ETA          time.Duration
 	Ratio        float64
 	SeedingTime  time.Duration
-	ContentPath  string // local path; remote path mapping already applied
+	ContentPath  string // as qBittorrent reports it; Library applies the remote path mapping
 	AddedAt      time.Time
 	CompletedAt  *time.Time
 	LastActivity time.Time

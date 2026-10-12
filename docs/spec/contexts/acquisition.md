@@ -172,7 +172,7 @@ type DownloadCompleted struct {
     Download    domain.DownloadID
     Title       domain.TitleID
     Episodes    []domain.EpisodeID
-    ContentPath string         // as qBittorrent reports it (remote path mapping already applied)
+    ContentPath string         // as qBittorrent reports it; Library applies the remote path mapping on import
     Files       []DownloadFile // relative path + size; only files with priority > 0
     ReleaseName string
     InfoHash    string         // the torrent's info hash; Library stores it as the file's source hash

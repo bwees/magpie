@@ -43,3 +43,12 @@ func (c *Client) SavePath(ctx context.Context) (string, error) {
 	}
 	return localPath(saveTo, conn), nil
 }
+
+// LocalPath maps a path qBittorrent reported to where Magpie sees it, with the mapping set now.
+func (c *Client) LocalPath(ctx context.Context, p string) (string, error) {
+	conn, err := c.connection(ctx)
+	if err != nil {
+		return "", err
+	}
+	return localPath(p, conn), nil
+}
