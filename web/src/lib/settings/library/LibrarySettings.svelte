@@ -71,7 +71,7 @@
 			{:else}
 				{#if folders.check?.downloadPath}
 					<p class="text-sm text-muted-foreground">
-						qBittorrent downloads to <code class="font-mono text-foreground"
+						qBittorrent downloads to <code class="font-mono break-all text-foreground"
 							>{folders.check.downloadPath}</code
 						>.
 					</p>
