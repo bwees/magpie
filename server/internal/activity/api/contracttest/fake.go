@@ -92,7 +92,7 @@ func (f *Fake) Pipeline(ctx context.Context, title domain.TitleID) ([]api.Pipeli
 	defer f.mu.RUnlock()
 	rows := []api.PipelineRow{}
 	for _, r := range f.orderedRows(title) {
-		rows = append(rows, r.Row)
+		rows = append(rows, r.numbered())
 	}
 	return rows, nil
 }
@@ -112,7 +112,7 @@ func (f *Fake) TitleStages(ctx context.Context, titles []domain.TitleID) (map[do
 		least := slices.MinFunc(rows, func(a, b PipelineRow) int {
 			return cmp.Compare(slices.Index(api.Stages(), a.Row.Stage), slices.Index(api.Stages(), b.Row.Stage))
 		})
-		stages[title] = least.Row
+		stages[title] = least.numbered()
 	}
 	return stages, nil
 }

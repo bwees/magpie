@@ -269,7 +269,7 @@ func (r *pipelineRow) setFacets(f facets) error {
 func (r pipelineRow) row() (api.PipelineRow, error) {
 	f, err := r.facets()
 	row := api.PipelineRow{
-		Title: domain.TitleID(r.TitleID), Stage: r.Stage, Failed: r.Failed, Detail: r.Detail,
+		Title: domain.TitleID(r.TitleID), Season: r.Season, Number: r.Number, Stage: r.Stage, Failed: r.Failed, Detail: r.Detail,
 		Subs: f.Subs, Transcode: f.Transcode, Updated: r.UpdatedAt,
 	}
 	if r.EpisodeID != movieEpisode {
@@ -392,6 +392,14 @@ func (r *Repository) ActivePipeline(ctx context.Context, limit int) ([]api.Pipel
 		return nil, err
 	}
 	return convert(rows, pipelineRow.row)
+}
+
+// RecentTitles lists titles by their most recent pipeline change, newest first.
+func (r *Repository) RecentTitles(ctx context.Context, limit int) ([]domain.TitleID, error) {
+	var titles []domain.TitleID
+	err := r.db.Read(ctx).Model(&pipelineRow{}).Select("title_id").Group("title_id").
+		Order("MAX(updated_at) DESC, MAX(last_event_id) DESC").Limit(limit).Pluck("title_id", &titles).Error
+	return titles, err
 }
 
 func (r *Repository) Notifications(ctx context.Context, user domain.UserID, unreadOnly bool, p api.Page) ([]api.Notification, error) {

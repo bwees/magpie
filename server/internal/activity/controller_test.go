@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"testing"
 
 	acquisitionapi "magpie/internal/acquisition/api"
@@ -119,12 +120,41 @@ func TestPageLimitIsCapped(t *testing.T) {
 	}
 }
 
+func TestRecentPipelineListsTitlesByLatestChangeForWhoMaySeeThem(t *testing.T) {
+	h := newHarness(t)
+	first, second, third := h.movie(), h.movie(), h.movie()
+	for _, title := range []domain.TitleID{first, second, third} {
+		h.deliver(titleAdded(title, domain.MediaKindMovie))
+	}
+	h.deliver(acquisitionapi.ReleaseGrabbed{Download: domain.NewID[domain.DownloadID](), Title: first, Release: releaseName})
+
+	titlesOf := func(rows []PipelineRowResponse) []string {
+		out := make([]string, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, row.TitleID)
+		}
+		return out
+	}
+	admin := h.serve(&domain.Principal{Admin: true})
+	got := titlesOf(get[[]PipelineRowResponse](t, admin, "/api/activity/pipeline?recent=true", http.StatusOK))
+	if want := []string{string(first), string(third), string(second)}; !slices.Equal(got, want) {
+		t.Errorf("recent = %v, want %v", got, want)
+	}
+
+	requester := requesterOf(h, second)
+	got = titlesOf(get[[]PipelineRowResponse](t, h.serve(requester), "/api/activity/pipeline?recent=true", http.StatusOK))
+	if want := []string{string(second)}; !slices.Equal(got, want) {
+		t.Errorf("requester's recent = %v, want %v", got, want)
+	}
+}
+
 func TestBadQueriesAreRejected(t *testing.T) {
 	h := newHarness(t)
 	admin := h.serve(&domain.Principal{Admin: true})
 	for _, path := range []string{
 		"/api/activity/pipeline",
 		"/api/activity/pipeline?title=a&active=true",
+		"/api/activity/pipeline?active=true&recent=true",
 		"/api/activity/timeline",
 		"/api/activity/timeline?title=a&before=yesterday",
 		"/api/activity/history?severity=LOUD",

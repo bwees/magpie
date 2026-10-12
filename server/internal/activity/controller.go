@@ -26,8 +26,12 @@ const (
 	queryLimit    = "limit"
 	querySeverity = "severity"
 
+	queryRecent = "recent"
+
 	// maxStageTitles bounds one library-grid stage lookup.
 	maxStageTitles = 500
+	// recentTitles fills Home's "Recently active" grid.
+	recentTitles = 24
 )
 
 type TimelineEntryResponse struct {
@@ -62,6 +66,8 @@ type TranscodeChipResponse struct {
 type PipelineRowResponse struct {
 	TitleID    string                 `json:"titleId" validate:"required"`
 	EpisodeID  *string                `json:"episodeId"`
+	Season     int                    `json:"season" validate:"required"`
+	Number     int                    `json:"number" validate:"required"`
 	Stage      string                 `json:"stage" validate:"required"`
 	Failed     bool                   `json:"failed" validate:"required"`
 	Detail     string                 `json:"detail" validate:"required"`
@@ -102,11 +108,12 @@ func (c *Controller) Register(server *fuego.Server) {
 	}, pageOptions...)...)
 	fuego.Get(server, "/activity/pipeline", c.pipeline,
 		fuego.OptionOperationID("getPipeline"),
-		fuego.OptionSummary("Pipeline rows: one title's rows, each listed title's summary row, or the active rows"),
+		fuego.OptionSummary("Pipeline rows: one title's rows, each listed title's summary row, the active rows, or the recently active titles' summary rows"),
 		fuego.OptionTags(tagActivity),
 		fuego.OptionQuery(queryTitle, "One title's rows, movies first then episodes in season/number order"),
 		fuego.OptionQueryArray(queryTitles, "The least-advanced row of each title, for library grids", reflect.String),
 		fuego.OptionQueryBool(queryActive, "Rows searching, downloading, importing or transcoding"),
+		fuego.OptionQueryBool(queryRecent, "The summary row of the 24 most recently changed titles, newest first"),
 	)
 	fuego.Get(server, "/activity/history", c.history, append([]func(*fuego.BaseRoute){
 		fuego.OptionOperationID("getHistory"),
@@ -188,9 +195,10 @@ func (c *Controller) pipeline(ctx fuego.ContextNoBody) ([]PipelineRowResponse, e
 	title := ctx.QueryParam(queryTitle)
 	titles := ctx.QueryParamArr(queryTitles)
 	active := ctx.QueryParamBool(queryActive)
-	chosen := slices.DeleteFunc([]bool{title != "", len(titles) > 0, active}, func(set bool) bool { return !set })
+	recent := ctx.QueryParamBool(queryRecent)
+	chosen := slices.DeleteFunc([]bool{title != "", len(titles) > 0, active, recent}, func(set bool) bool { return !set })
 	if len(chosen) != 1 {
-		return nil, badRequest("pass exactly one of title, titles or active=true")
+		return nil, badRequest("pass exactly one of title, titles, active=true or recent=true")
 	}
 
 	var rows []api.PipelineRow
@@ -199,6 +207,8 @@ func (c *Controller) pipeline(ctx fuego.ContextNoBody) ([]PipelineRowResponse, e
 		rows, err = c.service.Pipeline(ctx.Context(), principal, domain.TitleID(title))
 	case active:
 		rows, err = c.service.ActivePipeline(ctx.Context(), principal)
+	case recent:
+		rows, err = c.service.RecentStages(ctx.Context(), principal, recentTitles, maxStageTitles)
 	default:
 		rows, err = c.titleStages(ctx.Context(), principal, titles)
 	}
@@ -290,7 +300,7 @@ func historyEntryResponse(e api.TimelineEntry) HistoryEntryResponse {
 
 func pipelineRowResponse(r api.PipelineRow) PipelineRowResponse {
 	response := PipelineRowResponse{
-		TitleID: string(r.Title), EpisodeID: optional(r.Episode), Stage: string(r.Stage),
+		TitleID: string(r.Title), EpisodeID: optional(r.Episode), Season: r.Season, Number: r.Number, Stage: string(r.Stage),
 		Failed: r.Failed, Detail: r.Detail, DownloadID: optional(r.Download), UpdatedAt: r.Updated,
 	}
 	if r.Subs != nil {

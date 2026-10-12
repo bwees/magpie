@@ -3234,6 +3234,12 @@
 					"failed": {
 						"type": "boolean"
 					},
+					"number": {
+						"type": "integer"
+					},
+					"season": {
+						"type": "integer"
+					},
 					"stage": {
 						"type": "string"
 					},
@@ -3256,6 +3262,8 @@
 					"downloadId",
 					"episodeId",
 					"failed",
+					"number",
+					"season",
 					"stage",
 					"titleId",
 					"updatedAt"
@@ -9340,6 +9348,14 @@
 						}
 					},
 					{
+						"description": "The summary row of the 24 most recently changed titles, newest first",
+						"in": "query",
+						"name": "recent",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
 						"in": "header",
 						"name": "Accept",
 						"schema": {
@@ -9392,7 +9408,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Pipeline rows: one title's rows, each listed title's summary row, or the active rows",
+				"summary": "Pipeline rows: one title's rows, each listed title's summary row, the active rows, or the recently active titles' summary rows",
 				"tags": [
 					"api",
 					"activity"

@@ -22,6 +22,8 @@ function row(overrides: Partial<PipelineRowResponse> = {}): PipelineRowResponse 
 	return {
 		titleId: TITLE,
 		episodeId: null,
+		season: 0,
+		number: 0,
 		downloadId: null,
 		stage: Stage.REQUESTED,
 		failed: false,

@@ -45,6 +45,7 @@ type Stage string // REQUESTED | SEARCHING | DOWNLOADING | IMPORTING | AVAILABLE
 type PipelineRow struct {
     Title     domain.TitleID
     Episode   *domain.EpisodeID // nil for movies
+    Season, Number int          // the episode's current numbering; 0 for movies
     Stage     Stage
     Failed    bool
     Detail    string // human text, e.g. "Waiting for Jellyfin", "No accepted release"
@@ -306,6 +307,7 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 | `GET /api/activity/pipeline?title=` | same | Pipeline rows (stage + chips) for one title |
 | `GET /api/activity/pipeline?titles=…&titles=…` | signed in (requesters: own titles; at most 500 titles) | Summary stage per title (library grids) |
 | `GET /api/activity/pipeline?active=true` | signed in (requesters: own titles) | Rows currently searching, downloading, importing or transcoding ("Live now"), at most 200 |
+| `GET /api/activity/pipeline?recent=true` | signed in (requesters: own titles, found among the latest 500) | Summary row of the 24 titles whose pipeline changed most recently, newest first (Home "Recently active"; Catalog can't sort by activity) |
 | `GET /api/activity/history?severity=&before=&limit=` | admin | Global feed |
 | `GET /api/activity/attention` | admin | Open attention items ("Needs you") |
 | `GET /api/activity/notifications?unread=&before=&limit=` | signed in | Own in-app notifications, newest first, plus `unreadCount` |
@@ -315,7 +317,7 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 | `PATCH/DELETE /api/activity/notification-urls/{id}` | owner | Edit `{label?, kinds?}` (null or left out = unchanged), delete |
 | `POST /api/activity/notification-urls/{id}/test` | owner | Send a test message now: `204`, `422` when the service refuses it, `502` when it can't be reached |
 
-- Pipeline takes exactly one of `title`, `titles` or `active=true`; anything else is `400`. A title a requester may not see is `404`.
+- Pipeline takes exactly one of `title`, `titles`, `active=true` or `recent=true`; anything else is `400`. A title a requester may not see is `404`.
 - `before` is an RFC 3339 time; `limit` follows `Page` (default 50, max 200).
 - Requesters may see a title when `requests.Reader.Requesters` lists them, or any requester with `ViewOthersRequests`.
 

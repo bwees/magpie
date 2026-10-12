@@ -24,6 +24,13 @@ type PipelineRow struct {
 	Season, Number int
 }
 
+// numbered is the row as a Reader returns it, with its episode numbering.
+func (r PipelineRow) numbered() api.PipelineRow {
+	row := r.Row
+	row.Season, row.Number = r.Season, r.Number
+	return row
+}
+
 // UserNotification is one in-app notification of a user.
 type UserNotification struct {
 	User         domain.UserID
@@ -263,6 +270,9 @@ func assertRows(t *testing.T, got []api.PipelineRow, want ...PipelineRow) {
 	for i := range want {
 		if !sameEpisode(got[i].Episode, want[i].Row.Episode) {
 			t.Errorf("row %d is episode %v, want %v", i, *got[i].Episode, *want[i].Row.Episode)
+		}
+		if got[i].Season != want[i].Season || got[i].Number != want[i].Number {
+			t.Errorf("row %d is S%dE%d, want S%dE%d", i, got[i].Season, got[i].Number, want[i].Season, want[i].Number)
 		}
 	}
 }

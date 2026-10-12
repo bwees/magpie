@@ -569,6 +569,35 @@ func (s *Service) ActivePipeline(ctx context.Context, viewer domain.Principal) (
 	return slices.DeleteFunc(rows, func(row api.PipelineRow) bool { return !slices.Contains(visible, row.Title) }), nil
 }
 
+// RecentStages returns the summary row of up to limit titles the viewer may see, most recently changed
+// first. Requesters' titles are found among the latest scanLimit.
+func (s *Service) RecentStages(ctx context.Context, viewer domain.Principal, limit, scanLimit int) ([]api.PipelineRow, error) {
+	scan := limit
+	if !viewer.Admin {
+		scan = scanLimit
+	}
+	recent, err := s.repo.RecentTitles(ctx, scan)
+	if err != nil {
+		return nil, err
+	}
+	visible, err := s.visible(ctx, viewer, recent)
+	if err != nil {
+		return nil, err
+	}
+	visible = visible[:min(limit, len(visible))]
+	stages, err := s.repo.TitleStages(ctx, visible)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]api.PipelineRow, 0, len(visible))
+	for _, title := range visible {
+		if row, ok := stages[title]; ok {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
 func (s *Service) visible(ctx context.Context, viewer domain.Principal, titles []domain.TitleID) ([]domain.TitleID, error) {
 	visible := make([]domain.TitleID, 0, len(titles))
 	for _, title := range titles {

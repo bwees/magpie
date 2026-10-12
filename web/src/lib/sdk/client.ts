@@ -419,6 +419,8 @@ export type PipelineRowResponse = {
     downloadId: string | null;
     episodeId: string | null;
     failed: boolean;
+    "number": number;
+    season: number;
     stage: string;
     subs?: SubsChipResponse;
     titleId: string;
@@ -2524,12 +2526,13 @@ export function markNotificationRead(id: string, { accept }: {
     }));
 }
 /**
- * Pipeline rows: one title's rows, each listed title's summary row, or the active rows
+ * Pipeline rows: one title's rows, each listed title's summary row, the active rows, or the recently active titles' summary rows
  */
-export function getPipeline({ title, titles, active, accept }: {
+export function getPipeline({ title, titles, active, recent, accept }: {
     title?: string;
     titles?: string[];
     active?: boolean;
+    recent?: boolean;
     accept?: string;
 } = {}, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
@@ -2544,7 +2547,8 @@ export function getPipeline({ title, titles, active, accept }: {
     }>(`/api/activity/pipeline${QS.query(QS.explode({
         title,
         titles,
-        active
+        active,
+        recent
     }))}`, {
         ...opts,
         headers: oazapfts.mergeHeaders(opts?.headers, {

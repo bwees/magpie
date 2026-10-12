@@ -71,9 +71,11 @@ const (
 type PipelineRow struct {
 	Title   domain.TitleID
 	Episode *domain.EpisodeID // nil for movies
-	Stage   Stage
-	Failed  bool
-	Detail  string // human text, e.g. "Waiting for Jellyfin", "No accepted release"
+	// Season and Number are the episode's current numbering; 0 for movies.
+	Season, Number int
+	Stage          Stage
+	Failed         bool
+	Detail         string // human text, e.g. "Waiting for Jellyfin", "No accepted release"
 	// Download is set while DOWNLOADING; the UI overlays live % from ephemeral acquisition.DownloadProgressed.
 	Download  *domain.DownloadID
 	Subs      *SubsChip      // nil until a file exists
