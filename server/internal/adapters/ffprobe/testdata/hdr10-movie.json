@@ -1,0 +1,47 @@
+{
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "hevc",
+            "codec_type": "video",
+            "width": 3840,
+            "height": 2160,
+            "pix_fmt": "yuv420p10le",
+            "color_transfer": "smpte2084",
+            "disposition": { "default": 1, "forced": 0 },
+            "tags": { "language": "eng", "BPS": "24000000" }
+        },
+        {
+            "index": 1,
+            "codec_name": "eac3",
+            "codec_type": "audio",
+            "channels": 6,
+            "bit_rate": "640000",
+            "disposition": { "default": 1, "forced": 0 },
+            "tags": { "language": "ger" }
+        },
+        {
+            "index": 2,
+            "codec_name": "subrip",
+            "codec_type": "subtitle",
+            "disposition": { "default": 0, "forced": 1 },
+            "tags": { "language": "eng" }
+        },
+        {
+            "index": 3,
+            "codec_name": "hdmv_pgs_subtitle",
+            "codec_type": "subtitle",
+            "disposition": { "default": 0, "forced": 0 }
+        },
+        {
+            "index": 4,
+            "codec_name": "ttf",
+            "codec_type": "attachment"
+        }
+    ],
+    "format": {
+        "format_name": "matroska,webm",
+        "duration": "9312.416000",
+        "bit_rate": "25000000"
+    }
+}

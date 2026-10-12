@@ -3,6 +3,8 @@ package app
 import (
 	"magpie/internal/acquisition"
 	"magpie/internal/activity"
+	"magpie/internal/adapters/disk"
+	"magpie/internal/adapters/ffprobe"
 	"magpie/internal/adapters/jellyfin"
 	"magpie/internal/adapters/prowlarr"
 	"magpie/internal/adapters/qbittorrent"
@@ -27,13 +29,12 @@ var PortFakes = fx.Provide(
 	fx.Annotate(jellyfin.NewAuth, fx.As(new(identity.JellyfinAuth))),
 	fx.Annotate(tmdb.New, fx.As(new(catalog.TMDB))),
 	fx.Annotate(prowlarr.NewFromSettings, fx.As(new(acquisition.Prowlarr))),
-	fx.Annotate(qbittorrent.NewFromSettings, fx.As(new(acquisition.QBittorrent))),
+	fx.Annotate(qbittorrent.NewFromSettings, fx.As(new(acquisition.QBittorrent)), fx.As(new(library.DownloadLocation))),
 	fx.Annotate(trash.New, fx.As(new(acquisition.TrashGuides))),
-	fx.Annotate(libraryfakes.NewFileSystem, fx.As(fx.Self()), fx.As(new(library.FileSystem))),
-	fx.Annotate(libraryfakes.NewMediaProber, fx.As(new(library.MediaProber))),
-	fx.Annotate(libraryfakes.NewHasher, fx.As(new(library.Hasher))),
+	fx.Annotate(disk.NewFileSystem, fx.As(new(library.FileSystem))),
+	fx.Annotate(ffprobe.New, fx.As(new(library.MediaProber))),
+	fx.Annotate(disk.NewHasher, fx.As(new(library.Hasher))),
 	fx.Annotate(libraryfakes.NewJellyfinLibrary, fx.As(new(library.JellyfinLibrary))),
-	fx.Annotate(libraryfakes.NewDownloadLocation, fx.As(new(library.DownloadLocation))),
 	fx.Annotate(subtitlesfakes.NewOpenSubtitles, fx.As(new(subtitles.OpenSubtitles))),
 	fx.Annotate(subtitlesfakes.NewSyncer, fx.As(new(subtitles.Syncer))),
 	fx.Annotate(transcodefakes.NewFileStat, fx.As(new(transcode.FileStat))),

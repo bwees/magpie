@@ -26,6 +26,7 @@ type ports struct {
 	MediaProber        library.MediaProber
 	Hasher             library.Hasher
 	JellyfinLibrary    library.JellyfinLibrary
+	DownloadLocation   library.DownloadLocation
 	OpenSubtitles      subtitles.OpenSubtitles
 	Syncer             subtitles.Syncer
 	FileStat           transcode.FileStat
@@ -40,6 +41,7 @@ func TestBootProvidesEveryPort(t *testing.T) {
 		"JellyfinAuth": got.JellyfinAuth, "TMDB": got.TMDB, "Prowlarr": got.Prowlarr,
 		"QBittorrent": got.QBittorrent, "TrashGuides": got.TrashGuides, "FileSystem": got.FileSystem,
 		"MediaProber": got.MediaProber, "Hasher": got.Hasher, "JellyfinLibrary": got.JellyfinLibrary,
+		"DownloadLocation": got.DownloadLocation,
 		"OpenSubtitles": got.OpenSubtitles, "Syncer": got.Syncer, "FileStat": got.FileStat,
 		"NotificationSender": got.NotificationSender,
 	} {
