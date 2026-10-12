@@ -101,7 +101,7 @@ type CoverageSettled struct {
 ```
 
 - All are durable, keyed by media file. `SubtitleMissing` is published once per (file, language), when a language moves to MISSING, not on every retry.
-- `CoverageSettled` is published each time the file's wanted set goes from "something in progress" to "nothing in progress" (after import, after a Whisper result, after an upgrade or a languages change).
+- `CoverageSettled` is published each time the file's wanted set goes from "something in progress" to "nothing in progress" (after import, after a Whisper result, after an upgrade or a languages change). A new file counts as in progress until its import is recorded, so a file the import already covers settles at once.
 
 ## Events and commands consumed
 
@@ -205,7 +205,7 @@ All routes are admin only.
 
 ## Test seeds
 
-1. **Given** wanted = [en] and a file whose MediaInfo has an English text track, **when** `FileImported`, **then** an EMBEDDED row exists, no search runs, and no event is published.
+1. **Given** wanted = [en] and a file whose MediaInfo has an English text track, **when** `FileImported`, **then** an EMBEDDED row exists, no search runs, and the only event is `CoverageSettled{Satisfied: [en]}`.
 2. **Given** a file with no English subtitle and a candidate whose hash and series/season/episode/source match, **when** the search runs, **then** that candidate is downloaded, synced, written as `<basename>.en.srt`, and `SubtitleAdded{Source: PROVIDER, Synced: true}` is published.
 3. **Given** a candidate with a hash match but the wrong episode, **when** scored, **then** the hash weight is not counted.
 4. **Given** the best candidate scores 85% for an episode, **when** the search runs, **then** nothing is downloaded and the next step (Whisper or MISSING) runs.

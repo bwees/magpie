@@ -52,8 +52,9 @@ func TestEmbeddedTrackSatisfiesAWantedLanguage(t *testing.T) {
 	if n := h.os.Called(fakes.OpenSubtitlesSearch); n != 0 {
 		t.Errorf("%d searches ran, want none", n)
 	}
-	if events := h.events.all(); len(events) != 0 {
-		t.Errorf("published %v, want nothing", events)
+	settled := ofType[api.CoverageSettled](t, h.events, api.TypeCoverageSettled)
+	if events := h.events.all(); len(events) != 1 || len(settled) != 1 || !slices.Equal(settled[0].Satisfied, []domain.Language{english}) {
+		t.Errorf("published %v, want only CoverageSettled with English satisfied", events)
 	}
 }
 

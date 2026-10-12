@@ -48,7 +48,8 @@ func (s *Service) wantedList(ctx context.Context, title domain.TitleID) ([]catal
 }
 
 // recordImport stores a new file's embedded tracks and release sidecars and opens a wanted row for every
-// wanted track. Replaces is ignored: the old file is cleaned up on its FileDeleted.
+// wanted track. Replaces is ignored: the old file is cleaned up on its FileDeleted. The file starts unsettled,
+// so one the import already covers settles at once.
 func (s *Service) recordImport(ctx context.Context, tx *gorm.DB, e libraryapi.FileImported) error {
 	if _, known, err := loadState(tx, e.MediaFile); err != nil || known {
 		return err
@@ -58,7 +59,7 @@ func (s *Service) recordImport(ctx context.Context, tx *gorm.DB, e libraryapi.Fi
 		return err
 	}
 	now := s.now()
-	file := fileRow{MediaFileID: e.MediaFile, TitleID: e.Title, EpisodeIDs: episodeIDs(e.Episodes), Settled: true, ImportedAt: now}
+	file := fileRow{MediaFileID: e.MediaFile, TitleID: e.Title, EpisodeIDs: episodeIDs(e.Episodes), ImportedAt: now}
 	if err := insertFile(tx, file); err != nil {
 		return err
 	}
