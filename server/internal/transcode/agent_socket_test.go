@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -126,7 +127,28 @@ func (f *fixture) connect(hello agentproto.Hello) (*testAgent, agentproto.Welcom
 	f.t.Cleanup(func() { _ = conn.CloseNow() })
 	a := &testAgent{t: f.t, id: hello.AgentID, conn: conn}
 	a.send(agentproto.TypeHello, hello)
-	return a, decodeBody[agentproto.Welcome](f.t, a.expect(agentproto.TypeWelcome))
+	welcome := decodeBody[agentproto.Welcome](f.t, a.expect(agentproto.TypeWelcome))
+	f.attached(hello)
+	return a, welcome
+}
+
+// attached waits for the socket to register the agent with the hub, which happens just after Welcome.
+func (f *fixture) attached(hello agentproto.Hello) {
+	f.t.Helper()
+	deadline := time.Now().Add(eventuallyWithin)
+	for !f.hub.attachedWith(hello) {
+		if time.Now().After(deadline) {
+			f.t.Fatalf("agent %s never attached to the hub", hello.AgentID)
+		}
+		time.Sleep(eventuallyEvery)
+	}
+}
+
+func (h *AgentHub) attachedWith(hello agentproto.Hello) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	_, connected := h.conns[hello.AgentID]
+	return connected && slices.Equal(h.resumable[hello.AgentID], hello.ResumableJobs)
 }
 
 func (a *testAgent) send(t agentproto.MessageType, body any) string {
