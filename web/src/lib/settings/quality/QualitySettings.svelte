@@ -118,8 +118,8 @@
 				</div>
 			</div>
 			<p class="text-xs text-muted-foreground">
-				The delay waits for a better release unless the cutoff is met. Automatic grabs wait the
-				settle window for slower indexers.
+				The delay waits for a better release unless one meets the cutoff or reaches the profile's
+				top score. Automatic grabs wait the settle window for slower indexers.
 			</p>
 			<div class="flex items-center gap-3">
 				<Button type="submit" size="sm" disabled={manager.savingSettings}>Save</Button>

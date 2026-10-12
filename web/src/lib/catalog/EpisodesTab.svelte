@@ -6,13 +6,22 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { airDateLabel, AVAILABLE_UNKNOWN, seasonLabel } from './episodes';
+	import type { EpisodeResponse } from '$lib/sdk';
+	import { AutomaticSearch, type SearchTarget } from '$lib/search/automatic-search.svelte';
+	import { getSession } from '$lib/session/session.svelte';
+	import { airDateLabel, AVAILABLE_UNKNOWN, episodeCode, seasonLabel } from './episodes';
 	import type { TitlePage } from './title-page.svelte';
 
 	let { page }: { page: TitlePage } = $props();
 
 	const SEARCH_LABEL = 'Search episode';
-	const SEARCH_PENDING = 'Searching arrives with Acquisition';
+
+	const session = getSession();
+	const automatic = new AutomaticSearch();
+
+	function episodeTarget(titleId: string, episode: EpisodeResponse, season: number): SearchTarget {
+		return { titleId, episodeIds: [episode.id], label: episodeCode(season, episode.number) };
+	}
 </script>
 
 {#if page.title}
@@ -69,25 +78,28 @@
 												onCheckedChange={(checked) => page.setEpisodeMonitored(episode.id, checked)}
 											/>
 										</Table.Cell>
-										<Table.Cell class="pr-4">
-											<Tooltip.Root>
-												<Tooltip.Trigger>
-													{#snippet child({ props })}
-														<span {...props}>
+										{#if session.isAdmin}
+											{@const target = episodeTarget(page.title.id, episode, season.number)}
+											<Table.Cell class="pr-4">
+												<Tooltip.Root>
+													<Tooltip.Trigger>
+														{#snippet child({ props })}
 															<Button
+																{...props}
 																size="icon-sm"
 																variant="ghost"
 																aria-label={SEARCH_LABEL}
-																disabled
+																disabled={automatic.isStarting(target)}
+																onclick={() => automatic.search(target)}
 															>
 																<Search />
 															</Button>
-														</span>
-													{/snippet}
-												</Tooltip.Trigger>
-												<Tooltip.Content>{SEARCH_LABEL} · {SEARCH_PENDING}</Tooltip.Content>
-											</Tooltip.Root>
-										</Table.Cell>
+														{/snippet}
+													</Tooltip.Trigger>
+													<Tooltip.Content>{SEARCH_LABEL}</Tooltip.Content>
+												</Tooltip.Root>
+											</Table.Cell>
+										{/if}
 									</Table.Row>
 								{/each}
 							</Table.Body>

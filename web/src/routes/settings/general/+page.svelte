@@ -2,6 +2,7 @@
 	import BackupsCard from '$lib/backups/BackupsCard.svelte';
 	import LocalPasswordCard from '$lib/session/LocalPasswordCard.svelte';
 	import { getSession } from '$lib/session/session.svelte';
+	import SchedulesCard from '$lib/settings/schedules/SchedulesCard.svelte';
 
 	const session = getSession();
 </script>
@@ -11,4 +12,5 @@
 		<LocalPasswordCard />
 	{/if}
 	<BackupsCard />
+	<SchedulesCard />
 </div>

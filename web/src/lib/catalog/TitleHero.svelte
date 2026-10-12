@@ -4,7 +4,9 @@
 	import { ProfileOptions } from '$lib/settings/quality/profile-options.svelte';
 	import StageBar from '$lib/activity/StageBar.svelte';
 	import RequestedBy from '$lib/requests/RequestedBy.svelte';
+	import Search from '@lucide/svelte/icons/search';
 	import InteractiveSearchDialog from '$lib/search/InteractiveSearchDialog.svelte';
+	import { AutomaticSearch } from '$lib/search/automatic-search.svelte';
 	import { getSession } from '$lib/session/session.svelte';
 	import PosterImage from './PosterImage.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -26,9 +28,10 @@
 	onMount(() => {
 		profiles.load();
 	});
-	const placeholderAction = 'Automatic search arrives with Acquisition';
 
 	const session = getSession();
+	const automatic = new AutomaticSearch();
+	const target = $derived({ titleId: title.id, label: title.name });
 	let searching = $state(false);
 </script>
 
@@ -64,9 +67,15 @@
 				{/if}
 			</div>
 		</div>
-		<div class="grid grid-cols-2 gap-2 md:flex md:shrink-0">
-			<Button variant="secondary" disabled title={placeholderAction}>Search</Button>
-			{#if session.isAdmin}
+		{#if session.isAdmin}
+			<div class="grid grid-cols-2 gap-2 md:flex md:shrink-0">
+				<Button
+					variant="secondary"
+					disabled={automatic.isStarting(target)}
+					onclick={() => automatic.search(target)}
+				>
+					<Search />Search
+				</Button>
 				<Button
 					variant="outline"
 					class="border-white/30 bg-transparent text-white hover:bg-white/10"
@@ -74,8 +83,8 @@
 				>
 					Interactive search
 				</Button>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	</div>
 	<div class="px-4 pb-5 md:px-8 md:pb-6">
 		<StageBar titleId={title.id} class="text-white" />

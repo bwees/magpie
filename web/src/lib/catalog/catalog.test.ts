@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { episodeCode } from './episodes';
 import { ImageWidth, sizedImage, titlePath } from './images';
 
 describe('sizedImage', () => {
@@ -22,5 +23,12 @@ describe('sizedImage', () => {
 describe('titlePath', () => {
 	it('routes to the title page', () => {
 		expect(titlePath('01J')).toBe('/titles/01J');
+	});
+});
+
+describe('episodeCode', () => {
+	it('pads the season and episode', () => {
+		expect(episodeCode(1, 3)).toBe('S01E03');
+		expect(episodeCode(12, 104)).toBe('S12E104');
 	});
 });

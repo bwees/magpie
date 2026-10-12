@@ -25,7 +25,7 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
 	{
 		section: SettingsSection.GENERAL,
 		label: 'General',
-		keywords: 'admin password backups restore'
+		keywords: 'admin password backups restore schedules rss backlog sweep'
 	},
 	{
 		section: SettingsSection.CONNECTIONS,
@@ -46,7 +46,7 @@ export const SETTINGS_SECTIONS: SectionSpec[] = [
 	{
 		section: SettingsSection.DOWNLOADS,
 		label: 'Downloads',
-		keywords: 'blocked files patterns metadata stalled seeding goal'
+		keywords: 'blocked files patterns metadata stalled seeding goal search on add'
 	},
 	{
 		section: SettingsSection.SUBTITLES,
