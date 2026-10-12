@@ -15,6 +15,7 @@ var (
 	NewWantedReleasedHandler    = newWantedReleasedHandler
 	NewTitleRemovedHandler      = newTitleRemovedHandler
 	NewFileScoresHandler        = newFileScoresHandler
+	NewIssueActionHandler       = newIssueActionHandler
 )
 
 // RescoreOf is the profile a queued rescore job scores files under again; "" means every file.

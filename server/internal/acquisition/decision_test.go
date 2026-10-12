@@ -274,6 +274,40 @@ func TestMonitoredAndReleasedApplyOnlyToTheirTriggers(t *testing.T) {
 	}
 }
 
+// Seed acquisition #31: the 1080p preset refuses 2160p and ranks by CF score inside its one group.
+func TestThe1080pPresetRefuses2160pAndRanksSourcesByScore(t *testing.T) {
+	webTier := format("WEB Tier 01", api.FormatSpec{Kind: api.SpecReleaseGroup, Value: `^FLUX$`})
+	blurayTier := format("HD Bluray Tier 03", api.FormatSpec{Kind: api.SpecReleaseGroup, Value: `^GRP$`})
+	p := PresetProfile(api.Preset1080p)
+	p.FormatScores = []api.FormatScore{scoreFor(webTier, tierOneScore), scoreFor(blurayTier, tierLow)}
+	in := newInput(t, movieTitle(), scoring(t, p, webTier, blurayTier))
+	ix := testIndexer("Nyaa", DefaultIndexerPriority)
+
+	uhd := in.decided(0, item("Movie.Title.2024.2160p.WEB-DL.DDP5.1.H.265-FLUX"), ix)
+	if !slices.Contains(reasons(uhd.Rejections), api.RejectQualityNotAllowed) {
+		t.Errorf("WEB 2160p: %+v, want QUALITY_NOT_ALLOWED", uhd.Rejections)
+	}
+	bluray := in.decided(1, item("Movie.Title.2024.1080p.BluRay.x264-GRP"), ix)
+	web := in.decided(2, item("Movie.Title.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX"), ix)
+	if got := rankedNames(bluray, web); got[0] != web.Candidate.Item.Title {
+		t.Errorf("ranked %v, want the CF 1700 WEB release first", got)
+	}
+}
+
+func TestARegrabSkipsTheUpgradeRule(t *testing.T) {
+	title := movieTitle()
+	in := newInput(t, title, tieredProfile(t))
+	in.Trigger = api.TriggerRegrab
+	existing := Evaluate(movie(t, "Movie.Title.2024.2160p.WEB-DL.DDP5.1.H.265-HIGH"), in.Profile)
+	in.Files = []existingFile{{File: libraryapi.MediaFile{Title: title.ID, Quality: existing.Quality, Transcoded: true}, Eval: existing, Group: "HIGH"}}
+
+	got := in.decided(0, item("Movie.Title.2024.2160p.WEB-DL.REPACK.DDP5.1.H.265-LOW"), testIndexer("Nyaa", DefaultIndexerPriority))
+	if !got.accepted() {
+		t.Errorf("REGRAB over a transcoded file at the cutoff: %+v, want accepted", got.Rejections)
+	}
+}
+
+// Seed acquisition #18.
 func TestUpgradeRuleAgainstTheExistingFile(t *testing.T) {
 	title := movieTitle()
 	in := newInput(t, title, tieredProfile(t))

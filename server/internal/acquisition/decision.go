@@ -48,6 +48,8 @@ var (
 	searchTriggers    = triggerSet{api.TriggerAuto, api.TriggerUserAuto, api.TriggerInteractive, api.TriggerRegrab}
 	automaticTriggers = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerRegrab}
 	nonInteractive    = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerUserAuto, api.TriggerRegrab}
+	// A REGRAB replaces a file someone reported as broken, however well it scores, so it skips the upgrade specs.
+	upgradeTriggers = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerUserAuto, api.TriggerInteractive}
 )
 
 // candidate is one indexer result, parsed and scored, on its way through the decision engine.
@@ -175,8 +177,8 @@ var tierZero = []specification{
 	{allTriggers, alreadyImported},
 	{allTriggers, torrentSeeding},
 	{allTriggers, blockedIndexer},
-	{allTriggers, upgradable},
-	{allTriggers, repack},
+	{upgradeTriggers, upgradable},
+	{upgradeTriggers, repack},
 	{rssTriggers, proper},
 	{allTriggers, sameEpisodesGrab},
 	{allTriggers, queued},

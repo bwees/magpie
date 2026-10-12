@@ -67,6 +67,7 @@ var automaticSearchOptions = fx.Options(
 		bus.AsHandler(newMonitoringChangedHandler),
 		bus.AsHandler(newWantedReleasedHandler),
 		bus.AsHandler(newTitleRemovedHandler),
+		bus.AsHandler(newIssueActionHandler),
 	),
 )
 
