@@ -2,7 +2,10 @@ package acquisition_test
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
+	"net/url"
 	"slices"
 	"sync"
 	"testing"
@@ -108,12 +111,15 @@ func payload[T any](t *testing.T, ev bus.Event) T {
 
 type searchFixture struct {
 	fixture
-	searches *acquisition.SearchService
-	catalog  *catalogtest.Fake
-	library  *librarytest.Fake
-	qbit     *fakes.QBittorrent
-	events   *recorder
-	title    catalogapi.Title
+	searches  *acquisition.SearchService
+	downloads *acquisition.DownloadService
+	jobs      *recordingQueue
+	clock     *clock
+	catalog   *catalogtest.Fake
+	library   *librarytest.Fake
+	qbit      *fakes.QBittorrent
+	events    *recorder
+	title     catalogapi.Title
 }
 
 func newSearchFixture(t *testing.T) searchFixture {
@@ -150,12 +156,38 @@ func newSearchFixture(t *testing.T) searchFixture {
 		title:   title,
 	}
 	f.service = acquisition.NewService(repo, f.prowlarr, store)
+	registry := acquisition.NewSearchRegistry()
 	f.searches = acquisition.NewSearchService(acquisition.SearchDeps{
 		DB: d, Repo: repo, Quality: quality, Catalog: f.catalog, Library: f.library,
-		Prowlarr: f.prowlarr, QBittorrent: f.qbit, Store: store, Bus: b,
+		Prowlarr: f.prowlarr, QBittorrent: f.qbit, Store: store, Bus: b, Searches: registry,
 	})
 	t.Cleanup(f.searches.Close)
+	f.jobs = &recordingQueue{}
+	f.clock = &clock{now: time.Now().Truncate(time.Second)}
+	f.downloads = acquisition.NewDownloadService(acquisition.DownloadDeps{
+		DB: d, Repo: repo, Catalog: f.catalog, Prowlarr: f.prowlarr, QBittorrent: f.qbit,
+		Store: store, Bus: b, Jobs: f.jobs, Searches: registry,
+	})
+	acquisition.SetDownloadClock(f.downloads, f.clock.Now)
 	return f
+}
+
+// clock is the download service's time, moved by tests to reach timeouts.
+type clock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *clock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
 }
 
 func (f searchFixture) indexer(t *testing.T, id int, name string, caps acquisition.TorznabCaps, delay time.Duration, items ...acquisition.TorznabItem) {
@@ -166,9 +198,15 @@ func (f searchFixture) indexer(t *testing.T, id int, name string, caps acquisiti
 	f.sync(t)
 }
 
+// release is offered as a magnet; tests that need a .torrent set DownloadURL.
 func release(name string) acquisition.TorznabItem {
-	return acquisition.TorznabItem{GUID: name, Title: name, SizeBytes: releaseSize, Seeders: releaseSeeders,
-		DownloadVolumeFactor: 1, UploadVolumeFactor: 1}
+	return acquisition.TorznabItem{GUID: name, Title: name, MagnetURI: magnet(name), SizeBytes: releaseSize,
+		Seeders: releaseSeeders, DownloadVolumeFactor: 1, UploadVolumeFactor: 1}
+}
+
+func magnet(name string) string {
+	sum := sha1.Sum([]byte(name))
+	return "magnet:?xt=urn:btih:" + hex.EncodeToString(sum[:]) + "&dn=" + url.QueryEscape(name)
 }
 
 func (f searchFixture) start(t *testing.T) acquisition.SearchSnapshot {
@@ -314,14 +352,23 @@ func TestInteractiveSearchNeverGrabsAndOverridePassesTheGrabCheck(t *testing.T) 
 			rejected = r
 		}
 	}
-	if err := f.searches.Grab(started.ID, rejected.Release, false); !errors.Is(err, acquisition.ErrReleaseRejected) {
+	ctx := context.Background()
+	if _, err := f.downloads.Grab(ctx, started.ID, rejected.Release, false); !errors.Is(err, acquisition.ErrReleaseRejected) {
 		t.Errorf("grab without override = %v, want ErrReleaseRejected", err)
 	}
-	if err := f.searches.Grab(started.ID, rejected.Release, true); !errors.Is(err, acquisition.ErrGrabUnavailable) {
-		t.Errorf("grab with override = %v, want it past the check", err)
-	}
-	if err := f.searches.Grab(started.ID, "missing", true); !errors.Is(err, acquisition.ErrReleaseNotFound) {
+	if _, err := f.downloads.Grab(ctx, started.ID, "missing", true); !errors.Is(err, acquisition.ErrReleaseNotFound) {
 		t.Errorf("grab of an unknown release = %v", err)
+	}
+	result, err := f.downloads.Grab(ctx, started.ID, rejected.Release, true)
+	if err != nil || result.Status != acquisition.GrabChecking {
+		t.Fatalf("grab with override = %+v, %v; want a magnet waiting for its check", result, err)
+	}
+	grabbed := payload[api.ReleaseGrabbed](t, f.events.waitFor(t, api.TypeReleaseGrabbed, 1)[0])
+	if !grabbed.Override || grabbed.Download != *result.Download || grabbed.Trigger != api.TriggerInteractive {
+		t.Errorf("ReleaseGrabbed = %+v, want Override", grabbed)
+	}
+	if _, err := f.downloads.Grab(ctx, started.ID, rejected.Release, true); !errors.Is(err, acquisition.ErrAlreadyGrabbed) {
+		t.Errorf("second grab = %v, want ErrAlreadyGrabbed", err)
 	}
 }
 

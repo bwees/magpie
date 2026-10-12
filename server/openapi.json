@@ -369,6 +369,51 @@
 				],
 				"type": "object"
 			},
+			"BlocklistEntryResponse": {
+				"description": "BlocklistEntryResponse schema",
+				"properties": {
+					"at": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"expiresAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"indexer": {
+						"type": "string"
+					},
+					"infoHash": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"titleName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"at",
+					"id",
+					"indexer",
+					"infoHash",
+					"reason",
+					"releaseName",
+					"title",
+					"titleName"
+				],
+				"type": "object"
+			},
 			"CatalogSettingsResponse": {
 				"description": "CatalogSettingsResponse schema",
 				"properties": {
@@ -840,6 +885,60 @@
 				],
 				"type": "object"
 			},
+			"DownloadOptionsRequest": {
+				"description": "DownloadOptionsRequest schema",
+				"properties": {
+					"blockedFilesEnabled": {
+						"type": "boolean"
+					},
+					"blockedPatterns": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"metadataTimeoutMinutes": {
+						"type": "integer"
+					},
+					"stalledLimitMinutes": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"blockedFilesEnabled",
+					"blockedPatterns",
+					"metadataTimeoutMinutes",
+					"stalledLimitMinutes"
+				],
+				"type": "object"
+			},
+			"DownloadOptionsResponse": {
+				"description": "DownloadOptionsResponse schema",
+				"properties": {
+					"blockedFilesEnabled": {
+						"type": "boolean"
+					},
+					"blockedPatterns": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"metadataTimeoutMinutes": {
+						"type": "integer"
+					},
+					"stalledLimitMinutes": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"blockedFilesEnabled",
+					"blockedPatterns",
+					"metadataTimeoutMinutes",
+					"stalledLimitMinutes"
+				],
+				"type": "object"
+			},
 			"DownloadProgressed": {
 				"description": "DownloadProgressed schema",
 				"properties": {
@@ -873,6 +972,106 @@
 					"ratio",
 					"speedBps",
 					"state"
+				],
+				"type": "object"
+			},
+			"DownloadResponse": {
+				"description": "DownloadResponse schema",
+				"properties": {
+					"cfScore": {
+						"type": "integer"
+					},
+					"completedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"etaSeconds": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"grabbedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"indexer": {
+						"type": "string"
+					},
+					"infoHash": {
+						"type": "string"
+					},
+					"override": {
+						"type": "boolean"
+					},
+					"progress": {
+						"format": "double",
+						"type": "number"
+					},
+					"quality": {
+						"$ref": "#/components/schemas/Quality"
+					},
+					"ratio": {
+						"format": "double",
+						"type": "number"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"search": {
+						"type": "string"
+					},
+					"seedingMode": {
+						"type": "string"
+					},
+					"sizeBytes": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"speedBps": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"state": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"titleName": {
+						"type": "string"
+					},
+					"trigger": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"cfScore",
+					"episodes",
+					"etaSeconds",
+					"grabbedAt",
+					"id",
+					"indexer",
+					"infoHash",
+					"override",
+					"progress",
+					"quality",
+					"ratio",
+					"releaseName",
+					"seedingMode",
+					"sizeBytes",
+					"speedBps",
+					"state",
+					"title",
+					"titleName",
+					"trigger"
 				],
 				"type": "object"
 			},
@@ -1358,6 +1557,27 @@
 				"required": [
 					"override",
 					"releaseId"
+				],
+				"type": "object"
+			},
+			"GrabResponse": {
+				"description": "GrabResponse schema",
+				"properties": {
+					"blockedFile": {
+						"type": "string"
+					},
+					"download": {
+						"type": "string"
+					},
+					"next": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"status"
 				],
 				"type": "object"
 			},
@@ -4833,6 +5053,142 @@
 	},
 	"openapi": "3.1.0",
 	"paths": {
+		"/api/acquisition/blocklist": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*DownloadController).blocklist`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listBlocklist",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/BlocklistEntryResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Every blocklist entry, newest first, expired temporary ones included (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/blocklist/{id}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*DownloadController).unblock`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "removeBlocklistEntry",
+				"parameters": [
+					{
+						"description": "Blocklist entry ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Remove a blocklist entry so its release can be grabbed again (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
 		"/api/acquisition/custom-formats": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).listFormats`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -5187,6 +5543,283 @@
 					}
 				},
 				"summary": "Replace a custom format's name and specs (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/download-options": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*DownloadController).options`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getDownloadOptions",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DownloadOptionsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Blocked-file check, blocked patterns, metadata timeout and stalled limit (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*DownloadController).setOptions`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setDownloadOptions",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/DownloadOptionsRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.DownloadOptionsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DownloadOptionsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change the blocked-file check and download timeouts (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/downloads": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*DownloadController).list`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listDownloads",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DownloadResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Downloads still in qBittorrent with their last polled progress, newest first (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/downloads/{id}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*DownloadController).remove`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "removeDownload",
+				"parameters": [
+					{
+						"description": "Download ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Also delete the downloaded data",
+						"in": "query",
+						"name": "deleteData",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Remove a download from qBittorrent, with its data when deleteData is set (admin)",
 				"tags": [
 					"api",
 					"acquisition"
@@ -6277,7 +6910,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/unknown-interface"
+									"$ref": "#/components/schemas/GrabResponse"
 								}
 							}
 						},

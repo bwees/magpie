@@ -16,11 +16,14 @@ import (
 const (
 	pathSearchID = "id"
 
-	TypeSearchNotFound  problem.Type = "urn:magpie:problem:search-not-found"
-	TypeReleaseNotFound problem.Type = "urn:magpie:problem:release-not-found"
-	TypeReleaseRejected problem.Type = "urn:magpie:problem:release-rejected"
-	TypeGrabUnavailable problem.Type = "urn:magpie:problem:grab-unavailable"
-	TypeTitleNotFound   problem.Type = "urn:magpie:problem:title-not-found"
+	TypeSearchNotFound         problem.Type = "urn:magpie:problem:search-not-found"
+	TypeReleaseNotFound        problem.Type = "urn:magpie:problem:release-not-found"
+	TypeReleaseRejected        problem.Type = "urn:magpie:problem:release-rejected"
+	TypeReleaseAlreadyGrabbed  problem.Type = "urn:magpie:problem:release-already-grabbed"
+	TypeReleaseUnavailable     problem.Type = "urn:magpie:problem:release-unavailable"
+	TypeTitleNotFound          problem.Type = "urn:magpie:problem:title-not-found"
+	TypeQBittorrentUnavailable problem.Type = "urn:magpie:problem:qbittorrent-unavailable"
+	TypeQBittorrentUnsupported problem.Type = "urn:magpie:problem:qbittorrent-unsupported"
 )
 
 // StartSearchRequest searches a title, or some of a series' episodes. Only interactive searches can be
@@ -74,12 +77,22 @@ type GrabRequest struct {
 	Override bool `json:"override"`
 }
 
-type SearchController struct {
-	searches *SearchService
+// GrabResponse says where the grab stands. CHECKING: a magnet waits for its file list before any content
+// downloads. REJECTED: the release held a Blocked file and Next, if set, is the release grabbed instead.
+type GrabResponse struct {
+	Status      GrabStatus         `json:"status"`
+	Download    *domain.DownloadID `json:"download,omitempty"`
+	BlockedFile *string            `json:"blockedFile,omitempty"`
+	Next        *domain.DownloadID `json:"next,omitempty"`
 }
 
-func NewSearchController(s *SearchService) *SearchController {
-	return &SearchController{searches: s}
+type SearchController struct {
+	searches  *SearchService
+	downloads *DownloadService
+}
+
+func NewSearchController(s *SearchService, d *DownloadService) *SearchController {
+	return &SearchController{searches: s, downloads: d}
 }
 
 func (c *SearchController) Register(s *fuego.Server) {
@@ -139,15 +152,19 @@ func (c *SearchController) cancel(ctx fuego.ContextNoBody) (any, error) {
 	return nil, searchProblem(c.searches.Cancel(domain.SearchID(ctx.PathParam(pathSearchID))))
 }
 
-func (c *SearchController) grab(ctx fuego.ContextWithBody[GrabRequest]) (any, error) {
+func (c *SearchController) grab(ctx fuego.ContextWithBody[GrabRequest]) (GrabResponse, error) {
 	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
-		return nil, err
+		return GrabResponse{}, err
 	}
 	body, err := ctx.Body()
 	if err != nil {
-		return nil, err
+		return GrabResponse{}, err
 	}
-	return nil, searchProblem(c.searches.Grab(domain.SearchID(ctx.PathParam(pathSearchID)), body.ReleaseID, body.Override))
+	result, err := c.downloads.Grab(ctx.Context(), domain.SearchID(ctx.PathParam(pathSearchID)), body.ReleaseID, body.Override)
+	if err != nil {
+		return GrabResponse{}, searchProblem(err)
+	}
+	return GrabResponse(result), nil
 }
 
 func searchProblem(err error) error {
@@ -164,8 +181,22 @@ func searchProblem(err error) error {
 		return problem.New(TypeReleaseNotFound, http.StatusNotFound, "The release isn't in this search's results")
 	case errors.Is(err, ErrReleaseRejected):
 		return problem.New(TypeReleaseRejected, http.StatusConflict, "The release was rejected; use Override to grab it anyway")
-	case errors.Is(err, ErrGrabUnavailable):
-		return problem.New(TypeGrabUnavailable, http.StatusNotImplemented, "Grabbing isn't available yet")
+	case errors.Is(err, ErrAlreadyGrabbed):
+		return problem.New(TypeReleaseAlreadyGrabbed, http.StatusConflict, "This release was already grabbed from this search")
+	case errors.Is(err, ErrReleaseUnavailable), errors.Is(err, ErrInvalidTorrent):
+		return problem.New(TypeReleaseUnavailable, http.StatusBadGateway, "The release couldn't be fetched from its indexer: "+rootCause(err).Error())
+	}
+	return qbittorrentProblem(err)
+}
+
+func qbittorrentProblem(err error) error {
+	switch {
+	case errors.Is(err, ErrUnsupportedVersion):
+		return problem.New(TypeQBittorrentUnsupported, http.StatusBadGateway, "Magpie needs qBittorrent 5.2 or newer")
+	case errors.Is(err, ErrUnauthorized):
+		return problem.New(TypeQBittorrentUnavailable, http.StatusBadGateway, "qBittorrent rejected the API key")
+	case errors.Is(err, ErrUnavailable), errors.Is(err, ErrTimeout):
+		return problem.New(TypeQBittorrentUnavailable, http.StatusBadGateway, "qBittorrent is unreachable: "+rootCause(err).Error())
 	}
 	return err
 }

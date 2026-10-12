@@ -64,7 +64,8 @@ var (
 // Run checks a Reader against the whole acquisition contract.
 func Run(t *testing.T, newReader Factory) {
 	RunProfiles(t, newReader)
-	runDownloadsBlocklistAndCutoff(t, newReader)
+	RunDownloadsAndBlocklist(t, newReader)
+	RunCutoff(t, newReader)
 }
 
 // RunProfiles checks Profile, Profiles and DefaultProfile. The fixture holds profiles only, so a
@@ -127,11 +128,10 @@ func RunProfiles(t *testing.T, newReader Factory) {
 	})
 }
 
-func runDownloadsBlocklistAndCutoff(t *testing.T, newReader Factory) {
+// RunDownloadsAndBlocklist checks ActiveDownloads, DownloadsForTitle and Blocklist. The fixture holds
+// downloads and blocklist entries only.
+func RunDownloadsAndBlocklist(t *testing.T, newReader Factory) {
 	ctx := context.Background()
-
-	p1080 := profile("1080p", true)
-	locked := profile("archive", false)
 
 	movie, series := domain.NewID[domain.TitleID](), domain.NewID[domain.TitleID]()
 	oldGrab := download(movie, start, nil)
@@ -144,15 +144,9 @@ func runDownloadsBlocklistAndCutoff(t *testing.T, newReader Factory) {
 	newerBlock := blocked(movie, start.Add(time.Hour), api.BlocklistMetadataTimeout, &expires)
 	seriesBlock := blocked(series, start.Add(2*time.Hour), api.BlocklistUser, nil)
 
-	upgradable := fileScore(movie, p1080.ID, false, false)
-	transcoded := fileScore(movie, p1080.ID, true, true)
-	noUpgrades := fileScore(series, locked.ID, true, false)
-
 	fixture := Fixture{
-		Profiles:   []api.Profile{locked, p1080},
-		Downloads:  []api.Download{oldGrab, removed, newGrab},
-		Blocklist:  []api.BlocklistEntry{olderBlock, seriesBlock, newerBlock},
-		FileScores: []FileScore{upgradable, transcoded, noUpgrades},
+		Downloads: []api.Download{oldGrab, removed, newGrab},
+		Blocklist: []api.BlocklistEntry{olderBlock, seriesBlock, newerBlock},
 	}
 
 	t.Run("ActiveDownloads excludes removed downloads, newest first", func(t *testing.T) {
@@ -187,6 +181,22 @@ func runDownloadsBlocklistAndCutoff(t *testing.T, newReader Factory) {
 		}
 		assertEntries(t, got, seriesBlock.ID, newerBlock.ID, olderBlock.ID)
 	})
+}
+
+// RunCutoff checks CutoffStatus against stored file scores.
+func RunCutoff(t *testing.T, newReader Factory) {
+	ctx := context.Background()
+
+	p1080 := profile("1080p", true)
+	locked := profile("archive", false)
+	movie, series := domain.NewID[domain.TitleID](), domain.NewID[domain.TitleID]()
+	upgradable := fileScore(movie, p1080.ID, false, false)
+	transcoded := fileScore(movie, p1080.ID, true, true)
+	noUpgrades := fileScore(series, locked.ID, true, false)
+	fixture := Fixture{
+		Profiles:   []api.Profile{locked, p1080},
+		FileScores: []FileScore{upgradable, transcoded, noUpgrades},
+	}
 
 	t.Run("CutoffStatus reports the stored score and when upgrades stop", func(t *testing.T) {
 		r := newReader(t, fixture)

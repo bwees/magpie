@@ -29,8 +29,7 @@ var (
 	ErrInvalidSearch   = errors.New("acquisition: invalid search")
 	ErrReleaseNotFound = errors.New("acquisition: release not found in the search")
 	ErrReleaseRejected = errors.New("acquisition: the release was rejected; grab it with override")
-	// ErrGrabUnavailable is returned for a valid grab until grabbing into qBittorrent exists.
-	ErrGrabUnavailable = errors.New("acquisition: grabbing isn't available yet")
+	ErrAlreadyGrabbed  = errors.New("acquisition: the release was already grabbed from this search")
 )
 
 // Messages shown for an indexer that FAILED or was SKIPPED.
@@ -59,6 +58,7 @@ type SearchDeps struct {
 	QBittorrent QBittorrent
 	Store       *settings.Store
 	Bus         *bus.Bus
+	Searches    *SearchRegistry
 }
 
 // SearchService fans a search out to every indexer, decides each release as its indexer answers, and
@@ -71,9 +71,8 @@ type SearchService struct {
 	stop    context.CancelFunc
 	running sync.WaitGroup
 
-	mu       sync.Mutex
-	searches map[domain.SearchID]*search
-	results  map[string]cachedResult
+	mu      sync.Mutex
+	results map[string]cachedResult
 }
 
 type cachedResult struct {
@@ -94,25 +93,22 @@ type indexerAnswer struct {
 func NewSearchService(deps SearchDeps) *SearchService {
 	life, stop := context.WithCancel(context.Background())
 	return &SearchService{
-		deps:     deps,
-		now:      time.Now,
-		life:     life,
-		stop:     stop,
-		searches: map[domain.SearchID]*search{},
-		results:  map[string]cachedResult{},
+		deps:    deps,
+		now:     time.Now,
+		life:    life,
+		stop:    stop,
+		results: map[string]cachedResult{},
 	}
 }
 
 // Close cancels every search and waits for its indexer queries to return.
 func (s *SearchService) Close() {
 	s.stop()
-	s.mu.Lock()
-	for _, st := range s.searches {
+	for _, st := range s.deps.Searches.all() {
 		st.mu.Lock()
 		st.expiry.Stop()
 		st.mu.Unlock()
 	}
-	s.mu.Unlock()
 	s.running.Wait()
 }
 
@@ -133,12 +129,14 @@ func (s *SearchService) Start(ctx context.Context, req SearchRequest) (SearchSna
 	}
 
 	st := &search{
-		id:        domain.NewID[domain.SearchID](),
-		trigger:   req.Trigger,
-		startedAt: s.now().UTC(),
-		input:     in,
-		cacheFor:  options.ResultCache.Std(),
-		keys:      map[releaseKey]bool{},
+		id:          domain.NewID[domain.SearchID](),
+		trigger:     req.Trigger,
+		startedAt:   s.now().UTC(),
+		input:       in,
+		cacheFor:    options.ResultCache.Std(),
+		keys:        map[releaseKey]bool{},
+		tried:       map[domain.ReleaseID]bool{},
+		triedHashes: map[string]bool{},
 	}
 	st.ctx, st.cancel = context.WithCancel(s.life)
 	st.emit = func(e api.SearchResultsReceived) { s.deps.Bus.Emit(bus.EventOf(e)) }
@@ -172,9 +170,7 @@ func (s *SearchService) Start(ctx context.Context, req SearchRequest) (SearchSna
 	st.mu.Lock()
 	st.expiry = time.AfterFunc(searchRetention(options), func() { s.expire(st) })
 	st.mu.Unlock()
-	s.mu.Lock()
-	s.searches[st.id] = st
-	s.mu.Unlock()
+	s.deps.Searches.add(st)
 
 	timeout := options.SearchTimeout.Std()
 	for _, run := range st.runs {
@@ -238,6 +234,11 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 	if in.Blocklist, err = s.deps.Repo.Blocklist(ctx, title.ID); err != nil {
 		return nil, searchTarget{}, err
 	}
+	downloads, err := s.deps.Repo.titleDownloads(ctx, title.ID)
+	if err != nil {
+		return nil, searchTarget{}, err
+	}
+	in.Queue, in.History = grabsOf(downloads, title, in.Profile, in.Now)
 	delay, err := DefaultDelayKey.Get(ctx, s.deps.Store)
 	if err != nil {
 		return nil, searchTarget{}, err
@@ -429,19 +430,9 @@ func (s *SearchService) publishCompleted(done api.SearchCompleted) {
 	}
 }
 
-func (s *SearchService) find(id domain.SearchID) (*search, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	st, ok := s.searches[id]
-	if !ok {
-		return nil, ErrSearchNotFound
-	}
-	return st, nil
-}
-
 // Search returns a search's cached state. ErrSearchNotFound once it expired.
 func (s *SearchService) Search(id domain.SearchID) (SearchSnapshot, error) {
-	st, err := s.find(id)
+	st, err := s.deps.Searches.find(id)
 	if err != nil {
 		return SearchSnapshot{}, err
 	}
@@ -450,7 +441,7 @@ func (s *SearchService) Search(id domain.SearchID) (SearchSnapshot, error) {
 
 // Cancel stops a search's in-flight queries; indexers that hadn't answered report FAILED. Its results stay cached.
 func (s *SearchService) Cancel(id domain.SearchID) error {
-	st, err := s.find(id)
+	st, err := s.deps.Searches.find(id)
 	if err != nil {
 		return err
 	}
@@ -467,29 +458,12 @@ func (s *SearchService) cancel(st *search) {
 
 func (s *SearchService) expire(st *search) {
 	s.cancel(st)
+	s.deps.Searches.remove(st.id)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.searches, st.id)
 	for key, cached := range s.results {
 		if !s.now().Before(cached.expires) {
 			delete(s.results, key)
 		}
 	}
-}
-
-// Grab checks a release can be grabbed: it is in the search's cache, and accepted unless override is set.
-// Grabbing itself comes with downloads; until then a valid grab returns ErrGrabUnavailable.
-func (s *SearchService) Grab(id domain.SearchID, release domain.ReleaseID, override bool) error {
-	st, err := s.find(id)
-	if err != nil {
-		return err
-	}
-	d, ok := st.release(release)
-	if !ok {
-		return ErrReleaseNotFound
-	}
-	if !d.accepted() && !override {
-		return ErrReleaseRejected
-	}
-	return ErrGrabUnavailable
 }

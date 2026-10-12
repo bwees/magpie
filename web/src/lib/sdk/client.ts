@@ -12,21 +12,16 @@ export const defaults: Oazapfts.Defaults<Oazapfts.CustomHeaders> = {
 };
 const oazapfts = Oazapfts.runtime(defaults);
 export const servers = {};
-export type FormatSpecDto = {
-    kind: string;
-    max: number;
-    min: number;
-    name: string;
-    negate: boolean;
-    required: boolean;
-    value: string;
-};
-export type CustomFormatResponse = {
+export type BlocklistEntryResponse = {
+    at: string;
+    expiresAt?: string;
     id: string;
-    includeWhenRenaming: boolean;
-    name: string;
-    specs: FormatSpecDto[];
-    trashId?: string;
+    indexer: string;
+    infoHash: string;
+    reason: string;
+    releaseName: string;
+    title: string;
+    titleName: string;
 };
 export type ErrorItem = {
     /** Additional information about the error */
@@ -52,6 +47,23 @@ export type HttpError = {
     /** URL of the error type. Can be used to lookup the error in a documentation */
     "type"?: string;
 };
+export type UnknownInterface = any;
+export type FormatSpecDto = {
+    kind: string;
+    max: number;
+    min: number;
+    name: string;
+    negate: boolean;
+    required: boolean;
+    value: string;
+};
+export type CustomFormatResponse = {
+    id: string;
+    includeWhenRenaming: boolean;
+    name: string;
+    specs: FormatSpecDto[];
+    trashId?: string;
+};
 export type CustomFormatRequest = {
     includeWhenRenaming: boolean;
     name: string;
@@ -60,7 +72,48 @@ export type CustomFormatRequest = {
 export type BlockTermRequest = {
     term: string;
 };
-export type UnknownInterface = any;
+export type DownloadOptionsResponse = {
+    blockedFilesEnabled: boolean;
+    blockedPatterns: string[];
+    metadataTimeoutMinutes: number;
+    stalledLimitMinutes: number;
+};
+export type DownloadOptionsRequest = {
+    blockedFilesEnabled: boolean;
+    blockedPatterns: string[];
+    metadataTimeoutMinutes: number;
+    stalledLimitMinutes: number;
+};
+export type Quality = {
+    id: number;
+    name: string;
+    resolution: number;
+    revision: number;
+    source: string;
+};
+export type DownloadResponse = {
+    cfScore: number;
+    completedAt?: string;
+    episodes: string[];
+    etaSeconds: number;
+    grabbedAt: string;
+    id: string;
+    indexer: string;
+    infoHash: string;
+    "override": boolean;
+    progress: number;
+    quality: Quality;
+    ratio: number;
+    releaseName: string;
+    search?: string;
+    seedingMode: string;
+    sizeBytes: number;
+    speedBps: number;
+    state: string;
+    title: string;
+    titleName: string;
+    trigger: string;
+};
 export type IndexerOptionsResponse = {
     resultCacheMinutes: number;
     searchTimeoutSeconds: number;
@@ -201,13 +254,6 @@ export type SearchProfileResponse = {
     name: string;
     penalizedFormats: string[];
 };
-export type Quality = {
-    id: number;
-    name: string;
-    resolution: number;
-    revision: number;
-    source: string;
-};
 export type Rejection = {
     message: string;
     reason: string;
@@ -242,6 +288,12 @@ export type SearchResponse = {
 export type GrabRequest = {
     "override": boolean;
     releaseId: string;
+};
+export type GrabResponse = {
+    blockedFile?: string;
+    download?: string;
+    next?: string;
+    status: string;
 };
 export type AcquisitionSettingsResponse = {
     defaultDelayMinutes: number;
@@ -1144,6 +1196,51 @@ export type WhisperCompleted = {
     stagedPath: string;
 };
 /**
+ * Every blocklist entry, newest first, expired temporary ones included (admin)
+ */
+export function listBlocklist({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BlocklistEntryResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/blocklist", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Remove a blocklist entry so its release can be grabbed again (admin)
+ */
+export function removeBlocklistEntry(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/blocklist/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
  * Custom formats ordered by name (admin)
  */
 export function listCustomFormats({ accept }: {
@@ -1259,6 +1356,100 @@ export function updateCustomFormat(id: string, customFormatRequest: CustomFormat
             Accept: accept
         })
     })));
+}
+/**
+ * Blocked-file check, blocked patterns, metadata timeout and stalled limit (admin)
+ */
+export function getDownloadOptions({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: DownloadOptionsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/download-options", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change the blocked-file check and download timeouts (admin)
+ */
+export function setDownloadOptions(downloadOptionsRequest: DownloadOptionsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: DownloadOptionsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/download-options", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: downloadOptionsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Downloads still in qBittorrent with their last polled progress, newest first (admin)
+ */
+export function listDownloads({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: DownloadResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/downloads", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Remove a download from qBittorrent, with its data when deleteData is set (admin)
+ */
+export function removeDownload(id: string, { deleteData, accept }: {
+    deleteData?: boolean;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/acquisition/downloads/${encodeURIComponent(id)}${QS.query(QS.explode({
+        deleteData
+    }))}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
 }
 /**
  * Sync interval, search timeout and result cache for all indexers (admin)
@@ -1613,7 +1804,7 @@ export function grabRelease(id: string, grabRequest: GrabRequest, { accept }: {
 } = {}, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 202;
-        data: UnknownInterface;
+        data: GrabResponse;
     } | {
         status: 400;
         data: HttpError;

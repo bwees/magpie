@@ -86,6 +86,38 @@ type activeGrab struct {
 	CutoffMet   bool
 }
 
+// queuedStates are downloads still on their way to the library.
+var queuedStates = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading, api.StateCompleted}
+
+// grabsOf turns a title's downloads into the Queue (still in qBittorrent) and the History (grabbed within
+// RecentGrabWindow) the specs read, each scored against the search's profile. Failed downloads count for neither.
+func grabsOf(downloads []download, title catalogapi.Title, p ScoringProfile, now time.Time) (queue, recent []activeGrab) {
+	queue, recent = []activeGrab{}, []activeGrab{}
+	for _, d := range downloads {
+		if d.State == api.StateFailed {
+			continue
+		}
+		g := grabOf(d, title, p)
+		if d.RemovedAt == nil && slices.Contains(queuedStates, d.State) {
+			queue = append(queue, g)
+		}
+		if now.Sub(d.GrabbedAt) < RecentGrabWindow {
+			recent = append(recent, g)
+		}
+	}
+	return queue, recent
+}
+
+func grabOf(d download, title catalogapi.Title, p ScoringProfile) activeGrab {
+	release, err := parse.ParseRelease(d.ReleaseName, title.Kind)
+	if err != nil {
+		release = parse.Release{Name: d.ReleaseName, Kind: title.Kind}
+	}
+	release.Quality = d.Quality
+	eval := Evaluate(ReleaseFacts{Release: release, SizeBytes: d.SizeBytes, OriginalLanguage: title.OriginalLanguage}, p)
+	return activeGrab{Episodes: d.Episodes, QualityRank: eval.QualityRank, Score: eval.Score, CutoffMet: eval.CutoffMet}
+}
+
 // decisionInput is everything the specs read besides the release itself. It is built once per search.
 type decisionInput struct {
 	Trigger api.SearchTrigger

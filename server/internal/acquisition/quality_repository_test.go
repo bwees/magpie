@@ -61,6 +61,29 @@ func TestRepositoryMeetsTheProfileContract(t *testing.T) {
 	})
 }
 
+func TestReaderMeetsTheDownloadAndBlocklistContract(t *testing.T) {
+	contracttest.RunDownloadsAndBlocklist(t, func(t *testing.T, f contracttest.Fixture) api.Reader {
+		d := dbtest.Open(t, Migrations())
+		err := d.Write(context.Background(), func(tx *gorm.DB) error {
+			for _, dl := range f.Downloads {
+				if err := insertDownload(tx, download{Download: dl}); err != nil {
+					return err
+				}
+			}
+			for _, e := range f.Blocklist {
+				if _, err := insertBlocklistEntry(tx, e); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return NewReader(NewQualityRepository(d), NewRepository(d))
+	})
+}
+
 type qualityTableRow struct {
 	ID         int
 	Name       string

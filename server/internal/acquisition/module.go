@@ -1,8 +1,10 @@
 package acquisition
 
 import (
+	"context"
 	"embed"
 	"io/fs"
+	"log/slog"
 
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/httpserver"
@@ -29,19 +31,43 @@ var Module = fx.Module(string(owner.Acquisition),
 	fx.Invoke(syncIndexersOnStart),
 	qualityOptions,
 	searchOptions,
+	downloadOptions,
 )
 
 // searchOptions wires interactive search: the fan-out, decision engine and result cache.
 var searchOptions = fx.Options(
 	fx.Provide(
+		NewSearchRegistry,
 		NewSearchService,
 		httpserver.AsController(NewSearchController),
+		jobs.AsQueue(newSearchQueue),
 	),
 	fx.Invoke(closeSearchesOnStop),
 )
 
 func closeSearchesOnStop(lc fx.Lifecycle, s *SearchService) {
 	lc.Append(fx.StopHook(s.Close))
+}
+
+// downloadOptions wires grabbing into qBittorrent, the blocked-file check and the download poll.
+var downloadOptions = fx.Options(
+	fx.Provide(
+		NewDownloadService,
+		httpserver.AsController(NewDownloadController),
+		jobs.AsQueue(newDownloadCheckQueue),
+		jobs.AsTicker(newDownloadPollTicker),
+	),
+	fx.Invoke(checkClientOnStart),
+)
+
+// checkClientOnStart logs an unsupported or unreachable qBittorrent at boot. Grabs check it again
+// and are refused while it is below 5.2.
+func checkClientOnStart(lc fx.Lifecycle, s *DownloadService) {
+	lc.Append(fx.StartHook(func(ctx context.Context) {
+		if err := s.CheckClient(ctx); err != nil {
+			slog.WarnContext(ctx, "qBittorrent check failed; grabs are refused until it passes", "error", err)
+		}
+	}))
 }
 
 // Migrations is Acquisition's goose directory, for tests that open a database without the app.

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,6 +62,60 @@ type search struct {
 	keys      map[releaseKey]bool
 	completed bool
 	cancelled bool
+	// tried holds releases already grabbed or rejected, so the fallback never picks them again.
+	tried map[domain.ReleaseID]bool
+	// triedHashes catches the same torrent listed by another indexer.
+	triedHashes map[string]bool
+	grabbed     *domain.DownloadID
+}
+
+// try claims a release for a grab. It is false when the release was tried before.
+func (st *search) try(id domain.ReleaseID) bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.tried[id] {
+		return false
+	}
+	st.tried[id] = true
+	return true
+}
+
+// untry gives a release back after a grab that failed before reaching qBittorrent.
+func (st *search) untry(id domain.ReleaseID) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	delete(st.tried, id)
+}
+
+func (st *search) noteHash(hash string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.triedHashes[strings.ToLower(hash)] = true
+}
+
+// nextUntried claims the best accepted release not tried yet.
+func (st *search) nextUntried() (decidedRelease, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	accepted := slices.DeleteFunc(slices.Clone(st.releases), func(d decidedRelease) bool {
+		return !d.accepted() || st.tried[d.ID] ||
+			(d.Candidate.Item.InfoHash != "" && st.triedHashes[strings.ToLower(d.Candidate.Item.InfoHash)])
+	})
+	if len(accepted) == 0 {
+		return decidedRelease{}, false
+	}
+	slices.SortFunc(accepted, compareReleases)
+	st.tried[accepted[0].ID] = true
+	return accepted[0], true
+}
+
+// grabbedAs records a grab, so a search that completes afterwards reports GRABBED.
+func (st *search) grabbedAs(id domain.DownloadID) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.grabbed == nil {
+		st.grabbed = &id
+	}
 }
 
 func (st *search) runIndex(prowlarrID int) int {
@@ -144,6 +199,9 @@ func (st *search) completion() (api.SearchCompleted, bool) {
 		Total:          len(st.releases),
 		FailedIndexers: []string{},
 		Outcome:        api.OutcomeNothingAccepted,
+	}
+	if st.grabbed != nil {
+		done.Outcome, done.Grabbed = api.OutcomeGrabbed, st.grabbed
 	}
 	for _, d := range st.releases {
 		if d.accepted() {

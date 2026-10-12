@@ -3,6 +3,7 @@ package acquisition
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"magpie/internal/acquisition/api"
@@ -69,30 +70,70 @@ func (r *Repository) SearchCompletedAt(ctx context.Context, id domain.SearchID) 
 	return row.CompletedAt, nil
 }
 
-// Blocklist lists a title's entries, newest first, expired temporary entries included.
+// ErrBlocklistEntryNotFound is an unknown blocklist entry ID.
+var ErrBlocklistEntryNotFound = errors.New("acquisition: blocklist entry not found")
+
+// Blocklist lists a title's entries, or every entry for an empty title, newest first, expired
+// temporary entries included.
 func (r *Repository) Blocklist(ctx context.Context, title domain.TitleID) ([]api.BlocklistEntry, error) {
+	query := r.db.Read(ctx).Order("at DESC, id DESC")
+	if title != "" {
+		query = query.Where("title_id = ?", title)
+	}
 	var rows []blocklistRow
-	if err := r.db.Read(ctx).Where("title_id = ?", title).Order("at DESC").Find(&rows).Error; err != nil {
+	if err := query.Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	entries := make([]api.BlocklistEntry, 0, len(rows))
 	for _, row := range rows {
-		entries = append(entries, api.BlocklistEntry{
-			ID: row.ID, Title: row.TitleID, InfoHash: row.InfoHash, ReleaseName: row.ReleaseName,
-			Indexer: row.Indexer, Reason: row.Reason, At: row.At, ExpiresAt: row.ExpiresAt,
-		})
+		entries = append(entries, row.entry())
 	}
 	return entries, nil
 }
 
-// AddToBlocklist stores an entry and returns it with its new ID.
+func (row blocklistRow) entry() api.BlocklistEntry {
+	return api.BlocklistEntry{
+		ID: row.ID, Title: row.TitleID, InfoHash: row.InfoHash, ReleaseName: row.ReleaseName,
+		Indexer: row.Indexer, Reason: row.Reason, At: row.At, ExpiresAt: row.ExpiresAt,
+	}
+}
+
+// AddToBlocklist stores an entry and returns it, with a new ID unless it has one.
 func (r *Repository) AddToBlocklist(ctx context.Context, e api.BlocklistEntry) (api.BlocklistEntry, error) {
-	e.ID = string(domain.NewID[blocklistID]())
+	err := r.db.Write(ctx, func(tx *gorm.DB) error {
+		var err error
+		e, err = insertBlocklistEntry(tx, e)
+		return err
+	})
+	return e, err
+}
+
+func insertBlocklistEntry(tx *gorm.DB, e api.BlocklistEntry) (api.BlocklistEntry, error) {
+	if e.ID == "" {
+		e.ID = string(domain.NewID[blocklistID]())
+	}
 	row := blocklistRow{
 		ID: e.ID, TitleID: e.Title, InfoHash: e.InfoHash, ReleaseName: e.ReleaseName,
 		Indexer: e.Indexer, Reason: e.Reason, At: e.At, ExpiresAt: e.ExpiresAt,
 	}
-	return e, r.db.Write(ctx, func(tx *gorm.DB) error { return tx.Create(&row).Error })
+	return e, tx.Create(&row).Error
+}
+
+// RemoveFromBlocklist deletes an entry and returns it. ErrBlocklistEntryNotFound for an unknown ID.
+func (r *Repository) RemoveFromBlocklist(ctx context.Context, id string) (api.BlocklistEntry, error) {
+	var removed api.BlocklistEntry
+	err := r.db.Write(ctx, func(tx *gorm.DB) error {
+		var rows []blocklistRow
+		if err := tx.Where("id = ?", id).Limit(1).Find(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return ErrBlocklistEntryNotFound
+		}
+		removed = rows[0].entry()
+		return tx.Delete(&blocklistRow{}, "id = ?", id).Error
+	})
+	return removed, err
 }
 
 // RecordIndexerAnswer applies one search answer to an indexer's health, as the sync does: a failure

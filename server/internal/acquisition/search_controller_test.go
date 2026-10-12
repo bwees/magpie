@@ -14,7 +14,8 @@ import (
 )
 
 func serveSearches(f searchFixture, principal *domain.Principal) http.Handler {
-	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{acquisition.NewSearchController(f.searches)}).Mux
+	controllers := []httpserver.Controller{acquisition.NewSearchController(f.searches, f.downloads), acquisition.NewDownloadController(f.downloads)}
+	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, controllers).Mux
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if principal != nil {
 			r = r.WithContext(domain.WithPrincipal(r.Context(), *principal))
@@ -35,6 +36,12 @@ func TestSearchEndpointsAreAdminOnly(t *testing.T) {
 		{http.MethodGet, "/api/acquisition/searches/s1", ""},
 		{http.MethodDelete, "/api/acquisition/searches/s1", ""},
 		{http.MethodPost, "/api/acquisition/searches/s1/grab", `{"releaseId":"r1","override":true}`},
+		{http.MethodGet, "/api/acquisition/downloads", ""},
+		{http.MethodDelete, "/api/acquisition/downloads/d1", ""},
+		{http.MethodGet, "/api/acquisition/blocklist", ""},
+		{http.MethodDelete, "/api/acquisition/blocklist/b1", ""},
+		{http.MethodGet, "/api/acquisition/download-options", ""},
+		{http.MethodPut, "/api/acquisition/download-options", `{"blockedFilesEnabled":true,"blockedPatterns":[],"metadataTimeoutMinutes":5,"stalledLimitMinutes":360}`},
 	}
 	for name, tc := range map[string]struct {
 		principal *domain.Principal
@@ -112,9 +119,13 @@ func TestSearchEndpointProblems(t *testing.T) {
 		{"unknown search", http.MethodGet, "/api/acquisition/searches/missing", "", http.StatusNotFound, acquisition.TypeSearchNotFound},
 		{"rejected without override", http.MethodPost, grab, `{"releaseId":"` + string(rejected) + `","override":false}`, http.StatusConflict, acquisition.TypeReleaseRejected},
 		{"unknown release", http.MethodPost, grab, `{"releaseId":"missing","override":true}`, http.StatusNotFound, acquisition.TypeReleaseNotFound},
-		{"accepted grab", http.MethodPost, grab, `{"releaseId":"` + string(accepted) + `","override":false}`, http.StatusNotImplemented, acquisition.TypeGrabUnavailable},
-		{"override grab", http.MethodPost, grab, `{"releaseId":"` + string(rejected) + `","override":true}`, http.StatusNotImplemented, acquisition.TypeGrabUnavailable},
+		{"qBittorrent too old", http.MethodPost, grab, `{"releaseId":"` + string(accepted) + `","override":false}`, http.StatusBadGateway, acquisition.TypeQBittorrentUnsupported},
+		{"unknown download", http.MethodDelete, "/api/acquisition/downloads/missing", "", http.StatusNotFound, acquisition.TypeDownloadNotFound},
+		{"unknown blocklist entry", http.MethodDelete, "/api/acquisition/blocklist/missing", "", http.StatusNotFound, acquisition.TypeBlocklistEntryNotFound},
+		{"bad pattern", http.MethodPut, "/api/acquisition/download-options", `{"blockedFilesEnabled":true,"blockedPatterns":["regex:("],"metadataTimeoutMinutes":5,"stalledLimitMinutes":360}`, http.StatusBadRequest, problem.TypeBadRequest},
+		{"metadata timeout out of range", http.MethodPut, "/api/acquisition/download-options", `{"blockedFilesEnabled":true,"blockedPatterns":[],"metadataTimeoutMinutes":0,"stalledLimitMinutes":360}`, http.StatusBadRequest, problem.TypeBadRequest},
 	}
+	f.qbit.SetVersion(acquisition.WebAPIVersion{Major: 2, Minor: 11})
 	for _, tc := range cases {
 		rec := do(handler, tc.method, tc.path, tc.body)
 		if rec.Code != tc.status {

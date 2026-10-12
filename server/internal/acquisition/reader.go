@@ -7,28 +7,30 @@ import (
 	"magpie/internal/domain"
 )
 
-// Reader is Acquisition's api.Reader. Profiles come from the quality tables. Downloads, the blocklist and
-// file scores aren't stored yet, so those answer empty until the grab and cutoff slices build them.
+// Reader is Acquisition's api.Reader. Profiles come from the quality tables, downloads and the blocklist
+// from the repository. File scores aren't stored yet, so CutoffStatus answers ErrNotFound until the
+// cutoff slice builds them.
 type Reader struct {
 	*QualityRepository
+	repo *Repository
 }
 
 var _ api.Reader = Reader{}
 
-func NewReader(q *QualityRepository) Reader {
-	return Reader{QualityRepository: q}
+func NewReader(q *QualityRepository, r *Repository) Reader {
+	return Reader{QualityRepository: q, repo: r}
 }
 
-func (Reader) ActiveDownloads(context.Context) ([]api.Download, error) {
-	return []api.Download{}, nil
+func (r Reader) ActiveDownloads(ctx context.Context) ([]api.Download, error) {
+	return r.repo.ActiveDownloads(ctx)
 }
 
-func (Reader) DownloadsForTitle(context.Context, domain.TitleID) ([]api.Download, error) {
-	return []api.Download{}, nil
+func (r Reader) DownloadsForTitle(ctx context.Context, title domain.TitleID) ([]api.Download, error) {
+	return r.repo.DownloadsForTitle(ctx, title)
 }
 
-func (Reader) Blocklist(context.Context, domain.TitleID) ([]api.BlocklistEntry, error) {
-	return []api.BlocklistEntry{}, nil
+func (r Reader) Blocklist(ctx context.Context, title domain.TitleID) ([]api.BlocklistEntry, error) {
+	return r.repo.Blocklist(ctx, title)
 }
 
 func (Reader) CutoffStatus(context.Context, domain.MediaFileID) (api.CutoffStatus, error) {
