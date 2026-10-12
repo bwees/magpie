@@ -1,6 +1,10 @@
 <script lang="ts">
-	import PlaceholderPage from '$lib/components/PlaceholderPage.svelte';
 	import { NAV_ITEMS } from '$lib/navigation/nav';
+	import TvView from '$lib/tv/TvView.svelte';
 </script>
 
-<PlaceholderPage item={NAV_ITEMS.TV} />
+<svelte:head>
+	<title>{NAV_ITEMS.TV.label} · Magpie</title>
+</svelte:head>
+
+<TvView />

@@ -56,7 +56,9 @@ export enum LibraryEvent {
 	FILE_IMPORTED = 'library.FileImported',
 	IMPORT_FAILED = 'library.ImportFailed',
 	IMPORT_REMOVED = 'library.ImportRemoved',
-	ITEM_AVAILABLE = 'library.ItemAvailable'
+	ITEM_AVAILABLE = 'library.ItemAvailable',
+	FILE_DELETED = 'library.FileDeleted',
+	FILE_TRANSCODED = 'library.FileTranscoded'
 }
 
 export const IMPORT_STATUS_LABELS: Record<string, string> = {

@@ -33,7 +33,8 @@ export interface LiveEvents {
 export enum LiveEventType {
 	PROJECTION_UPDATED = 'activity.ProjectionUpdated',
 	DOWNLOAD_PROGRESSED = 'acquisition.DownloadProgressed',
-	JOB_PROGRESSED = 'transcode.JobProgressed'
+	JOB_PROGRESSED = 'transcode.JobProgressed',
+	ATTENTION_CHANGED = 'activity.AttentionChanged'
 }
 
 export enum Projection {

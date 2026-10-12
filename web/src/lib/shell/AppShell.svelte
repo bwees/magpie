@@ -5,6 +5,7 @@
 	import { LiveClient, setLive } from '$lib/live/live-client.svelte';
 	import { liveUrl } from '$lib/live/protocol';
 	import { apiBaseUrl } from '$lib/sdk';
+	import { getSession } from '$lib/session/session.svelte';
 	import AppSidebar from './AppSidebar.svelte';
 	import BottomTabs from './BottomTabs.svelte';
 	import TopBar from './TopBar.svelte';
@@ -15,12 +16,13 @@
 	const shell = setShell(new ShellState());
 	const live = setLive(new LiveClient({ url: liveUrl(apiBaseUrl, location.href) }));
 
+	const session = getSession();
+
 	onMount(() => {
 		live.connect();
-		void shell.pendingRequests.load();
-		const stopPending = shell.pendingRequests.watch(live);
+		const stopBadges = shell.watchBadges(live, session.isAdmin);
 		return () => {
-			stopPending();
+			stopBadges();
 			live.close();
 		};
 	});
