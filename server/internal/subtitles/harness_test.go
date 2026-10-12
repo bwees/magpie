@@ -203,14 +203,14 @@ func newHarness(t *testing.T, global ...domain.Language) *harness {
 
 func (h *harness) advance(d time.Duration) { h.now = h.now.Add(d) }
 
-// whisperOff turns the Whisper fallback off, so a track nothing was found for ends MISSING.
-func (h *harness) whisperOff() {
+// setWhisper turns the Whisper fallback on or off. With it off, a track nothing was found for ends MISSING.
+func (h *harness) setWhisper(enabled bool) {
 	h.t.Helper()
 	cfg, err := h.service.Settings(h.ctx)
 	if err != nil {
 		h.t.Fatal(err)
 	}
-	cfg.WhisperEnabled = false
+	cfg.WhisperEnabled = enabled
 	if _, err := h.service.SetSettings(h.ctx, cfg); err != nil {
 		h.t.Fatal(err)
 	}

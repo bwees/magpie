@@ -50,7 +50,7 @@ type Settings struct {
 }
 
 var SettingsKey = settings.NewKey(owner.Subtitles, "settings", Settings{
-	WhisperEnabled:       true,
+	WhisperEnabled:       false,
 	WhisperModel:         transcodeapi.WhisperModelLargeV3Turbo,
 	AutoSync:             true,
 	MinScoreEpisode:      DefaultMinScoreEpisode,

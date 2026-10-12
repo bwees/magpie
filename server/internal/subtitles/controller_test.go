@@ -48,7 +48,7 @@ func call[T any](t *testing.T, handler http.Handler, method, path string, body a
 
 func TestFileSubtitlesCandidatesAndDownloadOverHTTP(t *testing.T) {
 	h := newHarness(t, english)
-	h.whisperOff()
+	h.setWhisper(false)
 	file := h.episodeFile(spanishImage())
 	h.imported(file)
 	h.runDue()
@@ -92,7 +92,7 @@ func TestSettingsAndQuotaOverHTTP(t *testing.T) {
 
 	cfg := call[subtitles.SubtitleSettingsBody](t, admin, http.MethodGet, "/api/subtitles/settings", nil, http.StatusOK)
 	want := subtitles.SubtitleSettingsBody{
-		WhisperEnabled: true, WhisperModel: "large-v3-turbo", AutoSync: true, MinScoreEpisode: 90, MinScoreMovie: 70,
+		WhisperEnabled: false, WhisperModel: "large-v3-turbo", AutoSync: true, MinScoreEpisode: 90, MinScoreMovie: 70,
 		UpgradeWindowDays: 7, UpgradeCheckHours: 6,
 	}
 	if cfg != want {

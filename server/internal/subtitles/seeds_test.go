@@ -86,7 +86,7 @@ func TestHashMatchIsDownloadedSyncedAndWritten(t *testing.T) {
 // Seed 4, with Whisper off so the next step is MISSING; seed 5 covers Whisper.
 func TestCandidateBelowTheThresholdIsNotDownloaded(t *testing.T) {
 	h := newHarness(t, english)
-	h.whisperOff()
+	h.setWhisper(false)
 	file := h.episodeFile()
 	// Series, year, season and episode match but nothing from the release: 86%.
 	weak := subtitles.Candidate{FileID: 12, Language: english, ReleaseName: "Show.S01E02.720p.HDTV.x264-OTHER", Tmdb: showTmdb, Season: 1, Episode: 2}
@@ -110,6 +110,7 @@ func TestCandidateBelowTheThresholdIsNotDownloaded(t *testing.T) {
 // Seed 6.
 func TestNoMatchForAnotherLanguageIsNotOriginalLanguage(t *testing.T) {
 	h := newHarness(t, spanish)
+	h.setWhisper(true)
 	file := h.episodeFile()
 	h.imported(file)
 	h.runDue()
@@ -408,7 +409,7 @@ func TestRerunSubtitlesBlocklistsAndSearchesAgain(t *testing.T) {
 
 func TestManualDownloadAndDelete(t *testing.T) {
 	h := newHarness(t, english)
-	h.whisperOff()
+	h.setWhisper(false)
 	file := h.movieFile()
 	h.os.AddCandidates(h.movieQuery(english), movieCandidate(30, "Dune.2021.720p.HDTV-NOPE"))
 	h.os.SetContent(30, srt)

@@ -27,7 +27,7 @@ Decisions: [07](../../../.scratch/v1-spec/issues/07-subtitles.md), [16](../../..
 | `wanted` | media_file_id, language, forced, hearing_impaired (HI ok), position (wanted order), status (PENDING/SEARCHING/WAITING_WHISPER/MISSING/SATISFIED), source? (when SATISFIED), reason? (when MISSING), priority (IMPORT/MANUAL/UPGRADE/BACKLOG), next_attempt_at?, candidate? (an accepted subtitle waiting for quota), whisper_attempts (Whisper jobs asked for since the track was last reopened) |
 | `blocklist` | media_file_id, provider_file_id (filled by RERUN_SUBTITLES and by deleting a provider subtitle) |
 | `opensubtitles_session` | downloads_remaining, reset_at, vip, token_expires_at, paused_until, problem (the token itself stays in the adapter's memory; login credentials live in `platform.connections.opensubtitles`) |
-| `settings` | one settings key: whisper_enabled, whisper_model (default `large-v3-turbo`), auto_sync, min_score_episode (90), min_score_movie (70), upgrade_window_days (7), upgrade_check_interval (6 h) |
+| `settings` | one settings key: whisper_enabled (default off), whisper_model (default `large-v3-turbo`), auto_sync, min_score_episode (90), min_score_movie (70), upgrade_window_days (7), upgrade_check_interval (6 h) |
 
 - Tables are prefixed `subtitles_`.
 - Every wanted track has a `wanted` row, satisfied ones included, so `Coverage` reads one table in wanted order. A wanted language with Forced on has two rows: the regular track and the forced one.
@@ -179,7 +179,7 @@ All routes are admin only.
    - Accept the best candidate scoring ≥ 90% (episodes) or 70% (movies) of max. Prefer non-HI unless the wanted entry allows HI.
    - Skip machine-translated results.
    - Download (uses quota), sync if `auto_sync` (on `ErrNoSpeech` keep it unsynced), write the sidecar, publish `SubtitleAdded`.
-4. **Whisper:** only when step 3 finds nothing, `whisper_enabled` is on, and the language is the title's original language (from `catalog.Reader`). Send `RunAgentJob{Kind: WHISPER, MediaFile, Language, Model}` and set WAITING_WHISPER. Output is never synced.
+4. **Whisper:** only when step 3 finds nothing, `whisper_enabled` is on (off on a fresh install; the admin turns it on once an agent can run Whisper), and the language is the title's original language (from `catalog.Reader`). Send `RunAgentJob{Kind: WHISPER, MediaFile, Language, Model}` and set WAITING_WHISPER. Output is never synced.
    - Only the regular track: Whisper doesn't write forced or SDH subtitles, so a forced track goes to step 5.
    - At most 3 Whisper jobs per track; after that the track stays MISSING `WHISPER_FAILED`. Reopening the track (RERUN_SUBTITLES, deleting its subtitle) starts the count again.
    - The Files tab shows a track waiting for Whisper (`waitingForWhisper` on the coverage entry).
@@ -207,7 +207,7 @@ All routes are admin only.
 3. **Given** a candidate with a hash match but the wrong episode, **when** scored, **then** the hash weight is not counted.
 4. **Given** the best candidate scores 85% for an episode, **when** the search runs, **then** nothing is downloaded and the next step (Whisper or MISSING) runs.
 5. **Given** no match, Whisper on, and wanted language = original language, **when** the search ends, **then** `RunAgentJob{WHISPER}` is sent once and the row is WAITING_WHISPER.
-6. **Given** no match and wanted language ≠ original language, **when** the search ends, **then** no Whisper job is sent and `SubtitleMissing{NOT_ORIGINAL_LANGUAGE}` is published.
+6. **Given** no match, Whisper on, and wanted language ≠ original language, **when** the search ends, **then** no Whisper job is sent and `SubtitleMissing{NOT_ORIGINAL_LANGUAGE}` is published.
 7. **Given** `WhisperCompleted` is delivered twice, **when** handled, **then** one sidecar and one `SubtitleAdded` exist.
 8. **Given** a quota of 0 with reset in 3 h, **when** a download is due, **then** no download call is made and the row retries after the reset.
 9. **Given** the Syncer returns `ErrNoSpeech`, **when** storing the subtitle, **then** it is saved unsynced and `SubtitleAdded{Synced: false}` is published.

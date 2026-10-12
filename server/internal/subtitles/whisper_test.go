@@ -22,6 +22,14 @@ const (
 
 var whisperSRT = []byte("1\n00:00:05,000 --> 00:00:06,000\nHello\n")
 
+// newWhisperHarness is a harness with the Whisper fallback on; it is off by default.
+func newWhisperHarness(t *testing.T, global ...domain.Language) *harness {
+	t.Helper()
+	h := newHarness(t, global...)
+	h.setWhisper(true)
+	return h
+}
+
 func (h *harness) agentJobs() []transcodeapi.RunAgentJob {
 	h.t.Helper()
 	return ofType[transcodeapi.RunAgentJob](h.t, h.events, transcodeapi.TypeRunAgentJob)
@@ -55,7 +63,7 @@ func (h *harness) whisperFailed(file domain.MediaFileID, final bool) {
 
 // Seed 5.
 func TestNoMatchInTheOriginalLanguageAsksWhisperOnce(t *testing.T) {
-	h := newHarness(t, english)
+	h := newWhisperHarness(t, english)
 	file := h.episodeFile()
 	h.imported(file)
 	h.runDue()
@@ -82,7 +90,7 @@ func TestNoMatchInTheOriginalLanguageAsksWhisperOnce(t *testing.T) {
 }
 
 func TestAForcedTrackIsNotWhispered(t *testing.T) {
-	h := newHarness(t)
+	h := newWhisperHarness(t)
 	h.catalog.SetGlobalLanguages([]catalogapi.WantedLanguage{{Language: english, Forced: true}})
 	file := h.episodeFile()
 	h.imported(file)
@@ -98,7 +106,7 @@ func TestAForcedTrackIsNotWhispered(t *testing.T) {
 
 // Seed 17.
 func TestWhisperUsesTheConfiguredModel(t *testing.T) {
-	h := newHarness(t, english)
+	h := newWhisperHarness(t, english)
 	cfg, err := h.service.Settings(h.ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +125,7 @@ func TestWhisperUsesTheConfiguredModel(t *testing.T) {
 
 // Seed 7.
 func TestRedeliveredWhisperResultStoresOneUnsyncedSidecar(t *testing.T) {
-	h := newHarness(t, english)
+	h := newWhisperHarness(t, english)
 	file := h.episodeFile()
 	h.imported(file)
 	h.runDue()
@@ -151,7 +159,7 @@ func TestRedeliveredWhisperResultStoresOneUnsyncedSidecar(t *testing.T) {
 }
 
 func TestWhisperResultForAFoundTrackIsDropped(t *testing.T) {
-	h := newHarness(t, english)
+	h := newWhisperHarness(t, english)
 	file := h.episodeFile()
 	h.imported(file)
 	h.runDue()
@@ -173,7 +181,7 @@ func TestWhisperResultForAFoundTrackIsDropped(t *testing.T) {
 }
 
 func TestWhisperFailureMarksTheLanguageMissingAndTheSweepRetriesThreeTimes(t *testing.T) {
-	h := newHarness(t, english)
+	h := newWhisperHarness(t, english)
 	file := h.episodeFile()
 	h.imported(file)
 	h.runDue()
@@ -203,7 +211,7 @@ func TestWhisperFailureMarksTheLanguageMissingAndTheSweepRetriesThreeTimes(t *te
 }
 
 func TestWhisperResultWithoutItsStagedFileCountsAsAFailure(t *testing.T) {
-	h := newHarness(t, english)
+	h := newWhisperHarness(t, english)
 	file := h.episodeFile()
 	h.imported(file)
 	h.runDue()

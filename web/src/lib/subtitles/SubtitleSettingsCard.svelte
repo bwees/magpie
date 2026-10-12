@@ -76,7 +76,7 @@
 						<div class="grid gap-1">
 							<Label for="whisper">Generate with Whisper when nothing is found</Label>
 							<p class="text-xs text-muted-foreground">
-								Original language only, on an agent with Whisper.
+								Original language only. Turn on once an agent passes the Whisper test.
 							</p>
 						</div>
 						<Switch id="whisper" bind:checked={settings.draft.whisperEnabled} />

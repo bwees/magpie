@@ -130,7 +130,7 @@ Owner: **Subtitles**, except where noted. Decided in [ticket 16](../../.scratch/
 |---|---|---|
 | Wanted languages (ordered, with Forced / HI-ok flags) | English | Owner: **Catalog** (`catalog.Reader.WantedLanguages`). ≥ 1 language, ISO 639-1. Subtitles and Transcode both read it. |
 | OpenSubtitles login | none | Platform connection config (see Connections). Shows today's quota (20 free / 1000 VIP). |
-| Generate with Whisper when nothing is found | on | original language only |
+| Generate with Whisper when nothing is found | off | original language only; the admin turns it on once an agent passes `WHISPER_VULKAN` |
 | Whisper model | `large-v3-turbo` | `large-v3-turbo` \| `large-v3` \| `medium` \| `small` |
 | Auto-sync downloaded subtitles | on | never applied to Whisper output |
 | Upgrade window | 7 days | 0–30 days |

@@ -39,6 +39,8 @@ const (
 	whisperDevice     = "cuda:0"
 	english           = domain.Language("en")
 	whisperSRT        = "1\n00:00:04,000 --> 00:00:05,000\nHello\n\n"
+
+	subtitleSettingsPath = "/api/subtitles/settings"
 )
 
 // whisperFlow is a movie on disk that OpenSubtitles has nothing for.
@@ -78,7 +80,22 @@ func newWhisperFlow(t *testing.T) *whisperFlow {
 		fx.Decorate(func(subtitles.OpenSubtitles) subtitles.OpenSubtitles { return subtitlesfakes.NewOpenSubtitles() }),
 	)
 	h.signInAsAdmin()
-	return &whisperFlow{harness: h, file: file}
+	f := &whisperFlow{harness: h, file: file}
+	f.turnWhisperOn()
+	return f
+}
+
+// turnWhisperOn does what the admin does once an agent has Whisper: the setting is off on a fresh install.
+func (f *whisperFlow) turnWhisperOn() {
+	f.t.Helper()
+	var cfg subtitles.SubtitleSettingsBody
+	if rec := f.get(subtitleSettingsPath); json.Unmarshal(rec.Body.Bytes(), &cfg) != nil || cfg.WhisperEnabled {
+		f.t.Fatalf("settings = %d: %s, want Whisper off", rec.Code, rec.Body)
+	}
+	cfg.WhisperEnabled = true
+	if rec := f.do(http.MethodPut, subtitleSettingsPath, cfg); rec.Code != http.StatusOK {
+		f.t.Fatalf("turning Whisper on = %d: %s", rec.Code, rec.Body)
+	}
 }
 
 func (f *whisperFlow) imported() {
