@@ -225,7 +225,8 @@ type Prowlarr interface {
     // WebURL is Prowlarr's own UI ("" when no connection is set up), for the "Open Prowlarr" link.
     WebURL(ctx context.Context) (string, error)
     // Search queries ONE indexer's Torznab endpoint (/{id}/api). Never the aggregate search.
-    // The query carries ID params the indexer supports, else a title query; ctx carries the 60 s timeout.
+    // The query carries ID params the indexer supports, else a title query. ctx lives as long as the search:
+    // the caller reports FAILED after the 60 s timeout but still takes a later answer.
     Search(ctx context.Context, indexerID int, q TorznabQuery) ([]TorznabItem, error)
     // RSS fetches an indexer's recent feed (Torznab search with no query).
     RSS(ctx context.Context, indexerID int, categories []int) ([]TorznabItem, error)
@@ -248,6 +249,8 @@ type QBittorrent interface {
     Sync(ctx context.Context, rid int64) (SyncState, error)
     // SetShareLimits always sends the full parameter set (ratio, seeding time, inactive time, action, mode).
     SetShareLimits(ctx context.Context, hash string, l ShareLimits) error
+    // FreeSpace is the free bytes on the download disk (sync/maindata server_state.free_space_on_disk).
+    FreeSpace(ctx context.Context) (int64, error)
 }
 // Auth: API key (Authorization: Bearer). Errors: ErrUnauthorized, ErrTorrentNotFound (hash gone), ErrUnavailable.
 
@@ -276,9 +279,10 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/searches` | Start a search `{title, episodes?, interactive}` → `{searchId}`. Results arrive over the live WebSocket. |
-| POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results |
-| DELETE | `/searches/{id}` | Cancel |
+| POST | `/searches` | Start a search `{title, episodes?, interactive}` → the search state below, with `searchId`. Results arrive over the live WebSocket. Only `interactive: true` is accepted until automatic search lands (400 otherwise). |
+| GET | `/searches/{id}` | The cached state for reconnect/refresh: indexers with `PENDING`/`DONE`/`FAILED`/`SKIPPED` and message, releases in arrival order with current ranks, `completed`, `cancelled`, and the profile's buckets (allowed items in order, quality IDs, `meetsCutoff` on the cutoff item and those above it) and penalized formats (scored below 0). 404 `search-not-found` once expired. |
+| POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results. 404 `release-not-found`; 409 `release-rejected` for a rejected release without `override` |
+| DELETE | `/searches/{id}` | Cancel in-flight indexer queries; indexers still asked report `FAILED` ("Search cancelled") and `SearchCompleted` follows. Results stay cached. |
 | GET | `/downloads` · DELETE `/downloads/{id}?deleteData=` | Queue view; remove |
 | GET | `/qualities` | Radarr's 30 qualities |
 | GET/POST/PUT/DELETE | `/profiles`, `/custom-formats` | Profile and CF CRUD; `POST /profiles/from-preset {preset}`. `GET /profiles` is open to every signed-in user (profile pickers); the rest is admin-only. Deleting the default profile is a 409. |
@@ -300,14 +304,19 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
   - Listed indexers get fresh name, privacy, caps and average response. Magpie's settings are never touched by a sync.
   - Removed ones are marked `GONE`; the row and its settings stay, and come back if the indexer returns.
   - A failed pull (Prowlarr unreachable, bad API key) changes no rows; the error is shown on the Indexers page.
-- **Health:** an indexer is `FAILING` while Prowlarr has backed it off after repeated failures (`disabledTill` in the future) or its caps call returns a Torznab `<error>`. Its last error and failing-since time are shown; its last known caps are kept. `last_ok_at` is the last sync (later also search) where it was healthy.
+- **Health:** an indexer is `FAILING` while Prowlarr has backed it off after repeated failures (`disabledTill` in the future) or its caps call returns a Torznab `<error>`. Its last error and failing-since time are shown; its last known caps are kept. `last_ok_at` is the last sync or search where it was healthy.
+  - A search answer writes the same health as a sync: an error or a timeout makes the indexer `FAILING` with that error, an answer clears it and moves `last_ok_at`. Answers from the cache write nothing.
 - **Fan-out:** a search queries every enabled indexer whose caps cover the media kind, in parallel, one goroutine per indexer. Each result goes out as `SearchResultsReceived` as soon as that indexer answers.
 - **Query tiers per indexer:**
   1. ID search with whatever the caps support: `tmdbid`, `imdbid`, `tvdbid` (from `catalog.Reader` external IDs).
-  2. Title + year (movies) or title + season/episode (TV) when tier 1 is unsupported or returns nothing.
+  2. Title + year (movies) or title + season/episode (TV) when tier 1 is unsupported or returns nothing. Year, season and episode go in the query text (`Dune 2024`, `Severance S02E03`) when the caps lack those params.
+  - Both tiers ask for the caps' categories in the kind's Newznab range (2000–2999 movies, 5000–5999 TV), or none.
+  - A series search narrows to a season when every searched episode is in it, and to the episode when only one was searched.
   - No ID support and no title results → status `SKIPPED`.
-- **Timeout:** 60 s per indexer. A late answer still streams into an open search; a timed-out indexer reports `FAILED`.
+- **Timeout:** 60 s per indexer. A late answer still streams into an open search; a timed-out indexer reports `FAILED`, and its late answer is a second `SearchResultsReceived` with `DONE`.
 - **Cache:** results are kept in memory per `(indexer, query)` for 30 min, and per search for the "next best release" fallback. A restart loses it; the fallback then runs a fresh search.
+  - A search's results stay for the result-cache time from its start; with the cache off (0) they still stay 30 min, so an open dialog can refresh. Expiry cancels whatever is still running.
+  - Release IDs are minted per `(search, indexer, guid)`; a guid an indexer repeats is kept once.
 - **Backoff:** an indexer failing repeatedly is put in backoff (`BlockedIndexer`, temporary rejection) and shown as failing.
 
 ### Parsing and quality
@@ -367,7 +376,16 @@ Dropped:
 - Anime and scene-mapping specs.
 - AirDate restriction, and IndexerTag scoping.
 
-**Ranking** (accepted only): quality rank (profile order; members of a group are equal) → CF score → episode count (packs first when equal) → indexer priority (lower first) → seeders (log10 buckets) → size closest to preferred (200 MB buckets).
+How the specs read their inputs:
+- UnknownTitle compares the parsed title and its aliases with the title's name, original name and aliases after Sonarr's cleaning (case, punctuation and the words a/an/the/and/or/of dropped); a movie's year may be off by one.
+- MaximumSize reads `acquisition.maximumSize` (bytes, 0 = no cap; no UI yet). NotSample rejects a release named "sample" under 70 MB. RawDisk rejects `BDMV` / `VIDEO_TS` in the name.
+- AlreadyImported matches the info hash against the title's library files (`library.Reader`). The upgrade, Repack, Proper and SameEpisodesGrab specs score each library file the release would replace by its original release name, else its path, with the library's quality.
+- BlockedIndexer rejects releases from an indexer that was `FAILING` when the search started.
+- Queue, History and Pending read the downloads and pending releases once those exist (grab, automatic search); until then they never reject.
+- FreeSpace asks qBittorrent for the download disk's free space once per search and rejects a release that would leave less than 100 MB. Unknown free space skips the check.
+- Every rejection carries a message for the dialog, such as "WEBDL-720p isn't wanted by 1080p".
+
+**Ranking** (accepted only): quality rank (profile order; members of a group are equal) → CF score → episode count (more episodes first, a season pack first at equal count) → indexer priority (lower first) → seeders (log10 buckets) → size closest to preferred (200 MB buckets; largest first when the profile has no preferred size) → arrival. The order is total, so earlier releases never swap places as more arrive; `ReleaseDecision.Rank` is the position among accepted releases when the event is sent.
 
 **Upgrade rule**, in order:
 1. Better quality while below cutoff → upgrade.

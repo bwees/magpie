@@ -164,7 +164,7 @@ type LiveClientMessage struct {
   - Otherwise it sends `live.Reset` and the client refetches its views over REST.
   - A first connect sends an empty epoch, so it always gets `live.Reset`. `live.Reset` carries the current epoch and latest seq. The client resumes from the last event or reset it received, never from a heartbeat.
   - JSON field names are camelCase: `seq`, `epoch`, `type`, `topic`, `data`; `op`, `epoch`, `seq`, `topics`.
-- **Topics:** search results (`acquisition.SearchResultsReceived`, `SearchCompleted`) only go to sockets subscribed to `search:<SearchID>`. Everything else is broadcast, then filtered.
+- **Topics:** search results (`acquisition.SearchResultsReceived`, `SearchCompleted`) only go to sockets subscribed to `search:<SearchID>`, and only when the socket's user is an enabled admin. Everything else is broadcast, then filtered. A reconnecting client subscribes before it resumes, so the replay includes its topics.
 - **Role filter:**
   - Requesters receive only events about their own requests and those requests' titles, plus their own notifications.
   - Requesters with `ViewOthersRequests` also receive every request's events and every requested title's events, but never other users' notifications.
