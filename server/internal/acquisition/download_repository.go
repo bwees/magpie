@@ -148,7 +148,7 @@ func (r *Repository) titleDownloads(ctx context.Context, title domain.TitleID) (
 
 func (r *Repository) hasActiveDownloads(ctx context.Context) (bool, error) {
 	var found int64
-	err := r.db.Read(ctx).Model(&downloadRow{}).Where("removed_at IS NULL AND state <> ?", api.StateCompleted).Limit(1).Count(&found).Error
+	err := r.db.Read(ctx).Model(&downloadRow{}).Where("removed_at IS NULL AND state NOT IN ?", finishedStates).Limit(1).Count(&found).Error
 	return found > 0, err
 }
 

@@ -102,6 +102,8 @@ type rejection struct {
 	Download *download
 	// Failure is set for a failed download, which also publishes DownloadFailed.
 	Failure string
+	// State is where the dropped download ends; FAILED when unset.
+	State api.DownloadState
 }
 
 // grabOutcome is everything one grab, check or fallback decided, committed in one transaction.
@@ -331,7 +333,7 @@ func (s *DownloadService) newDownload(st *search, d decidedRelease, override boo
 }
 
 // droppable are the states a rejection can drop a download from.
-var droppable = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading}
+var droppable = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading, api.StateCompleted}
 
 // commit stores a grab outcome and publishes its events. When nothing was grabbed after a rejection,
 // it queues a fresh AUTO search for the rejected release's items.
@@ -375,7 +377,7 @@ func (s *DownloadService) commit(ctx context.Context, out grabOutcome) error {
 func (s *DownloadService) storeRejection(tx *gorm.DB, r rejection, next *domain.DownloadID, now time.Time) error {
 	if r.Download != nil {
 		moved, err := moveDownload(tx, r.Download.ID, droppable, map[string]any{
-			"state": api.StateFailed, "removed_at": now, "failure": cmp.Or(r.Failure, string(r.Reason)),
+			"state": cmp.Or(r.State, api.StateFailed), "removed_at": now, "failure": cmp.Or(r.Failure, string(r.Reason)),
 		})
 		if err != nil || !moved {
 			return err

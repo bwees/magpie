@@ -920,6 +920,16 @@
 					"metadataTimeoutMinutes": {
 						"type": "integer"
 					},
+					"seedDays": {
+						"type": "integer"
+					},
+					"seedRatio": {
+						"format": "double",
+						"type": "number"
+					},
+					"seedingMode": {
+						"type": "string"
+					},
 					"stalledLimitMinutes": {
 						"type": "integer"
 					}
@@ -928,6 +938,9 @@
 					"blockedFilesEnabled",
 					"blockedPatterns",
 					"metadataTimeoutMinutes",
+					"seedDays",
+					"seedRatio",
+					"seedingMode",
 					"stalledLimitMinutes"
 				],
 				"type": "object"
@@ -947,6 +960,16 @@
 					"metadataTimeoutMinutes": {
 						"type": "integer"
 					},
+					"seedDays": {
+						"type": "integer"
+					},
+					"seedRatio": {
+						"format": "double",
+						"type": "number"
+					},
+					"seedingMode": {
+						"type": "string"
+					},
 					"stalledLimitMinutes": {
 						"type": "integer"
 					}
@@ -955,6 +978,9 @@
 					"blockedFilesEnabled",
 					"blockedPatterns",
 					"metadataTimeoutMinutes",
+					"seedDays",
+					"seedRatio",
+					"seedingMode",
 					"stalledLimitMinutes"
 				],
 				"type": "object"

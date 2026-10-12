@@ -10,7 +10,10 @@ const STORED: DownloadOptionsResponse = {
 	blockedFilesEnabled: true,
 	blockedPatterns: ['*.exe', '*.rar'],
 	metadataTimeoutMinutes: 5,
-	stalledLimitMinutes: 360
+	stalledLimitMinutes: 360,
+	seedingMode: 'SEED_UNTIL_GOALS',
+	seedRatio: 2,
+	seedDays: 14
 };
 
 function fakeApi(): DownloadOptionsApi & { sent: DownloadOptionsRequest[] } {

@@ -50,6 +50,9 @@ export function optionsRequest(
 		blockedPatterns: saved.blockedPatterns,
 		metadataTimeoutMinutes: saved.metadataTimeoutMinutes,
 		stalledLimitMinutes: saved.stalledLimitMinutes,
+		seedingMode: saved.seedingMode,
+		seedRatio: saved.seedRatio,
+		seedDays: saved.seedDays,
 		...change
 	};
 }

@@ -76,12 +76,18 @@ export type DownloadOptionsResponse = {
     blockedFilesEnabled: boolean;
     blockedPatterns: string[];
     metadataTimeoutMinutes: number;
+    seedDays: number;
+    seedRatio: number;
+    seedingMode: string;
     stalledLimitMinutes: number;
 };
 export type DownloadOptionsRequest = {
     blockedFilesEnabled: boolean;
     blockedPatterns: string[];
     metadataTimeoutMinutes: number;
+    seedDays: number;
+    seedRatio: number;
+    seedingMode: string;
     stalledLimitMinutes: number;
 };
 export type Quality = {

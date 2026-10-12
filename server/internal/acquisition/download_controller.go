@@ -67,13 +67,21 @@ type DownloadOptionsResponse struct {
 	BlockedPatterns        []string `json:"blockedPatterns" validate:"required"`
 	MetadataTimeoutMinutes int      `json:"metadataTimeoutMinutes"`
 	StalledLimitMinutes    int      `json:"stalledLimitMinutes"`
+	// SeedingMode is the global "after download" mode: SEED_UNTIL_GOALS or DONT_SEED.
+	SeedingMode api.SeedingMode `json:"seedingMode"`
+	// SeedRatio and SeedDays are the global seeding goal, whichever comes first.
+	SeedRatio float64 `json:"seedRatio"`
+	SeedDays  int     `json:"seedDays"`
 }
 
 type DownloadOptionsRequest struct {
-	BlockedFilesEnabled    bool     `json:"blockedFilesEnabled"`
-	BlockedPatterns        []string `json:"blockedPatterns" validate:"required"`
-	MetadataTimeoutMinutes int      `json:"metadataTimeoutMinutes"`
-	StalledLimitMinutes    int      `json:"stalledLimitMinutes"`
+	BlockedFilesEnabled    bool            `json:"blockedFilesEnabled"`
+	BlockedPatterns        []string        `json:"blockedPatterns" validate:"required"`
+	MetadataTimeoutMinutes int             `json:"metadataTimeoutMinutes"`
+	StalledLimitMinutes    int             `json:"stalledLimitMinutes"`
+	SeedingMode            api.SeedingMode `json:"seedingMode"`
+	SeedRatio              float64         `json:"seedRatio"`
+	SeedDays               int             `json:"seedDays"`
 }
 
 // DownloadController serves Activity → Downloads and Blocklist, and Settings → Downloads.
@@ -171,7 +179,11 @@ func (c *DownloadController) options(ctx fuego.ContextNoBody) (DownloadOptionsRe
 	if err != nil {
 		return DownloadOptionsResponse{}, err
 	}
-	return downloadOptionsResponse(o), nil
+	seeding, err := c.downloads.SeedingOptions(ctx.Context())
+	if err != nil {
+		return DownloadOptionsResponse{}, err
+	}
+	return downloadOptionsResponse(o, seeding), nil
 }
 
 func (c *DownloadController) setOptions(ctx fuego.ContextWithBody[DownloadOptionsRequest]) (DownloadOptionsResponse, error) {
@@ -182,16 +194,16 @@ func (c *DownloadController) setOptions(ctx fuego.ContextWithBody[DownloadOption
 	if err != nil {
 		return DownloadOptionsResponse{}, err
 	}
-	o, err := c.downloads.SetOptions(ctx.Context(), DownloadOptions{
+	o, seeding, err := c.downloads.SetDownloadSettings(ctx.Context(), DownloadOptions{
 		BlockedFilesEnabled: body.BlockedFilesEnabled,
 		BlockedPatterns:     nonNil(body.BlockedPatterns),
 		MetadataTimeout:     settings.Duration(time.Duration(body.MetadataTimeoutMinutes) * time.Minute),
 		StalledLimit:        settings.Duration(time.Duration(body.StalledLimitMinutes) * time.Minute),
-	})
+	}, SeedingOptions{Mode: body.SeedingMode, Goal: SeedingGoal{Ratio: body.SeedRatio, Days: body.SeedDays}})
 	if err != nil {
 		return DownloadOptionsResponse{}, downloadProblem(err)
 	}
-	return downloadOptionsResponse(o), nil
+	return downloadOptionsResponse(o, seeding), nil
 }
 
 func downloadProblem(err error) error {
@@ -202,7 +214,7 @@ func downloadProblem(err error) error {
 		return problem.New(TypeDownloadNotFound, http.StatusNotFound, "No such download")
 	case errors.Is(err, ErrBlocklistEntryNotFound):
 		return problem.New(TypeBlocklistEntryNotFound, http.StatusNotFound, "No such blocklist entry")
-	case errors.Is(err, ErrInvalidDownloadOptions):
+	case errors.Is(err, ErrInvalidDownloadOptions), errors.Is(err, ErrInvalidSeedingOptions):
 		return problem.New(problem.TypeBadRequest, http.StatusBadRequest, err.Error())
 	}
 	return qbittorrentProblem(err)
@@ -229,11 +241,14 @@ func blocklistResponse(v BlocklistView) BlocklistEntryResponse {
 	}
 }
 
-func downloadOptionsResponse(o DownloadOptions) DownloadOptionsResponse {
+func downloadOptionsResponse(o DownloadOptions, seeding SeedingOptions) DownloadOptionsResponse {
 	return DownloadOptionsResponse{
 		BlockedFilesEnabled:    o.BlockedFilesEnabled,
 		BlockedPatterns:        nonNil(o.BlockedPatterns),
 		MetadataTimeoutMinutes: int(o.MetadataTimeout.Std() / time.Minute),
 		StalledLimitMinutes:    int(o.StalledLimit.Std() / time.Minute),
+		SeedingMode:            seeding.Mode,
+		SeedRatio:              seeding.Goal.Ratio,
+		SeedDays:               seeding.Goal.Days,
 	}
 }

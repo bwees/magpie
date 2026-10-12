@@ -82,6 +82,12 @@ var downloadOptions = fx.Options(
 		httpserver.AsController(NewDownloadController),
 		jobs.AsQueue(newDownloadCheckQueue),
 		jobs.AsTicker(newDownloadPollTicker),
+		bus.AsHandler(newFileImportedHandler),
+		bus.AsHandler(newImportFailedHandler),
+		jobs.AsQueue(newReleaseImportedQueue),
+		jobs.AsQueue(newImportFailedQueue),
+		jobs.AsQueue(newSeedingGoalQueue),
+		jobs.AsPeriodic(newSeedingGoalPeriodic),
 	),
 	fx.Invoke(checkClientOnStart),
 )
