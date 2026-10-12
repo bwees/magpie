@@ -4,7 +4,8 @@ export enum DownloadState {
 	DOWNLOADING = 'DOWNLOADING',
 	STALLED = 'STALLED',
 	COMPLETED = 'COMPLETED',
-	SEEDING = 'SEEDING'
+	SEEDING = 'SEEDING',
+	IMPORTED = 'IMPORTED'
 }
 
 /** Mirrors the Go `api.SeedingMode` values. */
@@ -38,7 +39,8 @@ export const STATE_LABELS: Record<string, string> = {
 	[DownloadState.DOWNLOADING]: 'Downloading',
 	[DownloadState.STALLED]: 'Stalled',
 	[DownloadState.COMPLETED]: 'Completed',
-	[DownloadState.SEEDING]: 'Seeding'
+	[DownloadState.SEEDING]: 'Seeding',
+	[DownloadState.IMPORTED]: 'Imported'
 };
 
 export const SEEDING_LABELS: Record<string, string> = {

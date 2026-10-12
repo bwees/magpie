@@ -6,13 +6,19 @@ import {
 	type DownloadOptionsRequest,
 	type DownloadOptionsResponse
 } from '$lib/sdk';
+import type { SeedingMode } from '$lib/downloads/downloads';
 import { LoadStatus } from '$lib/load-status';
 import {
+	LIMITS,
 	optionsRequest,
 	patternError,
+	SEEDING_MODE_LABELS,
+	seedingGoalDraft,
+	seedingGoalError,
 	timeoutsChange,
 	timeoutsDraft,
 	timeoutsError,
+	type SeedingGoalDraft,
 	type TimeoutsDraft
 } from './download-options';
 
@@ -40,6 +46,8 @@ export class DownloadOptionsManager {
 	timeoutsError = $state<string>();
 	newPattern = $state('');
 	patternError = $state<string>();
+	seedingGoal = $state<SeedingGoalDraft>({ seedRatio: null, seedDays: null });
+	seedingGoalError = $state<string>();
 	saving = $state(false);
 
 	readonly #api: DownloadOptionsApi;
@@ -94,6 +102,26 @@ export class DownloadOptionsManager {
 		}
 	}
 
+	async setSeedingMode(mode: SeedingMode): Promise<void> {
+		if (await this.#save({ seedingMode: mode })) {
+			this.#notify.success(`After download: ${SEEDING_MODE_LABELS[mode]}`);
+		}
+	}
+
+	async saveSeedingGoal(): Promise<void> {
+		this.seedingGoalError = seedingGoalError(this.seedingGoal);
+		if (this.seedingGoalError) {
+			return;
+		}
+		const change = {
+			seedRatio: this.seedingGoal.seedRatio ?? LIMITS.SEED_RATIO.MIN,
+			seedDays: this.seedingGoal.seedDays ?? LIMITS.SEED_DAYS.MIN
+		};
+		if (await this.#save(change)) {
+			this.#notify.success('Seeding goal saved');
+		}
+	}
+
 	/** Keeps unsaved timeout edits; only the stored options change. */
 	async #save(change: Partial<DownloadOptionsRequest>): Promise<boolean> {
 		if (!this.saved) {
@@ -114,5 +142,6 @@ export class DownloadOptionsManager {
 	#apply(options: DownloadOptionsResponse): void {
 		this.saved = options;
 		this.timeouts = timeoutsDraft(options);
+		this.seedingGoal = seedingGoalDraft(options);
 	}
 }

@@ -1,13 +1,26 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { Badge } from '$lib/components/ui/badge';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import HistoryTab from '$lib/activity/HistoryTab.svelte';
 	import BlocklistTab from '$lib/downloads/BlocklistTab.svelte';
 	import DownloadsTab from '$lib/downloads/DownloadsTab.svelte';
+	import ImportsTab from '$lib/library/ImportsTab.svelte';
+	import { ImportsManager } from '$lib/library/imports-manager.svelte';
 	import AgentsTab from '$lib/transcode/AgentsTab.svelte';
 	import { ACTIVITY_TABS, ActivityTab, TAB_LABELS } from '$lib/activity/activity-tabs';
+	import { getLive } from '$lib/live/live-client.svelte';
 	import { NAV_ITEMS } from '$lib/navigation/nav';
 
 	let tab = $state(ActivityTab.DOWNLOADS);
+
+	const imports = new ImportsManager();
+	const live = getLive();
+
+	onMount(() => {
+		void imports.load();
+		return imports.watch(live);
+	});
 </script>
 
 <svelte:head>
@@ -18,7 +31,17 @@
 	<div class="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
 		<Tabs.List>
 			{#each ACTIVITY_TABS as value (value)}
-				<Tabs.Trigger {value}>{TAB_LABELS[value]}</Tabs.Trigger>
+				<Tabs.Trigger {value}>
+					{TAB_LABELS[value]}
+					{#if value === ActivityTab.IMPORTS && imports.count > 0}
+						<Badge
+							class="ml-1 h-5 min-w-5 px-1.5 tabular-nums"
+							aria-label="{imports.count} to review"
+						>
+							{imports.count}
+						</Badge>
+					{/if}
+				</Tabs.Trigger>
 			{/each}
 		</Tabs.List>
 	</div>
@@ -26,6 +49,8 @@
 		<Tabs.Content {value}>
 			{#if value === ActivityTab.DOWNLOADS}
 				<DownloadsTab />
+			{:else if value === ActivityTab.IMPORTS}
+				<ImportsTab manager={imports} />
 			{:else if value === ActivityTab.BLOCKLIST}
 				<BlocklistTab />
 			{:else if value === ActivityTab.HISTORY}

@@ -12,6 +12,7 @@
 	import TitleHero from '$lib/catalog/TitleHero.svelte';
 	import TitleSettings from '$lib/catalog/TitleSettings.svelte';
 	import { TIMELINE_COLUMN_QUERY, TitleTab } from '$lib/catalog/layout';
+	import FilesTab from '$lib/library/FilesTab.svelte';
 	import { PageStatus, TitlePage } from '$lib/catalog/title-page.svelte';
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { Route } from '$lib/navigation/nav';
@@ -94,9 +95,7 @@
 					<Timeline titleId={title.id} />
 				</Tabs.Content>
 				<Tabs.Content value={TitleTab.FILES} class="pt-4">
-					<p class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-						No files yet.
-					</p>
+					<FilesTab titleId={title.id} />
 				</Tabs.Content>
 				<Tabs.Content value={TitleTab.SETTINGS} class="pt-4">
 					<TitleSettings page={title} onRemoved={() => goto(Route.HOME)} />

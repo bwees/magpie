@@ -11,6 +11,7 @@
 	import { LoadStatus } from '$lib/load-status';
 	import { LIMITS, REGEX_PREFIX, STALLED_LIMIT_STEP_HOURS } from './download-options';
 	import { DownloadOptionsManager } from './download-options-manager.svelte';
+	import SeedingModeSelect from './SeedingModeSelect.svelte';
 
 	const manager = new DownloadOptionsManager();
 
@@ -107,6 +108,64 @@
 					{#if manager.patternError}
 						<span class="text-sm text-destructive" role="alert">{manager.patternError}</span>
 					{/if}
+				</form>
+			</Card.Content>
+		</Card.Root>
+
+		<Card.Root>
+			<Card.Header>
+				<Card.Title>Seeding</Card.Title>
+				<Card.Description>
+					A seeding download is removed with its data once it reaches the ratio or the days,
+					whichever comes first. An indexer's own goal in Settings → Indexers wins over this one.
+				</Card.Description>
+			</Card.Header>
+			<Card.Content class="grid gap-4">
+				<div class="grid gap-1.5">
+					<Label for="seeding-mode">After download</Label>
+					<SeedingModeSelect {manager} id="seeding-mode" />
+				</div>
+				<form
+					class="grid gap-4"
+					onsubmit={(event) => {
+						event.preventDefault();
+						manager.saveSeedingGoal();
+					}}
+				>
+					<div class="grid gap-4 sm:grid-cols-2">
+						<div class="grid gap-1.5">
+							<Label for="seed-ratio">Seed ratio</Label>
+							<Input
+								id="seed-ratio"
+								type="number"
+								class="w-24"
+								step={LIMITS.SEED_RATIO.STEP}
+								min={LIMITS.SEED_RATIO.MIN}
+								max={LIMITS.SEED_RATIO.MAX}
+								bind:value={manager.seedingGoal.seedRatio}
+							/>
+						</div>
+						<div class="grid gap-1.5">
+							<Label for="seed-days">Seed time</Label>
+							<div class="flex items-center gap-2">
+								<Input
+									id="seed-days"
+									type="number"
+									class="w-24"
+									min={LIMITS.SEED_DAYS.MIN}
+									max={LIMITS.SEED_DAYS.MAX}
+									bind:value={manager.seedingGoal.seedDays}
+								/>
+								<span class="text-sm text-muted-foreground">days</span>
+							</div>
+						</div>
+					</div>
+					<div class="flex items-center gap-3">
+						<Button type="submit" size="sm" disabled={manager.saving}>Save</Button>
+						{#if manager.seedingGoalError}
+							<span class="text-sm text-destructive" role="alert">{manager.seedingGoalError}</span>
+						{/if}
+					</div>
 				</form>
 			</Card.Content>
 		</Card.Root>

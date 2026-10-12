@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HttpError } from '@oazapfts/runtime';
+import { SeedingMode } from '$lib/downloads/downloads';
 import type { DownloadOptionsRequest, DownloadOptionsResponse } from '$lib/sdk';
 import { patternError, timeoutsError } from './download-options';
 import { DownloadOptionsManager, type DownloadOptionsApi } from './download-options-manager.svelte';
@@ -104,6 +105,29 @@ describe('DownloadOptionsManager', () => {
 		await manager.saveTimeouts();
 		expect(api.sent[0]).toMatchObject({ metadataTimeoutMinutes: 15, stalledLimitMinutes: 750 });
 		expect(notify.success).toHaveBeenCalled();
+	});
+
+	it('saves the seeding mode at once and the goal with Save', async () => {
+		const api = fakeApi();
+		const manager = new DownloadOptionsManager(api, notifier());
+		await manager.load();
+		expect(manager.seedingGoal).toEqual({ seedRatio: 2, seedDays: 14 });
+
+		await manager.setSeedingMode(SeedingMode.DONT_SEED);
+		expect(api.sent[0]).toMatchObject({ seedingMode: SeedingMode.DONT_SEED, seedRatio: 2 });
+
+		manager.seedingGoal = { seedRatio: 120, seedDays: 7 };
+		await manager.saveSeedingGoal();
+		expect(manager.seedingGoalError).toContain('ratio');
+		expect(api.sent).toHaveLength(1);
+
+		manager.seedingGoal = { seedRatio: 1.5, seedDays: 7 };
+		await manager.saveSeedingGoal();
+		expect(api.sent[1]).toMatchObject({
+			seedingMode: SeedingMode.DONT_SEED,
+			seedRatio: 1.5,
+			seedDays: 7
+		});
 	});
 
 	it('toggles the check and reports a rejected save', async () => {

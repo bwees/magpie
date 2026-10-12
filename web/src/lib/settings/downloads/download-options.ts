@@ -1,3 +1,4 @@
+import { SeedingMode } from '$lib/downloads/downloads';
 import type { DownloadOptionsRequest, DownloadOptionsResponse } from '$lib/sdk';
 
 /** Mirrors the Go `RegexPatternPrefix`. */
@@ -8,8 +9,40 @@ const MINUTES_PER_HOUR = 60;
 /** From 12-settings › Downloads. */
 export const LIMITS = {
 	METADATA_TIMEOUT_MINUTES: { MIN: 1, MAX: 60 },
-	STALLED_LIMIT_HOURS: { MIN: 0.5, MAX: 72 }
+	STALLED_LIMIT_HOURS: { MIN: 0.5, MAX: 72 },
+	SEED_RATIO: { MIN: 0, MAX: 100, STEP: 0.1 },
+	SEED_DAYS: { MIN: 0, MAX: 365 }
 } as const;
+
+export const SEEDING_MODE_LABELS: Record<SeedingMode, string> = {
+	[SeedingMode.SEED_UNTIL_GOALS]: 'Seed until goals',
+	[SeedingMode.DONT_SEED]: "Don't seed"
+};
+
+export const SEEDING_MODE_HINTS: Record<SeedingMode, string> = {
+	[SeedingMode.SEED_UNTIL_GOALS]:
+		'Imports are hardlinked (copied across filesystems) and the torrent seeds until its goal.',
+	[SeedingMode.DONT_SEED]: 'Imports are moved and the torrent is removed right away.'
+};
+
+export interface SeedingGoalDraft {
+	seedRatio: number | null;
+	seedDays: number | null;
+}
+
+export function seedingGoalDraft(options: DownloadOptionsResponse): SeedingGoalDraft {
+	return { seedRatio: options.seedRatio, seedDays: options.seedDays };
+}
+
+export function seedingGoalError(draft: SeedingGoalDraft): string | undefined {
+	if (outside(draft.seedRatio, LIMITS.SEED_RATIO)) {
+		return `Seed ratio must be ${LIMITS.SEED_RATIO.MIN}–${LIMITS.SEED_RATIO.MAX}`;
+	}
+	if (outside(draft.seedDays, LIMITS.SEED_DAYS)) {
+		return `Seed days must be ${LIMITS.SEED_DAYS.MIN}–${LIMITS.SEED_DAYS.MAX}`;
+	}
+	return undefined;
+}
 
 export const STALLED_LIMIT_STEP_HOURS = 0.5;
 
