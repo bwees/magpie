@@ -17,17 +17,28 @@
 	} from '$lib/library/library';
 	import { LoadStatus } from '$lib/load-status';
 	import type { RootFolderResponse } from '$lib/sdk';
+	import { getLive } from '$lib/live/live-client.svelte';
 	import { DownloadOptionsManager } from '../downloads/download-options-manager.svelte';
 	import SeedingModeSelect from '../downloads/SeedingModeSelect.svelte';
+	import LibraryScanCard from './LibraryScanCard.svelte';
+	import { LibraryScanManager } from './library-scan.svelte';
 	import { RootFoldersManager } from './root-folders-manager.svelte';
+	import ScanReviewCard from './ScanReviewCard.svelte';
+	import { ScanReviewManager } from './scan-review.svelte';
 
 	const folders = new RootFoldersManager();
 	const seeding = new DownloadOptionsManager();
+	const scan = new LibraryScanManager();
+	const review = new ScanReviewManager();
+	const live = getLive();
 	const SKELETON_ROWS = 2;
 
 	onMount(() => {
 		void folders.load();
 		void seeding.load();
+		void scan.load();
+		void review.load();
+		return scan.watch(live, () => void review.load());
 	});
 
 	const LINK_CLASSES: Record<string, string> = {
@@ -156,6 +167,10 @@
 			{/if}
 		</Card.Content>
 	</Card.Root>
+
+	<LibraryScanCard {scan} inReview={review.count} />
+
+	<ScanReviewCard {review} />
 
 	<Card.Root>
 		<Card.Header>

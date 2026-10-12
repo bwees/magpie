@@ -101,6 +101,12 @@
 						</span>
 					</div>
 					<Card.Title class="font-mono text-xs font-normal break-all">{file.path}</Card.Title>
+					{#if file.renameProblem}
+						<p class="flex items-start gap-1.5 text-xs text-amber-400" role="status">
+							<TriangleAlert class="mt-px size-3.5 shrink-0" />
+							Kept its old name after the episode order changed. {file.renameProblem}
+						</p>
+					{/if}
 					{#if file.releaseName}
 						<Card.Description class="font-mono text-xs break-all"
 							>{file.releaseName}</Card.Description

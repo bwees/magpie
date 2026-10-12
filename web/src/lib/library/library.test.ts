@@ -11,7 +11,7 @@ import {
 	videoSummary
 } from './library';
 import { ImportsManager, type ImportsApi, type ImportsLive } from './imports-manager.svelte';
-import { TitleFiles } from './title-files.svelte';
+import { EPISODE_GROUP_CHANGED_EVENT, RENAME_SETTLE_MS, TitleFiles } from './title-files.svelte';
 
 const E1 = { id: 'e1', season: 1, number: 1, name: 'Pilot' };
 const E2 = { id: 'e2', season: 1, number: 2, name: 'Two' };
@@ -233,6 +233,29 @@ describe('TitleFiles', () => {
 
 		expect(api).toHaveBeenCalledTimes(2);
 		stop();
+	});
+
+	it('reloads a moment after its series is renumbered, once Library has renamed the files', async () => {
+		vi.useFakeTimers();
+		const api = vi.fn(async () => []);
+		const files = new TitleFiles('t1', api);
+		const handlers = new Map<string, (m: { data: unknown }) => void>();
+		const stop = files.watch({
+			on: (type, handler) => {
+				handlers.set(type, handler as (m: { data: unknown }) => void);
+				return () => handlers.delete(type);
+			},
+			onReset: () => () => undefined
+		});
+
+		handlers.get(EPISODE_GROUP_CHANGED_EVENT)?.({ data: { title: 'other' } });
+		handlers.get(EPISODE_GROUP_CHANGED_EVENT)?.({ data: { title: 't1' } });
+		expect(api).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(RENAME_SETTLE_MS);
+
+		expect(api).toHaveBeenCalledTimes(1);
+		stop();
+		vi.useRealTimers();
 	});
 
 	it('lists the files Jellyfin is overdue on', async () => {

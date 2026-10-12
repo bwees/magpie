@@ -1,6 +1,7 @@
 import {
 	apiErrorMessage,
 	listMediaFiles,
+	type EpisodeGroupChanged,
 	type FileImported,
 	type ItemAvailable,
 	type MediaFileResponse
@@ -12,6 +13,10 @@ import { LibraryEvent } from './library';
 export type FilesApi = (title: string) => Promise<MediaFileResponse[]>;
 
 export type FilesLive = Pick<LiveConnection, 'on' | 'onReset'>;
+
+export const EPISODE_GROUP_CHANGED_EVENT = 'catalog.EpisodeGroupChanged';
+/** Library renames the files in a job after the renumbering commits, so the tab reloads a moment later. */
+export const RENAME_SETTLE_MS = 1_500;
 
 /** The title page's Files tab: the title's media files, reloaded when one is imported or Jellyfin confirms one. */
 export class TitleFiles {
@@ -45,6 +50,7 @@ export class TitleFiles {
 
 	/** Returns a cleanup. */
 	watch(live: FilesLive): () => void {
+		let renamed: ReturnType<typeof setTimeout> | undefined;
 		const stops = [
 			live.on(LibraryEvent.FILE_IMPORTED, (m) => {
 				if ((m.data as FileImported).title === this.#title) void this.load();
@@ -52,7 +58,13 @@ export class TitleFiles {
 			live.on(LibraryEvent.ITEM_AVAILABLE, (m) => {
 				if ((m.data as ItemAvailable).title === this.#title) void this.load();
 			}),
-			live.onReset(() => void this.load())
+			live.on(EPISODE_GROUP_CHANGED_EVENT, (m) => {
+				if ((m.data as EpisodeGroupChanged).title !== this.#title) return;
+				clearTimeout(renamed);
+				renamed = setTimeout(() => void this.load(), RENAME_SETTLE_MS);
+			}),
+			live.onReset(() => void this.load()),
+			() => clearTimeout(renamed)
 		];
 		return () => stops.forEach((stop) => stop());
 	}
