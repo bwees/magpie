@@ -40,6 +40,7 @@ server/
       api/                     events the platform publishes (ServiceHealthChanged)
       scripted/                error and latency injection embedded in every fake
     flows_test/                flow tests: all modules, fake adapters, temp SQLite
+    smoke/                     compose smoke test against running images (build tag smoke)
     adapters/
       tmdb/ qbittorrent/ prowlarr/ trash/ jellyfin/ opensubtitles/ shoutrrr/ subsync/
     identity/ catalog/ requests/ acquisition/ library/ subtitles/ transcode/ activity/
@@ -200,14 +201,18 @@ Adapters live in `internal/adapters/<system>`. They are the only code that speak
 
 [Ticket 26](../../.scratch/v1-spec/issues/26-packaging.md).
 
-- **Server image** (`ghcr.io/bwees/magpie`, amd64 + arm64):
-  - Go binary, SPA build, ffmpeg/ffprobe.
+- goreleaser builds both images (`.goreleaser.yaml`): `mise run release` in CI on a `v*` tag, `mise run release:snapshot` locally (loads `latest-<arch>` tags, no push). The OpenSubtitles app key comes from `OPENSUBTITLES_APP_KEY` at build time.
+- **Server image** (`ghcr.io/bwees/magpie`, amd64 + arm64, `Dockerfile`):
+  - Go binary, SPA build, Alpine ffmpeg/ffprobe.
   - Never transcodes.
-- **Agent image** (`ghcr.io/bwees/magpie-agent`, amd64):
-  - jellyfin-ffmpeg plus whisper.cpp (Vulkan backend).
-  - One tag covers NVIDIA (Container Toolkit, `NVIDIA_DRIVER_CAPABILITIES` must include `video`), Intel and AMD (`/dev/dri` plus the host `render` GID).
+  - Container health check: `GET /api/health`.
+- **Agent image** (`ghcr.io/bwees/magpie-agent`, amd64, `Dockerfile.agent`):
+  - jellyfin-ffmpeg (pinned `.deb`, checksum-verified) with `ffmpeg` and `ffprobe` on `PATH`. It has no libvmaf, so sampled VMAF reports nil.
+  - `whisper-cli` on `PATH`, built from a pinned whisper.cpp tag with the Vulkan backend. It uses jellyfin-ffmpeg's Mesa drivers for Intel/AMD (`VK_ADD_DRIVER_FILES`) and the Container Toolkit's driver for NVIDIA.
+  - One tag covers NVIDIA (Container Toolkit; the image sets `NVIDIA_DRIVER_CAPABILITIES=compute,video,utility,graphics`: `video` for NVENC/NVDEC, `graphics` for Vulkan), Intel and AMD (`/dev/dri` plus the host `render` GID).
   - Linux only in v1.
-- **Example compose:** server, one agent, qBittorrent ≥ 5.2, Prowlarr.
+- **Example compose** (`deploy/compose.yaml`): server, one agent, qBittorrent ≥ 5.2, Prowlarr. Downloads and library share one host dir mounted at `/media` in Magpie and qBittorrent, so imports hardlink.
+- **Smoke test** (`mise run smoke`, CI `smoke` workflow): `deploy/compose.smoke.yaml` runs the snapshot server image and an agent with `MAGPIE_AGENT_CPU=true`; `internal/smoke` (build tag `smoke`) checks health, completes setup and waits for the agent to come online with a passing CPU HEVC encode.
 - **Env bootstrap only:**
 
 | Var | Purpose |
@@ -215,7 +220,7 @@ Adapters live in `internal/adapters/<system>`. They are the only code that speak
 | `MAGPIE_PORT` | HTTP port (default 3000) |
 | `MAGPIE_DATA_DIR` | SQLite, backups, image cache (local disk) |
 | `MAGPIE_BASE_URL` | Public URL for links and agent downloads |
-| `MAGPIE_AGENT_SECRET` | Shared secret agents present |
+| `MAGPIE_AGENT_SECRET` | Shared secret agents present. Required: the server refuses to start without it |
 
 - **First-run setup wizard** (admin only, until complete):
   1. Local admin.
