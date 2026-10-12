@@ -446,7 +446,6 @@ The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `
   - A server-wide semaphore (default 2) covers concurrent source downloads plus output uploads.
   - When full, the server returns `503` with `Retry-After: 5`. Uploads skip the queue ahead of downloads, and prefetch downloads go last.
   - Direct-read encodes hold a slot for the whole encode.
-- **HTTP/2:** the server sets the per-stream and per-connection receive window to 16 MiB. Agents may use HTTP/1.1 for bulk transfers.
 - **Direct read** (per-agent mode): FFmpeg reads `SourceRef.URL` itself with `-reconnect 1 -reconnect_on_network_error 1 -reconnect_delay_max 30` and the auth headers. Scratch only needs room for the output.
 - **Prefetch:** in download-first mode, a busy slot may receive one `JobOffer{Prefetch: true}`. The agent downloads the source but keeps it at `FETCHING` until `Start`. A prefetched job holds a lease, so the agent heartbeats it.
 
