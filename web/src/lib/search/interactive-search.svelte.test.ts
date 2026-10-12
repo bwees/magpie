@@ -1,0 +1,268 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'svelte-sonner';
+import { HttpError } from '@oazapfts/runtime';
+import type { LiveHandler, ResetListener } from '$lib/live/live-connection';
+import { searchTopic, type LiveMessage } from '$lib/live/protocol';
+import type {
+	GrabRequest,
+	ReleaseDecision,
+	SearchIndexerResponse,
+	SearchResponse,
+	SearchResultsReceived
+} from '$lib/sdk';
+import {
+	IndexerStatus,
+	InteractiveSearch,
+	SearchEventType,
+	SearchPhase,
+	type SearchApi,
+	type SearchLive
+} from './interactive-search.svelte';
+
+vi.mock('svelte-sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+const TITLE = '01TITLE';
+const SEARCH = '01SEARCH';
+const WEB_1080P = 3;
+const WEB_720P = 5;
+const NOT_IMPLEMENTED = 501;
+
+function release(id: string, rank: number, change: Partial<ReleaseDecision> = {}): ReleaseDecision {
+	return {
+		release: id,
+		name: `Movie.Title.2024.1080p.WEB-DL-${id}`,
+		indexer: 'Nyaa',
+		infoHash: '',
+		quality: { id: WEB_1080P, name: 'WEBDL-1080p', source: 'WEBDL', resolution: 1080, revision: 1 },
+		formats: [],
+		cfScore: 0,
+		sizeBytes: 1024 ** 3,
+		seeders: 10,
+		publishedAt: '2026-10-11T12:00:00Z',
+		freeleech: false,
+		rejections: [],
+		rank,
+		...change
+	};
+}
+
+function rejected(id: string): ReleaseDecision {
+	return release(id, 0, {
+		quality: { id: WEB_720P, name: 'WEBDL-720p', source: 'WEBDL', resolution: 720, revision: 1 },
+		rejections: [
+			{ reason: 'QUALITY_NOT_ALLOWED', message: "WEBDL-720p isn't wanted", temporary: false }
+		]
+	});
+}
+
+function indexer(name: string, status: IndexerStatus): SearchIndexerResponse {
+	return { name, status, message: '' };
+}
+
+function snapshot(change: Partial<SearchResponse> = {}): SearchResponse {
+	return {
+		searchId: SEARCH,
+		title: TITLE,
+		trigger: 'INTERACTIVE',
+		startedAt: '2026-10-11T12:00:00Z',
+		completed: false,
+		cancelled: false,
+		profile: {
+			id: 'p1',
+			name: '1080p',
+			cutoff: '1080p',
+			buckets: [{ name: '1080p', qualityIds: [WEB_1080P], meetsCutoff: true }],
+			penalizedFormats: ['LQ']
+		},
+		indexers: [indexer('Nyaa', IndexerStatus.PENDING), indexer('Beyond', IndexerStatus.PENDING)],
+		releases: [],
+		...change
+	};
+}
+
+class FakeLive implements SearchLive {
+	readonly handlers = new Map<string, Set<LiveHandler>>();
+	readonly resets = new Set<ResetListener>();
+	readonly topics = new Set<string>();
+
+	on(type: string, handler: LiveHandler): () => void {
+		const handlers = this.handlers.get(type) ?? new Set<LiveHandler>();
+		handlers.add(handler);
+		this.handlers.set(type, handlers);
+		return () => handlers.delete(handler);
+	}
+
+	onReset(listener: ResetListener): () => void {
+		this.resets.add(listener);
+		return () => this.resets.delete(listener);
+	}
+
+	subscribe(topic: string): void {
+		this.topics.add(topic);
+	}
+
+	unsubscribe(topic: string): void {
+		this.topics.delete(topic);
+	}
+
+	emit(type: string, data: unknown): void {
+		const message: LiveMessage = { seq: 1, epoch: 'E', type, topic: searchTopic(SEARCH), data };
+		this.handlers.get(type)?.forEach((handler) => handler(message));
+	}
+
+	results(indexerName: string, status: IndexerStatus, releases: ReleaseDecision[]): void {
+		const event: SearchResultsReceived = {
+			search: SEARCH,
+			indexer: indexerName,
+			status,
+			message: '',
+			releases
+		};
+		this.emit(SearchEventType.RESULTS, event);
+	}
+}
+
+class FakeApi implements SearchApi {
+	started = snapshot();
+	current = snapshot();
+	grabs: GrabRequest[] = [];
+	cancelled: string[] = [];
+
+	start = vi.fn(async () => this.started);
+	get = vi.fn(async () => this.current);
+
+	async cancel(id: string): Promise<unknown> {
+		this.cancelled.push(id);
+		return undefined;
+	}
+
+	async grab(_id: string, request: GrabRequest): Promise<unknown> {
+		this.grabs.push(request);
+		throw new HttpError(NOT_IMPLEMENTED, { detail: "Grabbing isn't available yet" }, new Headers());
+	}
+}
+
+describe('InteractiveSearch', () => {
+	let live: FakeLive;
+	let api: FakeApi;
+	let search: InteractiveSearch;
+
+	beforeEach(() => {
+		live = new FakeLive();
+		api = new FakeApi();
+		search = new InteractiveSearch(TITLE, live, api);
+	});
+
+	it('starts the search, subscribes to its topic and reads the cached state', async () => {
+		api.current = snapshot({ releases: [release('a', 1)] });
+
+		await search.start();
+
+		expect(api.start).toHaveBeenCalledWith(TITLE);
+		expect(live.topics.has(searchTopic(SEARCH))).toBe(true);
+		expect(search.phase).toBe(SearchPhase.RUNNING);
+		expect(search.indexers.map((i) => i.status)).toEqual([
+			IndexerStatus.PENDING,
+			IndexerStatus.PENDING
+		]);
+		expect(search.releases.map((r) => r.release)).toEqual(['a']);
+	});
+
+	it('appends streamed releases to their bucket without reordering and stars the best', async () => {
+		await search.start();
+
+		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1), rejected('r')]);
+		live.results('Beyond', IndexerStatus.DONE, [release('b', 1)]);
+
+		const [bucket] = search.buckets;
+		expect(bucket.releases.map((r) => r.release)).toEqual(['a', 'b']);
+		expect(bucket.best).toBe('b');
+		expect(search.order).toEqual(['b', 'a']);
+		expect(search.rejected.map((r) => r.release)).toEqual(['r']);
+		expect(search.answered).toBe(2);
+		expect(search.isPenalized('LQ')).toBe(true);
+	});
+
+	it('takes a late answer after a timeout but never moves an indexer back', async () => {
+		await search.start();
+
+		live.results('Nyaa', IndexerStatus.FAILED, []);
+		expect(search.failures).toBe(1);
+		live.results('Nyaa', IndexerStatus.DONE, [release('late', 1)]);
+		live.results('Nyaa', IndexerStatus.FAILED, []);
+
+		expect(search.indexers[0].status).toBe(IndexerStatus.DONE);
+		expect(search.releases.map((r) => r.release)).toEqual(['late']);
+	});
+
+	it('ignores other searches and finishes on SearchCompleted', async () => {
+		await search.start();
+
+		live.emit(SearchEventType.RESULTS, {
+			search: 'other',
+			indexer: 'Nyaa',
+			status: IndexerStatus.DONE,
+			message: '',
+			releases: [release('x', 1)]
+		});
+		live.results('Nyaa', IndexerStatus.FAILED, []);
+		live.results('Beyond', IndexerStatus.FAILED, []);
+		live.emit(SearchEventType.COMPLETED, { search: SEARCH, failedIndexers: ['Nyaa', 'Beyond'] });
+
+		expect(search.releases).toEqual([]);
+		expect(search.phase).toBe(SearchPhase.FINISHED);
+		expect(search.allFailed).toBe(true);
+	});
+
+	it('refetches the cached state when the live socket resets', async () => {
+		await search.start();
+		api.current = snapshot({
+			completed: true,
+			indexers: [indexer('Nyaa', IndexerStatus.DONE), indexer('Beyond', IndexerStatus.SKIPPED)],
+			releases: [release('a', 2), release('b', 1)]
+		});
+
+		live.resets.forEach((reset) => reset());
+		await vi.waitFor(() => expect(search.completed).toBe(true));
+
+		expect(search.order).toEqual(['b', 'a']);
+		expect(search.buckets[0].best).toBe('b');
+	});
+
+	it('sends override for a rejected release and shows why a grab failed', async () => {
+		await search.start();
+		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1), rejected('r')]);
+
+		await search.grab(search.accepted[0]);
+		await search.grab(search.rejected[0]);
+
+		expect(api.grabs).toEqual([
+			{ releaseId: 'a', override: false },
+			{ releaseId: 'r', override: true }
+		]);
+		expect(toast.error).toHaveBeenCalledWith("Grabbing isn't available yet", expect.anything());
+		expect(search.grabbing.size).toBe(0);
+	});
+
+	it('cancels a running search when it stops, but not a finished one', async () => {
+		await search.start();
+		search.stop();
+		expect(api.cancelled).toEqual([SEARCH]);
+		expect(live.topics.size).toBe(0);
+
+		api.started = snapshot({ completed: true });
+		api.current = api.started;
+		await search.start();
+		search.stop();
+		expect(api.cancelled).toEqual([SEARCH]);
+	});
+
+	it('reports a search that could not start', async () => {
+		api.start.mockRejectedValueOnce(new HttpError(404, { detail: 'No such title' }, new Headers()));
+
+		await search.start();
+
+		expect(search.phase).toBe(SearchPhase.FAILED);
+		expect(search.error).toBe('No such title');
+	});
+});

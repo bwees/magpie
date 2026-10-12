@@ -4,6 +4,8 @@
 	import { ProfileOptions } from '$lib/settings/quality/profile-options.svelte';
 	import StageBar from '$lib/activity/StageBar.svelte';
 	import RequestedBy from '$lib/requests/RequestedBy.svelte';
+	import InteractiveSearchDialog from '$lib/search/InteractiveSearchDialog.svelte';
+	import { getSession } from '$lib/session/session.svelte';
 	import PosterImage from './PosterImage.svelte';
 	import { Button } from '$lib/components/ui/button';
 
@@ -24,7 +26,10 @@
 	onMount(() => {
 		profiles.load();
 	});
-	const placeholderAction = 'Searching arrives with Acquisition';
+	const placeholderAction = 'Automatic search arrives with Acquisition';
+
+	const session = getSession();
+	let searching = $state(false);
 </script>
 
 <section class="overflow-hidden rounded-xl border bg-card" style:background-image={background}>
@@ -61,17 +66,22 @@
 		</div>
 		<div class="grid grid-cols-2 gap-2 md:flex md:shrink-0">
 			<Button variant="secondary" disabled title={placeholderAction}>Search</Button>
-			<Button
-				variant="outline"
-				class="border-white/30 bg-transparent text-white hover:bg-white/10"
-				disabled
-				title={placeholderAction}
-			>
-				Interactive search
-			</Button>
+			{#if session.isAdmin}
+				<Button
+					variant="outline"
+					class="border-white/30 bg-transparent text-white hover:bg-white/10"
+					onclick={() => (searching = true)}
+				>
+					Interactive search
+				</Button>
+			{/if}
 		</div>
 	</div>
 	<div class="px-4 pb-5 md:px-8 md:pb-6">
 		<StageBar titleId={title.id} class="text-white" />
 	</div>
 </section>
+
+{#if session.isAdmin}
+	<InteractiveSearchDialog bind:open={searching} titleId={title.id} titleName={title.name} />
+{/if}
