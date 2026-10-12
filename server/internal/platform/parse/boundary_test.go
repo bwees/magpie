@@ -12,11 +12,14 @@ import (
 	"testing"
 )
 
-// The parser may import only the standard library, the shared kernel and the regex engine.
+// The parser may import only the standard library, the shared kernel, the regex engine and the
+// Go project's language tables.
 func TestPackageImportsStayInBoundary(t *testing.T) {
 	allowed := map[string]bool{
-		"magpie/internal/domain":        true,
-		"github.com/dlclark/regexp2/v2": true,
+		"magpie/internal/domain":             true,
+		"github.com/dlclark/regexp2/v2":      true,
+		"golang.org/x/text/language":         true,
+		"golang.org/x/text/language/display": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
