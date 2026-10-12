@@ -11,6 +11,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -43,6 +44,20 @@ type Prober interface {
 	Probe(ctx context.Context, deviceID string) []agentproto.DeviceReport
 }
 
+// Jobs runs the jobs the server offers.
+type Jobs interface {
+	Configure(welcome agentproto.Welcome)
+	Drain()
+	SetDevices(devices []agentproto.DeviceReport)
+	Offer(offer agentproto.JobOffer) (bool, agentproto.RejectReason)
+	Start(job domain.JobID)
+	Cancel(job domain.JobID)
+	Heartbeats() []agentproto.JobHeartbeat
+	Resumable() []agentproto.ResumableJob
+	// Deliver sends results the server hasn't received yet.
+	Deliver(ctx context.Context)
+}
+
 type Options struct {
 	ServerURL *url.URL
 	Secret    string
@@ -53,7 +68,11 @@ type Options struct {
 	Prober    Prober
 	// ScratchFree reports the free bytes in the scratch dir.
 	ScratchFree func() (int64, error)
+	// Jobs may be set after New, before Run, since it sends through the client.
+	Jobs Jobs
 }
+
+var ErrNotConnected = errors.New("session: not connected to the server")
 
 // Client keeps one control channel open to the server.
 type Client struct {
@@ -66,14 +85,54 @@ type Client struct {
 	devices       []agentproto.DeviceReport
 	welcome       agentproto.Welcome
 	draining      bool
+	conn          *websocket.Conn
 
 	// retestMu serialises retests so two never fight over the GPU.
 	retestMu sync.Mutex
 }
 
 func New(opts Options) *Client {
+	if opts.Jobs == nil {
+		opts.Jobs = noJobs{}
+	}
 	return &Client{opts: opts, http: NewHTTPClient(opts.Secret, opts.AgentID), random: rand.Float64}
 }
+
+// SetJobs gives the client the job runner, which sends its results through the client.
+func (c *Client) SetJobs(jobs Jobs) {
+	c.opts.Jobs = jobs
+}
+
+// HTTP is the client that adds the agent's auth headers, for the job byte endpoints.
+func (c *Client) HTTP() *http.Client {
+	return c.http
+}
+
+// Send writes a frame on the current connection, or fails with ErrNotConnected.
+func (c *Client) Send(ctx context.Context, messageType agentproto.MessageType, body any) error {
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil {
+		return ErrNotConnected
+	}
+	return c.send(ctx, conn, messageType, body)
+}
+
+// noJobs takes no jobs, for an agent that only reports its devices.
+type noJobs struct{}
+
+func (noJobs) Configure(agentproto.Welcome)         {}
+func (noJobs) Drain()                               {}
+func (noJobs) SetDevices([]agentproto.DeviceReport) {}
+func (noJobs) Offer(agentproto.JobOffer) (bool, agentproto.RejectReason) {
+	return false, agentproto.RejectCapability
+}
+func (noJobs) Start(domain.JobID)                    {}
+func (noJobs) Cancel(domain.JobID)                   {}
+func (noJobs) Heartbeats() []agentproto.JobHeartbeat { return []agentproto.JobHeartbeat{} }
+func (noJobs) Resumable() []agentproto.ResumableJob  { return []agentproto.ResumableJob{} }
+func (noJobs) Deliver(context.Context)               {}
 
 // NewHTTPClient adds the agent's auth headers to every request it sends.
 func NewHTTPClient(secret string, agent domain.AgentID) *http.Client {
@@ -145,6 +204,15 @@ func (c *Client) session(ctx context.Context) (welcomed bool, err error) {
 	}
 	c.applyWelcome(welcome)
 	slog.InfoContext(ctx, "agent: connected", "server", c.opts.ServerURL.String(), "mode", welcome.Mode, "slots", welcome.Slots)
+	c.mu.Lock()
+	c.conn = conn
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.conn = nil
+		c.mu.Unlock()
+	}()
+	c.opts.Jobs.Deliver(ctx)
 
 	go c.heartbeats(ctx, conn)
 	return true, c.readLoop(ctx, conn)
@@ -161,6 +229,7 @@ func (c *Client) hello() agentproto.Hello {
 		Mode:          c.opts.Mode,
 		ScratchFree:   c.scratchFree(),
 		Devices:       c.devices,
+		ResumableJobs: c.opts.Jobs.Resumable(),
 	}
 }
 
@@ -180,9 +249,10 @@ func (c *Client) readWelcome(ctx context.Context, conn *websocket.Conn) (agentpr
 
 func (c *Client) applyWelcome(welcome agentproto.Welcome) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.welcome = welcome
 	c.draining = welcome.Draining
+	c.mu.Unlock()
+	c.opts.Jobs.Configure(welcome)
 }
 
 func (c *Client) heartbeats(ctx context.Context, conn *websocket.Conn) {
@@ -199,10 +269,11 @@ func (c *Client) heartbeats(ctx context.Context, conn *websocket.Conn) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			heartbeat := agentproto.Heartbeat{ScratchFree: c.scratchFree(), Jobs: []agentproto.JobHeartbeat{}}
+			heartbeat := agentproto.Heartbeat{ScratchFree: c.scratchFree(), Jobs: c.opts.Jobs.Heartbeats()}
 			if err := c.send(ctx, conn, agentproto.TypeHeartbeat, heartbeat); err != nil {
 				return
 			}
+			c.opts.Jobs.Deliver(ctx)
 		}
 	}
 }
@@ -243,12 +314,42 @@ func (c *Client) handle(ctx context.Context, conn *websocket.Conn, env agentprot
 		c.mu.Lock()
 		c.draining = true
 		c.mu.Unlock()
+		c.opts.Jobs.Drain()
 		slog.InfoContext(ctx, "agent: draining; accepting no new jobs")
+	case agentproto.TypeJobOffer:
+		var offer agentproto.JobOffer
+		if err := json.Unmarshal(env.Body, &offer); err != nil {
+			return err
+		}
+		return c.answerOffer(ctx, conn, offer)
+	case agentproto.TypeStart:
+		var start agentproto.Start
+		if err := json.Unmarshal(env.Body, &start); err != nil {
+			return err
+		}
+		c.opts.Jobs.Start(start.Job)
+	case agentproto.TypeCancel:
+		var cancel agentproto.Cancel
+		if err := json.Unmarshal(env.Body, &cancel); err != nil {
+			return err
+		}
+		slog.InfoContext(ctx, "agent: server cancelled a job", "job", cancel.Job, "reason", cancel.Reason)
+		c.opts.Jobs.Cancel(cancel.Job)
 	case agentproto.TypeAck:
 	default:
 		slog.DebugContext(ctx, "agent: ignoring server frame", "type", env.Type)
 	}
 	return nil
+}
+
+func (c *Client) answerOffer(ctx context.Context, conn *websocket.Conn, offer agentproto.JobOffer) error {
+	accepted, reason := c.opts.Jobs.Offer(offer)
+	if !accepted {
+		slog.InfoContext(ctx, "agent: rejecting a job", "job", offer.Spec.Job, "reason", reason)
+		return c.send(ctx, conn, agentproto.TypeJobReject, agentproto.JobReject{Job: offer.Spec.Job, Reason: reason})
+	}
+	slog.InfoContext(ctx, "agent: accepted a job", "job", offer.Spec.Job, "device", offer.Spec.DeviceID, "prefetch", offer.Prefetch)
+	return c.send(ctx, conn, agentproto.TypeJobAccept, agentproto.JobAccept{Job: offer.Spec.Job})
 }
 
 // retest probes deviceID (every device when empty), keeps the results for the next Hello and returns them.
@@ -271,11 +372,9 @@ func (c *Client) retest(ctx context.Context, deviceID string) []agentproto.Devic
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.ffmpegVersion = version
 	if deviceID == "" {
 		c.devices = devices
-		return devices
 	}
 	for _, device := range devices {
 		for i := range c.devices {
@@ -284,6 +383,9 @@ func (c *Client) retest(ctx context.Context, deviceID string) []agentproto.Devic
 			}
 		}
 	}
+	all := slices.Clone(c.devices)
+	c.mu.Unlock()
+	c.opts.Jobs.SetDevices(all)
 	return devices
 }
 

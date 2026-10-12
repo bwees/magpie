@@ -255,6 +255,69 @@ func TestSessionReportsARejectedSecret(t *testing.T) {
 	}
 }
 
+// fakeJobs accepts offers for one job and holds it encoding.
+type fakeJobs struct {
+	noJobs
+	mu        sync.Mutex
+	accept    domain.JobID
+	cancelled []domain.JobID
+}
+
+func (j *fakeJobs) Offer(offer agentproto.JobOffer) (bool, agentproto.RejectReason) {
+	if offer.Spec.Job != j.accept {
+		return false, agentproto.RejectDeviceBusy
+	}
+	return true, ""
+}
+
+func (j *fakeJobs) Cancel(job domain.JobID) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.cancelled = append(j.cancelled, job)
+}
+
+func (j *fakeJobs) Heartbeats() []agentproto.JobHeartbeat {
+	return []agentproto.JobHeartbeat{{Job: j.accept, Stage: agentproto.StageEncoding, Progress: 0.5}}
+}
+
+func (j *fakeJobs) Resumable() []agentproto.ResumableJob {
+	return []agentproto.ResumableJob{{Job: j.accept, SourceETag: `"1-2-3"`, BytesHave: 2}}
+}
+
+func TestClientAnswersOffersAndHeartbeatsItsJobs(t *testing.T) {
+	server := newFakeServer(t)
+	client, _, _ := newClient(t, server, testSecret)
+	jobs := &fakeJobs{accept: domain.NewID[domain.JobID]()}
+	client.SetJobs(jobs)
+	run(t, client)
+	conn := server.accept(t)
+	if hello := decode[agentproto.Hello](t, read(t, conn, agentproto.TypeHello)); len(hello.ResumableJobs) != 1 || hello.ResumableJobs[0].Job != jobs.accept {
+		t.Fatalf("hello resumable = %+v", hello.ResumableJobs)
+	}
+	welcome(t, conn, false)
+
+	busy := domain.NewID[domain.JobID]()
+	write(t, conn, agentproto.TypeJobOffer, agentproto.JobOffer{Spec: agentproto.JobSpec{Job: busy}})
+	if reject := decode[agentproto.JobReject](t, read(t, conn, agentproto.TypeJobReject)); reject.Job != busy || reject.Reason != agentproto.RejectDeviceBusy {
+		t.Fatalf("reject = %+v", reject)
+	}
+	write(t, conn, agentproto.TypeJobOffer, agentproto.JobOffer{Spec: agentproto.JobSpec{Job: jobs.accept}})
+	if accept := decode[agentproto.JobAccept](t, read(t, conn, agentproto.TypeJobAccept)); accept.Job != jobs.accept {
+		t.Fatalf("accept = %+v", accept)
+	}
+	heartbeat := decode[agentproto.Heartbeat](t, read(t, conn, agentproto.TypeHeartbeat))
+	if len(heartbeat.Jobs) != 1 || heartbeat.Jobs[0].Job != jobs.accept || heartbeat.Jobs[0].Stage != agentproto.StageEncoding {
+		t.Fatalf("heartbeat jobs = %+v", heartbeat.Jobs)
+	}
+
+	write(t, conn, agentproto.TypeCancel, agentproto.Cancel{Job: jobs.accept})
+	waitFor(t, func() bool {
+		jobs.mu.Lock()
+		defer jobs.mu.Unlock()
+		return len(jobs.cancelled) == 1
+	})
+}
+
 func waitFor(t *testing.T, condition func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(frameTimeout)

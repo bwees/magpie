@@ -7,11 +7,15 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 
 	"magpie/agent/config"
+	"magpie/agent/encode"
+	"magpie/agent/jobs"
 	"magpie/agent/probe"
 	"magpie/agent/session"
+	"magpie/agent/transfer"
 	"magpie/internal/transcode/api/agentproto"
 
 	"golang.org/x/sys/unix"
@@ -29,11 +33,14 @@ func main() {
 		slog.Error("agent: invalid configuration", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("agent: starting", "agent", cfg.AgentID, "name", cfg.Name, "server", cfg.ServerURL.String(), "version", version)
+	slog.Info("agent: starting", "agent", cfg.AgentID, "name", cfg.Name, "server", cfg.ServerURL.String(), "version", version, "cpu", cfg.CPU)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	prober := probe.New(filepath.Join(cfg.ScratchDir, samplesDir))
+	prober.CPU = cfg.CPU
+	scratchFree := func() (int64, error) { return freeBytes(cfg.ScratchDir) }
 	client := session.New(session.Options{
 		ServerURL:   cfg.ServerURL,
 		Secret:      cfg.Secret,
@@ -41,10 +48,30 @@ func main() {
 		Hostname:    cfg.Name,
 		Version:     version,
 		Mode:        agentproto.ModeDownloadFirst,
-		Prober:      probe.New(filepath.Join(cfg.ScratchDir, samplesDir)),
-		ScratchFree: func() (int64, error) { return freeBytes(cfg.ScratchDir) },
+		Prober:      prober,
+		ScratchFree: scratchFree,
 	})
-	if err := client.Run(ctx); err != nil {
+	transfers := transfer.New(client.HTTP(), cfg.ServerURL)
+	authHeaders := map[string]string{
+		agentproto.HeaderAuthorization: agentproto.BearerPrefix + cfg.Secret,
+		agentproto.HeaderAgentID:       string(cfg.AgentID),
+	}
+	manager := jobs.NewManager(jobs.Options{
+		ScratchDir:  cfg.ScratchDir,
+		Transfers:   transfers,
+		Encoder:     encode.New(),
+		ScratchFree: scratchFree,
+		DirectRead: func(source agentproto.SourceRef) encode.Input {
+			return encode.HTTPInput(transfers.SourceURL(source.URL), authHeaders)
+		},
+	}, client)
+	client.SetJobs(manager)
+
+	var wg sync.WaitGroup
+	wg.Go(func() { manager.Run(ctx) })
+	err = client.Run(ctx)
+	wg.Wait()
+	if err != nil {
 		slog.Error("agent: stopped", "error", err)
 		os.Exit(1)
 	}
