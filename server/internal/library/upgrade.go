@@ -3,8 +3,10 @@ package library
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
+	"path/filepath"
 	"slices"
 
 	"magpie/internal/domain"
@@ -41,17 +43,58 @@ func titleFiles(tx *gorm.DB, title domain.TitleID) ([]api.MediaFile, error) {
 	return files, nil
 }
 
+// episodeSet holds the episodes an import's videos cover together.
+type episodeSet map[domain.EpisodeID]bool
+
+func coveredBy(videos []plannedVideo) episodeSet {
+	covered := episodeSet{}
+	for _, v := range videos {
+		for _, ref := range v.episodes {
+			covered[ref.Episode] = true
+		}
+	}
+	return covered
+}
+
+func (c episodeSet) sharesAny(f api.MediaFile) bool {
+	return slices.ContainsFunc(f.Episodes, func(ref domain.EpisodeRef) bool { return c[ref.Episode] })
+}
+
+func (c episodeSet) coversAll(f api.MediaFile) bool {
+	return !slices.ContainsFunc(f.Episodes, func(ref domain.EpisodeRef) bool { return !c[ref.Episode] })
+}
+
 // replacedBy are the files a new video takes the place of: for a movie every file of the title, for a
-// series every file sharing an episode with it.
-func replacedBy(existing []api.MediaFile, kind domain.MediaKind, episodes []domain.EpisodeRef) []api.MediaFile {
+// series every file sharing an episode with it whose episodes the import covers in full.
+func replacedBy(existing []api.MediaFile, kind domain.MediaKind, video plannedVideo, covered episodeSet) []api.MediaFile {
 	if kind != domain.MediaKindSeries {
 		return existing
 	}
+	own := coveredBy([]plannedVideo{video})
 	return slices.DeleteFunc(slices.Clone(existing), func(f api.MediaFile) bool {
-		return !slices.ContainsFunc(f.Episodes, func(old domain.EpisodeRef) bool {
-			return slices.ContainsFunc(episodes, func(ref domain.EpisodeRef) bool { return ref.Episode == old.Episode })
-		})
+		return !own.sharesAny(f) || !covered.coversAll(f)
 	})
+}
+
+const splitReason = "Would split the multi-episode file %s"
+
+// refuseSplits stops a series import that would replace only some episodes of an existing file, so
+// none of that file's episodes goes missing.
+func (s *Service) refuseSplits(ctx context.Context, plan importPlan) error {
+	if plan.title.Kind != domain.MediaKindSeries {
+		return nil
+	}
+	existing, err := s.deps.Repo.FilesForTitle(ctx, plan.title.ID)
+	if err != nil {
+		return err
+	}
+	covered := coveredBy(plan.videos)
+	for _, f := range existing {
+		if covered.sharesAny(f) && !covered.coversAll(f) {
+			return manual(fmt.Sprintf(splitReason, filepath.Base(f.Path)), plan.files)
+		}
+	}
+	return nil
 }
 
 // deleteMediaFile reports false when the record was already gone.

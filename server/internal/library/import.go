@@ -145,6 +145,9 @@ func (s *Service) plan(ctx context.Context, imp Import) (importPlan, error) {
 	if err != nil {
 		return importPlan{}, err
 	}
+	if err := s.refuseSplits(ctx, plan); err != nil {
+		return importPlan{}, err
+	}
 	plan.assignSidecars(sources, index)
 	return plan, nil
 }
@@ -509,9 +512,10 @@ func (s *Service) transfer(ctx context.Context, src, dst string, mode acquisitio
 	return err
 }
 
-// commitImport records the placed videos. A video replaces the title's files covering its episodes: their
-// records go in the same transaction, each FileImported followed by FileDeleted{UPGRADED} for the files it
-// replaced. It returns the replaced files still on disk; a replaced file the new one landed on is already gone.
+// commitImport records the placed videos. A video replaces the files it shares an episode with, when the
+// import covers all their episodes: their records go in the same transaction, each FileImported followed
+// by FileDeleted{UPGRADED} for the files it replaced. It returns the replaced files still on disk; a
+// replaced file the new one landed on is already gone.
 func (s *Service) commitImport(ctx context.Context, plan importPlan, placed []placedVideo) ([]string, error) {
 	now := s.now().UTC()
 	files, err := encodeFiles(plan.files)
@@ -524,6 +528,7 @@ func (s *Service) commitImport(ctx context.Context, plan importPlan, placed []pl
 	for _, v := range placed {
 		targets = append(targets, v.target)
 	}
+	covered := coveredBy(plan.videos)
 	var retired []string
 	err = s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
 		retired = nil
@@ -551,7 +556,7 @@ func (s *Service) commitImport(ctx context.Context, plan importPlan, placed []pl
 			if err := insertMediaFile(tx, file); err != nil {
 				return err
 			}
-			replaced := replacedBy(existing, plan.title.Kind, v.episodes)
+			replaced := replacedBy(existing, plan.title.Kind, v.plannedVideo, covered)
 			imported := importedEvent(file, v.sidecars)
 			if len(replaced) > 0 {
 				imported.Replaces = &replaced[0].ID
