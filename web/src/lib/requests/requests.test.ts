@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
 	CreateRequestRequest,
 	DiscoverDetailResponse,
@@ -20,8 +20,11 @@ import {
 	StatusFilter,
 	conflictOf,
 	filterCount,
+	ITEM_AVAILABLE_EVENT,
+	ITEM_AVAILABLE_SETTLE_MS,
 	initials,
-	scopeLabel
+	scopeLabel,
+	statusLabel
 } from './requests';
 import { CardState, SearchRequests } from './search-requests.svelte';
 import { TitleRequester } from './title-requester.svelte';
@@ -272,6 +275,38 @@ describe('RequestsPage', () => {
 
 		expect(page.items).toHaveLength(3);
 		stop();
+	});
+
+	it('refetches once Requests has counted an item Jellyfin confirmed', async () => {
+		const page = new RequestsPage(ADMIN, api);
+		const live = new FakeLive();
+		await page.select(StatusFilter.ALL);
+		vi.useFakeTimers();
+		const stop = page.watch(live);
+
+		api.rows[0] = { ...api.rows[0], status: RequestStatus.PARTIALLY_AVAILABLE };
+		live.emit(ITEM_AVAILABLE_EVENT);
+		live.emit(ITEM_AVAILABLE_EVENT);
+		const calls = api.listCalls.length;
+		await vi.advanceTimersByTimeAsync(ITEM_AVAILABLE_SETTLE_MS);
+		vi.useRealTimers();
+		await settle();
+
+		expect(api.listCalls.length).toBe(calls + 1);
+		expect(page.items[0].status).toBe(RequestStatus.PARTIALLY_AVAILABLE);
+		stop();
+	});
+});
+
+describe('statusLabel', () => {
+	it('shows the progress of a partly available request', () => {
+		const partial = {
+			...request('r1', RequestStatus.PARTIALLY_AVAILABLE),
+			availableItems: 4,
+			totalItems: 10
+		};
+		expect(statusLabel(partial)).toBe('4 of 10 available');
+		expect(statusLabel(request('r2', RequestStatus.AVAILABLE))).toBe('Available');
 	});
 });
 

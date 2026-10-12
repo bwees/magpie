@@ -55,7 +55,8 @@ export enum HdrFormat {
 export enum LibraryEvent {
 	FILE_IMPORTED = 'library.FileImported',
 	IMPORT_FAILED = 'library.ImportFailed',
-	IMPORT_REMOVED = 'library.ImportRemoved'
+	IMPORT_REMOVED = 'library.ImportRemoved',
+	ITEM_AVAILABLE = 'library.ItemAvailable'
 }
 
 export const IMPORT_STATUS_LABELS: Record<string, string> = {

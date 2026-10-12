@@ -23,7 +23,9 @@
 	<Collapsible.Root bind:open={manager.open}>
 		<Card.Header>
 			<Card.Title>Schedules</Card.Title>
-			<Card.Description>How often Magpie looks for releases without being asked.</Card.Description>
+			<Card.Description
+				>How often Magpie looks for releases and checks Jellyfin without being asked.</Card.Description
+			>
 			<Card.Action>
 				<Collapsible.Trigger>
 					{#snippet child({ props })}
@@ -101,9 +103,24 @@
 									<span class="text-sm text-muted-foreground">days</span>
 								</div>
 							</div>
+							<div class="grid gap-1.5">
+								<Label for="jellyfin-reconcile">Jellyfin full reconcile</Label>
+								<div class="flex items-center gap-2">
+									<Input
+										id="jellyfin-reconcile"
+										type="number"
+										class="w-24"
+										min={LIMITS.JELLYFIN_RECONCILE_HOURS.MIN}
+										max={LIMITS.JELLYFIN_RECONCILE_HOURS.MAX}
+										bind:value={manager.draft.jellyfinReconcileHours}
+									/>
+									<span class="text-sm text-muted-foreground">hours</span>
+								</div>
+							</div>
 						</div>
 						<p class="text-xs text-muted-foreground">
-							Sweep searches are spaced so each indexer gets at most one query every 2 seconds.
+							Sweep searches are spaced so each indexer gets at most one query every 2 seconds. The
+							Jellyfin reconcile catches files the live connection to Jellyfin missed.
 						</p>
 						<div class="flex items-center gap-3">
 							<Button type="submit" size="sm" disabled={manager.saving}>Save</Button>

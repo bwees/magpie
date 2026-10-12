@@ -6,7 +6,7 @@
 	import PosterImage from '$lib/catalog/PosterImage.svelte';
 	import { titlePath } from '$lib/catalog/images';
 	import type { RequestResponse } from '$lib/sdk';
-	import { RequestStatus, STATUS_LABELS, initials, scopeLabel } from './requests';
+	import { RequestStatus, initials, scopeLabel, statusLabel } from './requests';
 	import type { RequestsPage } from './requests-page.svelte';
 
 	let {
@@ -28,6 +28,7 @@
 	const media = $derived(page.mediaOf(request));
 	const name = $derived(page.titleOf(request));
 	const status = $derived(request.status as RequestStatus);
+	const label = $derived(statusLabel(request));
 	const busy = $derived(page.busy.has(request.id));
 	const scope = $derived(
 		[scopeLabel(request.scope, request.seasons), profileName].filter(Boolean).join(' · ')
@@ -70,14 +71,16 @@
 			{#if note}
 				<p class="truncate text-xs text-muted-foreground" title={note}>{note}</p>
 			{/if}
-			<div class="mt-1 md:hidden">{@render requester()}</div>
+			<div class="mt-1 flex flex-col items-start gap-1.5 md:hidden">
+				<Badge variant={STATUS_VARIANTS[status]}>{label}</Badge>
+				{@render requester()}
+			</div>
 		</div>
-		<Badge variant={STATUS_VARIANTS[status]} class="md:hidden">{STATUS_LABELS[status]}</Badge>
 	</div>
 
 	<div class="hidden w-56 shrink-0 md:block">{@render requester()}</div>
 	<div class="hidden w-32 shrink-0 md:block">
-		<Badge variant={STATUS_VARIANTS[status]}>{STATUS_LABELS[status]}</Badge>
+		<Badge variant={STATUS_VARIANTS[status]}>{label}</Badge>
 	</div>
 
 	{#if hasActions}

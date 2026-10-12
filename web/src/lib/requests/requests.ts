@@ -1,4 +1,10 @@
-import { apiErrorStatus, apiProblemType, type StatusCountResponse } from '$lib/sdk';
+import {
+	apiErrorStatus,
+	apiProblemType,
+	type RequestResponse,
+	type StatusCountResponse
+} from '$lib/sdk';
+import { LibraryEvent } from '$lib/library/library';
 
 // Mirrors server/internal/requests/api: status and scope values, and the request events.
 
@@ -27,6 +33,15 @@ export enum RequestEvent {
 }
 
 export const REQUEST_EVENTS: RequestEvent[] = Object.values(RequestEvent);
+
+/** Library's event for a movie or episodes Jellyfin confirmed; it moves request progress. */
+export const ITEM_AVAILABLE_EVENT = LibraryEvent.ITEM_AVAILABLE;
+
+/**
+ * How long after ItemAvailable the Requests page refetches. The browser gets the event as Library
+ * commits it, before Requests has counted it, and Requests publishes nothing for partial progress.
+ */
+export const ITEM_AVAILABLE_SETTLE_MS = 1500;
 
 /** Events that change how many requests are pending. */
 export const PENDING_EVENTS: RequestEvent[] = [
@@ -100,6 +115,16 @@ export function filterCount(counts: StatusCountResponse[], filter: StatusFilter)
 	return counts
 		.filter((c) => statuses.length === 0 || statuses.includes(c.status as RequestStatus))
 		.reduce((sum, c) => sum + c.count, 0);
+}
+
+/** The status badge: a partly available request shows its progress, e.g. "4 of 10 available". */
+export function statusLabel(
+	request: Pick<RequestResponse, 'status' | 'availableItems' | 'totalItems'>
+): string {
+	if (request.status === RequestStatus.PARTIALLY_AVAILABLE) {
+		return `${request.availableItems} of ${request.totalItems} available`;
+	}
+	return STATUS_LABELS[request.status as RequestStatus];
 }
 
 const SEASON_SEPARATOR = ', ';

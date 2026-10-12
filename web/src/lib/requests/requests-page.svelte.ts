@@ -11,6 +11,8 @@ import type { LiveEvents } from '$lib/activity/activity-source';
 import { SDK_REQUESTS_API, type RequestsApi } from './requests-api';
 import {
 	FILTER_STATUSES,
+	ITEM_AVAILABLE_EVENT,
+	ITEM_AVAILABLE_SETTLE_MS,
 	REQUEST_EVENTS,
 	RequestStatus,
 	StatusFilter,
@@ -194,9 +196,17 @@ export class RequestsPage {
 		return this.mediaOf(request)?.name ?? `TMDB ${request.tmdbId}`;
 	}
 
-	/** Follows request events until the returned function is called. */
+	/** Follows request and availability events until the returned function is called. */
 	watch(live: LiveEvents): () => void {
+		let settle: ReturnType<typeof setTimeout> | undefined;
 		const stops = REQUEST_EVENTS.map((type) => live.on(type, () => void this.refresh()));
+		stops.push(
+			live.on(ITEM_AVAILABLE_EVENT, () => {
+				clearTimeout(settle);
+				settle = setTimeout(() => void this.refresh(), ITEM_AVAILABLE_SETTLE_MS);
+			}),
+			() => clearTimeout(settle)
+		);
 		stops.push(live.onReset(() => void this.refresh()));
 		return () => stops.forEach((stop) => stop());
 	}

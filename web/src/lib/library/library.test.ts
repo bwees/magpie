@@ -230,8 +230,23 @@ describe('TitleFiles', () => {
 
 		handlers.get(LibraryEvent.FILE_IMPORTED)?.({ data: { title: 'other' } });
 		handlers.get(LibraryEvent.FILE_IMPORTED)?.({ data: { title: 't1' } });
+		handlers.get(LibraryEvent.ITEM_AVAILABLE)?.({ data: { title: 'other' } });
+		handlers.get(LibraryEvent.ITEM_AVAILABLE)?.({ data: { title: 't1' } });
 
-		expect(api).toHaveBeenCalledTimes(1);
+		expect(api).toHaveBeenCalledTimes(2);
 		stop();
+	});
+
+	it('lists the files Jellyfin is overdue on', async () => {
+		const file = (id: string, jellyfinOverdue: boolean) =>
+			({ id, jellyfinOverdue }) as MediaFileResponse;
+		const files = new TitleFiles(
+			't1',
+			vi.fn(async () => [file('late', true), file('fine', false)])
+		);
+
+		await files.load();
+
+		expect(files.overdue.map((f) => f.id)).toEqual(['late']);
 	});
 });

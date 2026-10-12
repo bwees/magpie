@@ -1,10 +1,16 @@
-import type { SchedulesRequest, SchedulesResponse } from '$lib/sdk';
+import type {
+	LibrarySchedulesRequest,
+	LibrarySchedulesResponse,
+	SchedulesRequest,
+	SchedulesResponse
+} from '$lib/sdk';
 
 /** Ranges from 12-settings › Schedules; the server checks the same ones. */
 export const LIMITS = {
 	RSS_MINUTES: { MIN: 10, MAX: 120 },
 	MISSING_SWEEP_DAYS: { MIN: 1, MAX: 7 },
-	CUTOFF_SWEEP_DAYS: { MIN: 1, MAX: 30 }
+	CUTOFF_SWEEP_DAYS: { MIN: 1, MAX: 30 },
+	JELLYFIN_RECONCILE_HOURS: { MIN: 6, MAX: 168 }
 } as const;
 
 /** A number input's value: Svelte binds an empty number input to null. */
@@ -14,13 +20,18 @@ export interface SchedulesDraft {
 	rssIntervalMinutes: NumberField;
 	missingSweepDays: NumberField;
 	cutoffSweepDays: NumberField;
+	jellyfinReconcileHours: NumberField;
 }
 
-export function schedulesDraft(saved: SchedulesResponse): SchedulesDraft {
+export function schedulesDraft(
+	saved: SchedulesResponse,
+	library: LibrarySchedulesResponse
+): SchedulesDraft {
 	return {
 		rssIntervalMinutes: saved.rssIntervalMinutes,
 		missingSweepDays: saved.missingSweepDays,
-		cutoffSweepDays: saved.cutoffSweepDays
+		cutoffSweepDays: saved.cutoffSweepDays,
+		jellyfinReconcileHours: library.jellyfinReconcileHours
 	};
 }
 
@@ -38,6 +49,9 @@ export function schedulesError(draft: SchedulesDraft): string | undefined {
 	if (outside(draft.cutoffSweepDays, LIMITS.CUTOFF_SWEEP_DAYS)) {
 		return `The cutoff-unmet sweep must run every ${LIMITS.CUTOFF_SWEEP_DAYS.MIN}–${LIMITS.CUTOFF_SWEEP_DAYS.MAX} days`;
 	}
+	if (outside(draft.jellyfinReconcileHours, LIMITS.JELLYFIN_RECONCILE_HOURS)) {
+		return `The Jellyfin reconcile must run every ${LIMITS.JELLYFIN_RECONCILE_HOURS.MIN}–${LIMITS.JELLYFIN_RECONCILE_HOURS.MAX} hours`;
+	}
 	return undefined;
 }
 
@@ -47,5 +61,12 @@ export function schedulesRequest(draft: SchedulesDraft): SchedulesRequest {
 		rssIntervalMinutes: draft.rssIntervalMinutes ?? LIMITS.RSS_MINUTES.MIN,
 		missingSweepDays: draft.missingSweepDays ?? LIMITS.MISSING_SWEEP_DAYS.MIN,
 		cutoffSweepDays: draft.cutoffSweepDays ?? LIMITS.CUTOFF_SWEEP_DAYS.MIN
+	};
+}
+
+/** Only call with a draft that has no error. */
+export function librarySchedulesRequest(draft: SchedulesDraft): LibrarySchedulesRequest {
+	return {
+		jellyfinReconcileHours: draft.jellyfinReconcileHours ?? LIMITS.JELLYFIN_RECONCILE_HOURS.MIN
 	};
 }
