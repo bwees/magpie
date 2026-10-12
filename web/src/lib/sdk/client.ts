@@ -488,6 +488,30 @@ export type WantedLanguagesResponse = {
 export type UpdateWantedLanguagesRequest = {
     languages: WantedLanguageEntry[];
 };
+export type ScanCandidateResponse = {
+    kind: string;
+    name: string;
+    overview: string;
+    posterUrl: string | null;
+    score: number;
+    tmdbId: number;
+    year: number;
+};
+export type ScanReviewResponse = {
+    candidates: ScanCandidateResponse[];
+    createdAt: string;
+    folderPath: string;
+    id: string;
+    kind: string;
+    parsedTitle: string;
+    parsedYear: number | null;
+    state: string;
+    titleId: string | null;
+    tmdbHint: number | null;
+};
+export type MatchScanReviewRequest = {
+    tmdbId: number;
+};
 export type CatalogSettingsResponse = {
     language: string;
     releaseRegion: string;
@@ -698,6 +722,7 @@ export type MediaFileResponse = {
     path: string;
     quality: Quality;
     releaseName: string;
+    renameProblem?: string;
     rootFolder: string;
     size: number;
     title: string;
@@ -750,6 +775,20 @@ export type ManualImportRequest = {
 export type AddRootFolderRequest = {
     kind: string;
     path: string;
+};
+export type LibraryScanResponse = {
+    error: string;
+    finishedAt: string | null;
+    found: number;
+    ignored: number;
+    linked: number;
+    renameMatched: boolean;
+    reported: number;
+    running: boolean;
+    startedAt: string | null;
+};
+export type ScanOptionsRequest = {
+    renameMatched: boolean;
 };
 export type LibrarySchedulesResponse = {
     jellyfinReconcileHours: number;
@@ -2721,6 +2760,75 @@ export function updateWantedLanguages(updateWantedLanguagesRequest: UpdateWanted
     })));
 }
 /**
+ * Library folders a scan couldn't match with certainty, oldest first (admin)
+ */
+export function listScanReview({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ScanReviewResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/catalog/scan-review", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Leave a folder out of the library; later scans don't ask again (admin)
+ */
+export function ignoreScanReview(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ScanReviewResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/scan-review/${encodeURIComponent(id)}/ignore`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Match a folder to a TMDB title; creates the title if it's new (admin)
+ */
+export function matchScanReview(id: string, matchScanReviewRequest: MatchScanReviewRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ScanReviewResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/catalog/scan-review/${encodeURIComponent(id)}/match`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: matchScanReviewRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
  * Get the metadata language and release region
  */
 export function getCatalogSettings({ accept }: {
@@ -3645,6 +3753,75 @@ export function removeRootFolder(id: string, { accept }: {
             Accept: accept
         })
     }));
+}
+/**
+ * The last library scan and the folders scans have found (admin)
+ */
+export function getLibraryScan({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: LibraryScanResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/library/scan", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Scan the root folders for folders Magpie doesn't know yet; nothing happens while one runs (admin)
+ */
+export function startLibraryScan({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: LibraryScanResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/library/scan", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Choose whether matched folders are renamed to the fixed naming (admin)
+ */
+export function setLibraryScanOptions(scanOptionsRequest: ScanOptionsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: LibraryScanResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/library/scan/options", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: scanOptionsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
 }
 /**
  * How often the Jellyfin full reconcile runs (admin)
