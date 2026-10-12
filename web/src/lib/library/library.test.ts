@@ -8,7 +8,6 @@ import {
 	LibraryEvent,
 	MediaKind,
 	StreamKind,
-	subtitleTracks,
 	videoSummary
 } from './library';
 import { ImportsManager, type ImportsApi, type ImportsLive } from './imports-manager.svelte';
@@ -92,10 +91,9 @@ describe('track summaries', () => {
 		}
 	} as unknown as MediaFileResponse;
 
-	it('describes video, audio and subtitle tracks', () => {
+	it('describes video and audio tracks', () => {
 		expect(videoSummary(file)).toBe('HEVC 2160p · 10-bit · HDR10');
 		expect(audioTracks(file)).toEqual(['DE · EAC3 5.1']);
-		expect(subtitleTracks(file)).toEqual(['EN · SUBRIP · forced']);
 		expect(formatDuration(file.mediaInfo.durationSeconds)).toBe('2h 35m');
 	});
 

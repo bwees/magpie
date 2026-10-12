@@ -9,13 +9,8 @@
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { LoadStatus } from '$lib/load-status';
 	import { formatSize } from '$lib/search/format';
-	import {
-		audioTracks,
-		episodeLabel,
-		formatDuration,
-		subtitleTracks,
-		videoSummary
-	} from './library';
+	import FileSubtitles from '$lib/subtitles/FileSubtitles.svelte';
+	import { audioTracks, episodeLabel, formatDuration, videoSummary } from './library';
 	import { TitleFiles } from './title-files.svelte';
 
 	let { titleId }: { titleId: string } = $props();
@@ -112,12 +107,12 @@
 						>
 					{/if}
 				</Card.Header>
-				<Card.Content class="px-4">
-					<dl class="grid gap-3 sm:grid-cols-3">
+				<Card.Content class="grid gap-4 px-4">
+					<dl class="grid gap-3 sm:grid-cols-2">
 						{@render trackList('Video', [videoSummary(file)])}
 						{@render trackList('Audio', audioTracks(file))}
-						{@render trackList('Subtitles', subtitleTracks(file))}
 					</dl>
+					<FileSubtitles fileId={file.id} />
 				</Card.Content>
 			</Card.Root>
 		{/each}

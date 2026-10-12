@@ -165,22 +165,6 @@ function channelLayout(channels: number): string {
 		: `${channels}.0`;
 }
 
-/** One line per subtitle track: "EN · SUBRIP · forced". */
-export function subtitleTracks(file: MediaFileResponse): string[] {
-	return file.mediaInfo.streams
-		.filter((s) => s.kind === StreamKind.SUBTITLE)
-		.map((s) => {
-			const parts = [languageOf(s), s.codec.toUpperCase()];
-			if (s.forced) {
-				parts.push('forced');
-			}
-			if (s.image) {
-				parts.push('image');
-			}
-			return parts.join(' · ');
-		});
-}
-
 /** The videos of an import, which the mapping picker lists. */
 export function importVideos(imp: ImportResponse) {
 	return imp.files.filter((f) => f.kind === FileKind.VIDEO);
