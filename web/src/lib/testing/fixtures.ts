@@ -1,6 +1,7 @@
 import type {
 	AttentionItemResponse,
 	DiscoverDetailResponse,
+	IssueResponse,
 	MediaFileResponse,
 	PipelineRowResponse,
 	RequestResponse,
@@ -129,6 +130,26 @@ export function request(overrides: Partial<RequestResponse> = {}): RequestRespon
 		decidedBy: null,
 		declineReason: '',
 		failureReason: '',
+		...overrides
+	};
+}
+
+export function issue(overrides: Partial<IssueResponse> = {}): IssueResponse {
+	return {
+		id: 'I1',
+		reporter: { id: 'U1', displayName: 'Ana' },
+		titleId: 'T1',
+		titleName: 'Severance',
+		episodeId: 'E1',
+		episode: { id: 'E1', season: 1, number: 2, name: 'Half Loop' },
+		kind: 'AUDIO',
+		text: 'The audio drifts',
+		status: 'OPEN',
+		action: '',
+		comments: 0,
+		createdAt: AT,
+		resolvedAt: null,
+		resolvedBy: '',
 		...overrides
 	};
 }

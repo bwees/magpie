@@ -5,7 +5,10 @@
 	import StageBar from '$lib/activity/StageBar.svelte';
 	import type { TitlePipeline } from '$lib/activity/title-pipeline.svelte';
 	import RequestedBy from '$lib/requests/RequestedBy.svelte';
+	import Flag from '@lucide/svelte/icons/flag';
 	import Search from '@lucide/svelte/icons/search';
+	import ReportIssueDialog from '$lib/requests/ReportIssueDialog.svelte';
+	import { ReportIssue } from '$lib/requests/report-issue.svelte';
 	import InteractiveSearchDialog from '$lib/search/InteractiveSearchDialog.svelte';
 	import { AutomaticSearch } from '$lib/search/automatic-search.svelte';
 	import { getSession } from '$lib/session/session.svelte';
@@ -39,6 +42,7 @@
 	const automatic = new AutomaticSearch();
 	const target = $derived({ titleId: title.id, label: title.name });
 	let searching = $state(false);
+	const report = $derived(new ReportIssue(title.id));
 </script>
 
 <section class="overflow-hidden rounded-xl border bg-card" style:background-image={background}>
@@ -73,22 +77,33 @@
 				{/if}
 			</div>
 		</div>
-		{#if session.isAdmin}
+		{#if session.isAdmin || session.canReportIssues}
 			<div class="grid grid-cols-2 gap-2 lg:flex lg:shrink-0">
-				<Button
-					variant="secondary"
-					disabled={automatic.isStarting(target)}
-					onclick={() => automatic.search(target)}
-				>
-					<Search />Search
-				</Button>
-				<Button
-					variant="outline"
-					class="border-white/30 bg-transparent text-white hover:bg-white/10"
-					onclick={() => (searching = true)}
-				>
-					Interactive search
-				</Button>
+				{#if session.isAdmin}
+					<Button
+						variant="secondary"
+						disabled={automatic.isStarting(target)}
+						onclick={() => automatic.search(target)}
+					>
+						<Search />Search
+					</Button>
+					<Button
+						variant="outline"
+						class="border-white/30 bg-transparent text-white hover:bg-white/10"
+						onclick={() => (searching = true)}
+					>
+						Interactive search
+					</Button>
+				{/if}
+				{#if session.canReportIssues}
+					<Button
+						variant="outline"
+						class="col-span-2 border-white/30 bg-transparent text-white hover:bg-white/10"
+						onclick={() => report.start()}
+					>
+						<Flag />Report issue
+					</Button>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -96,6 +111,10 @@
 		<StageBar {pipeline} class="text-white" />
 	</div>
 </section>
+
+{#if session.canReportIssues}
+	<ReportIssueDialog {report} titleName={title.name} seasons={title.seasons} />
+{/if}
 
 {#if session.isAdmin}
 	<InteractiveSearchDialog bind:open={searching} titleId={title.id} titleName={title.name} />

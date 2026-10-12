@@ -30,6 +30,7 @@ interface ProblemBody {
 	type?: string;
 	detail?: string;
 	title?: string;
+	instance?: string;
 }
 
 function problemOf(error: unknown): ProblemBody | undefined {
@@ -50,4 +51,9 @@ export function apiErrorStatus(error: unknown): number | undefined {
 
 export function apiProblemType(error: unknown): string | undefined {
 	return problemOf(error)?.type;
+}
+
+/** The problem's `instance`: the API path of the thing it is about, when the server names one. */
+export function apiProblemInstance(error: unknown): string | undefined {
+	return problemOf(error)?.instance;
 }

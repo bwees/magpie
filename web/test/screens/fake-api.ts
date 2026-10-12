@@ -82,6 +82,11 @@ const ENDPOINTS: Endpoint[] = [
 		}
 	},
 	{ path: /^\/api\/library\/imports$/, respond: () => [] },
+	{ path: /^\/api\/requests\/issues$/, respond: (url) => data.issueList(url.searchParams) },
+	{
+		path: /^\/api\/requests\/issues\/([^/]+)$/,
+		respond: (_, match) => data.issueThread(match[1])
+	},
 	{ path: /^\/api\/requests$/, respond: (url) => data.requestList(url.searchParams) },
 	{ path: /^\/api\/requests\/([^/]+)$/, respond: (_, match) => data.requestById(match[1]) },
 	{ path: /^\/api\/catalog\/discover$/, respond: () => data.TRENDING },

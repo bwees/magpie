@@ -57,6 +57,15 @@ export enum RequestProblem {
 	ALREADY_MONITORED = 'urn:magpie:problem:already-monitored'
 }
 
+/** The tabs of the Requests page. */
+export enum RequestsTab {
+	REQUESTS = 'requests',
+	ISSUES = 'issues'
+}
+
+/** The query parameter that picks the Requests page's tab. */
+export const REQUESTS_TAB_QUERY = 'tab';
+
 /** The status chips on the Requests page. */
 export enum StatusFilter {
 	PENDING = 'PENDING',

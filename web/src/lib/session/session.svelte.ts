@@ -103,6 +103,11 @@ export class SessionState {
 		return this.user?.role === Role.ADMIN;
 	}
 
+	/** Admins always may; requesters need the "report issues" toggle. */
+	get canReportIssues(): boolean {
+		return this.isAdmin || (this.user?.permissions.reportIssues ?? false);
+	}
+
 	redirectFor(pathname: string): string | undefined {
 		return redirectFor(this.status, pathname, this.wizardActive, this.isAdmin);
 	}

@@ -4,28 +4,22 @@
 	import * as Alert from '$lib/components/ui/alert';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { getLive } from '$lib/live/live-client.svelte';
 	import { LoadStatus } from '$lib/load-status';
 	import { ProfileOptions } from '$lib/settings/quality/profile-options.svelte';
 	import { cn } from '$lib/utils';
 	import DecisionDialogs from './DecisionDialogs.svelte';
 	import RequestRow from './RequestRow.svelte';
 	import { FILTER_LABELS, STATUS_FILTERS } from './requests';
-	import { RequestsPage, type Viewer } from './requests-page.svelte';
+	import type { RequestsPage } from './requests-page.svelte';
 
-	let { viewer }: { viewer: Viewer } = $props();
+	let { page }: { page: RequestsPage } = $props();
 
 	const SKELETON_ROWS = ['first', 'second', 'third', 'fourth'];
 
-	// svelte-ignore state_referenced_locally
-	const page = new RequestsPage(viewer);
 	const profiles = new ProfileOptions();
-	const live = getLive();
 
 	onMount(() => {
-		void page.load();
 		void profiles.load();
-		return page.watch(live);
 	});
 </script>
 

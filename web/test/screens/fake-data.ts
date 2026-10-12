@@ -12,6 +12,9 @@ import type {
 	IndexerListResponse,
 	IndexerOptionsResponse,
 	IndexerResponse,
+	IssueListResponse,
+	IssueResponse,
+	IssueThreadResponse,
 	JobListResponse,
 	JobResponse,
 	MeResponse,
@@ -103,6 +106,8 @@ const REQUESTERS = [
 	{ id: 'U2', displayName: 'Maya Lin' },
 	{ id: 'U3', displayName: 'Theo Grant' }
 ];
+
+const ME_AUTHOR = { id: ME.id, displayName: ME.displayName };
 
 /** A poster colour per title, so the generated posters look different. */
 export const POSTER_COLOURS: Record<string, string> = {
@@ -350,6 +355,15 @@ export const ATTENTION: AttentionItemResponse[] = [
 		openedAt: ago(3 * HOUR_MS)
 	},
 	{
+		id: 'A4',
+		kind: AttentionKind.ISSUE_OPEN,
+		action: AttentionAction.REGRAB,
+		ref: 'I1',
+		text: 'Audio issue reported',
+		titleId: 'S1',
+		openedAt: ago(2 * HOUR_MS)
+	},
+	{
 		id: 'A3',
 		kind: AttentionKind.AGENT_OFFLINE,
 		action: AttentionAction.VIEW_AGENT,
@@ -410,6 +424,66 @@ export const TITLE_REQUEST = request({
 	status: RequestStatus.APPROVED,
 	createdAt: ago(DAY_MS)
 });
+
+export const ISSUES: IssueResponse[] = [
+	{
+		id: 'I1',
+		reporter: REQUESTERS[1],
+		titleId: SERIES_ID,
+		titleName: 'Severance',
+		episodeId: 'E102',
+		episode: { id: 'E102', season: 1, number: 2, name: 'Half Loop' },
+		kind: 'AUDIO',
+		text: 'The audio drifts out of sync about twenty minutes in.',
+		status: 'OPEN',
+		action: '',
+		comments: 2,
+		createdAt: ago(2 * HOUR_MS),
+		resolvedAt: null,
+		resolvedBy: ''
+	},
+	{
+		id: 'I2',
+		reporter: REQUESTERS[0],
+		titleId: MOVIE_ID,
+		titleName: 'Dune: Part Two',
+		episodeId: null,
+		kind: 'SUBTITLE',
+		text: 'The English subtitles are for a different cut.',
+		status: 'ACTION_PENDING',
+		action: 'RERUN_SUBTITLES',
+		comments: 0,
+		createdAt: ago(DAY_MS),
+		resolvedAt: null,
+		resolvedBy: ''
+	}
+];
+
+export function issueList(params: URLSearchParams): IssueListResponse {
+	const statuses = params.getAll('status');
+	const items = ISSUES.filter((issue) => statuses.length === 0 || statuses.includes(issue.status));
+	return { items: params.get('count') === 'true' ? [] : items, total: items.length };
+}
+
+export function issueThread(id: string): IssueThreadResponse | undefined {
+	const issue = ISSUES.find((candidate) => candidate.id === id);
+	if (!issue) return undefined;
+	const comments = [
+		{
+			id: 'C1',
+			author: ME_AUTHOR,
+			body: 'Which player are you watching on?',
+			createdAt: ago(HOUR_MS)
+		},
+		{
+			id: 'C2',
+			author: issue.reporter,
+			body: 'The living room TV.',
+			createdAt: ago(30 * MINUTE_MS)
+		}
+	];
+	return { issue, comments: comments.slice(0, issue.comments) };
+}
 
 const REQUEST_COUNTS = [
 	{ status: RequestStatus.PENDING, count: REQUESTS.length },

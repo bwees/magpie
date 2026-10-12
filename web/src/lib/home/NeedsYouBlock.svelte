@@ -6,6 +6,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { isFailure } from '$lib/activity/attention';
+	import RegrabWarningDialog from '$lib/requests/RegrabWarningDialog.svelte';
 	import type { NeedsYou } from './needs-you.svelte';
 
 	let { needsYou }: { needsYou: NeedsYou } = $props();
@@ -63,3 +64,5 @@
 		</ul>
 	</BlockState>
 </section>
+
+<RegrabWarningDialog fix={needsYou.fix} />

@@ -15,6 +15,9 @@ import type { TitleDirectory } from '$lib/catalog/title-directory.svelte';
 import { titlePath } from '$lib/catalog/images';
 import { Route } from '$lib/navigation/nav';
 import { AutomaticSearch } from '$lib/search/automatic-search.svelte';
+import { IssueFix } from '$lib/requests/issue-fix.svelte';
+import { SDK_ISSUES_API, type IssuesApi } from '$lib/requests/issues-api';
+import { ACTION_LABELS, IssueAction } from '$lib/requests/issues';
 import { SettingsSection, settingsPath } from '$lib/settings/sections';
 
 /** Where each attention action goes. The SDK in the app, a fake in tests. */
@@ -48,7 +51,7 @@ export interface AttentionButton {
 
 /**
  * "Needs you" on Home: each open attention item with what it is about and one action that calls the
- * item's owner. Issue re-grab and transcode retry open the title until their owners' endpoints exist.
+ * item's owner. Transcode retry opens the title until Transcode's endpoint exists.
  */
 export class NeedsYou {
 	readonly list: AttentionList;
@@ -57,17 +60,21 @@ export class NeedsYou {
 	readonly busy = new SvelteSet<string>();
 	/** Pending requests' movie or series names, by request ID. */
 	readonly requestNames = new SvelteMap<string, string>();
+	/** An issue's re-grab, with the warning for a download still waiting for mapping. */
+	readonly fix: IssueFix;
 
 	readonly #api: NeedsYouApi;
 
 	constructor(
 		list: AttentionList,
 		directory: TitleDirectory,
-		api: NeedsYouApi = SDK_NEEDS_YOU_API
+		api: NeedsYouApi = SDK_NEEDS_YOU_API,
+		issues: IssuesApi = SDK_ISSUES_API
 	) {
 		this.list = list;
 		this.directory = directory;
 		this.#api = api;
+		this.fix = new IssueFix(() => this.list.block.refresh(), issues);
 	}
 
 	get items(): AttentionItemResponse[] {
@@ -119,12 +126,27 @@ export class NeedsYou {
 							this.#api.searchAgain(item.titleId ?? item.ref, this.subject(item))
 						)
 				};
+			case AttentionAction.REGRAB:
+				return {
+					label: ACTION_LABELS[IssueAction.REGRAB],
+					primary: false,
+					run: () => this.#regrab(item)
+				};
 			case AttentionAction.VIEW_AGENT:
 				return { label: 'View agent', primary: false, href: AGENTS_PATH };
 			case AttentionAction.OPEN_SETTINGS:
 				return { label: 'Open', primary: false, href: CONNECTIONS_PATH };
 			default:
 				return { label: 'Open', primary: false, href: titleLink ?? Route.HOME };
+		}
+	}
+
+	async #regrab(item: AttentionItemResponse): Promise<void> {
+		this.busy.add(item.id);
+		try {
+			await this.fix.run(item.ref, this.subject(item), IssueAction.REGRAB);
+		} finally {
+			this.busy.delete(item.id);
 		}
 	}
 

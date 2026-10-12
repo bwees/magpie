@@ -12,7 +12,9 @@ import { coalesce } from '$lib/live/coalesce';
 import { FakeLive, settle } from '$lib/live/fake-live';
 import type { RequestsApi } from '$lib/requests/requests-api';
 import { RequestEvent, RequestStatus } from '$lib/requests/requests';
-import { attentionItem, media, pipelineRow, request, title } from '$lib/testing/fixtures';
+import { attentionItem, issue, media, pipelineRow, request, title } from '$lib/testing/fixtures';
+import type { IssuesApi } from '$lib/requests/issues-api';
+import { IssueAction, IssueProblem } from '$lib/requests/issues';
 import { MyRequests } from './my-requests.svelte';
 import { AGENTS_PATH, CONNECTIONS_PATH, NeedsYou, type NeedsYouApi } from './needs-you.svelte';
 import { RecentlyActive } from './recently-active.svelte';
@@ -30,6 +32,24 @@ function feeds(overrides: Partial<ActivityFeeds> = {}): ActivityFeeds {
 		active: vi.fn(async () => []),
 		recent: vi.fn(async () => []),
 		stages: vi.fn(async () => []),
+		...overrides
+	};
+}
+
+function issuesApi(overrides: Partial<IssuesApi> = {}): IssuesApi {
+	return {
+		list: vi.fn(async () => ({ items: [], total: 0 })),
+		thread: vi.fn(async () => ({ issue: issue(), comments: [] })),
+		report: vi.fn(async () => issue()),
+		comment: vi.fn(async () => ({
+			id: 'C1',
+			author: { id: 'U1', displayName: 'Ana' },
+			body: '',
+			createdAt: ''
+		})),
+		act: vi.fn(async () => issue()),
+		resolve: vi.fn(async () => issue()),
+		removeWaitingImport: vi.fn(async () => undefined),
 		...overrides
 	};
 }
@@ -181,7 +201,59 @@ describe('Needs you', () => {
 		expect(block.button(attentionItem({ action: AttentionAction.OPEN_TITLE })).href).toBe(
 			'/titles/T1'
 		);
-		expect(block.button(attentionItem({ action: AttentionAction.REGRAB })).href).toBe('/titles/T1');
+	});
+
+	it("re-grabs an issue's file through Requests and refetches the list", async () => {
+		const item = attentionItem({
+			kind: AttentionKind.ISSUE_OPEN,
+			ref: 'I1',
+			action: AttentionAction.REGRAB
+		});
+		const act = vi.fn(async () => issue());
+		const { list, attention } = needsYou([item]);
+		const block = new NeedsYou(
+			list,
+			new TitleDirectory(async () => []),
+			undefined,
+			issuesApi({ act })
+		);
+		await list.load();
+
+		const button = block.button(item);
+		expect(button.label).toBe('Blocklist & re-grab');
+		await button.run?.();
+
+		expect(act).toHaveBeenCalledWith('I1', IssueAction.REGRAB);
+		expect(attention).toHaveBeenCalledTimes(2);
+		expect(block.busy.size).toBe(0);
+	});
+
+	it('holds a re-grab back while a download waits for mapping', async () => {
+		const item = attentionItem({
+			kind: AttentionKind.ISSUE_OPEN,
+			ref: 'I1',
+			action: AttentionAction.REGRAB
+		});
+		const waiting = Object.assign(new Error('conflict'), {
+			status: 409,
+			data: {
+				type: IssueProblem.IMPORT_WAITING,
+				detail: 'X is waiting',
+				instance: '/api/library/imports/D1'
+			}
+		});
+		const { list } = needsYou([item]);
+		const block = new NeedsYou(
+			list,
+			new TitleDirectory(async () => []),
+			undefined,
+			issuesApi({ act: vi.fn(async () => Promise.reject(waiting)) })
+		);
+		await list.load();
+
+		await block.button(item).run?.();
+
+		expect(block.fix.held?.download.downloadId).toBe('D1');
 	});
 });
 

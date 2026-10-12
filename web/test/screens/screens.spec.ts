@@ -51,6 +51,8 @@ const SCREENS: Screen[] = [
 	{ name: 'movies', path: '/movies' },
 	{ name: 'tv', path: '/tv' },
 	{ name: 'requests', path: '/requests' },
+	{ name: 'requests-issues', path: '/requests?tab=issues' },
+	{ name: 'issue-thread', path: '/requests?issue=I1', viewportOnly: true },
 	{ name: 'activity-downloads', path: '/activity' },
 	{
 		name: 'activity-agents',

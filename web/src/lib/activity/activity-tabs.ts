@@ -9,6 +9,9 @@ export enum ActivityTab {
 
 export const ACTIVITY_TABS: ActivityTab[] = Object.values(ActivityTab);
 
+/** The query parameter that opens Activity on a tab, e.g. ?tab=imports. */
+export const ACTIVITY_TAB_QUERY = 'tab';
+
 export const TAB_LABELS: Record<ActivityTab, string> = {
 	[ActivityTab.DOWNLOADS]: 'Downloads',
 	[ActivityTab.IMPORTS]: 'Imports',

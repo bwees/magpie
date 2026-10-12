@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -9,11 +10,17 @@
 	import { ImportsManager } from '$lib/library/imports-manager.svelte';
 	import AgentsTab from '$lib/transcode/AgentsTab.svelte';
 	import GpuJobsTab from '$lib/transcode/GpuJobsTab.svelte';
-	import { ACTIVITY_TABS, ActivityTab, TAB_LABELS } from '$lib/activity/activity-tabs';
+	import {
+		ACTIVITY_TABS,
+		ACTIVITY_TAB_QUERY,
+		ActivityTab,
+		TAB_LABELS
+	} from '$lib/activity/activity-tabs';
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { NAV_ITEMS } from '$lib/navigation/nav';
 
-	let tab = $state(ActivityTab.DOWNLOADS);
+	const linked = page.url.searchParams.get(ACTIVITY_TAB_QUERY) as ActivityTab | null;
+	let tab = $state(linked && ACTIVITY_TABS.includes(linked) ? linked : ActivityTab.DOWNLOADS);
 
 	const imports = new ImportsManager();
 	const live = getLive();
