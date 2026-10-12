@@ -17,6 +17,7 @@ var qualityOptions = fx.Options(
 		fx.Annotate(NewReader, fx.As(new(api.Reader))),
 		NewQualityService,
 		NewTrashSyncService,
+		fx.Annotate(NewImporter, fx.As(new(api.Importer))),
 		httpserver.AsController(NewQualityController),
 		jobs.AsQueue(newTrashSyncQueue),
 		jobs.AsPeriodic(newTrashSyncPeriodic),
