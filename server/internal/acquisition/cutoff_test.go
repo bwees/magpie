@@ -142,6 +142,47 @@ func TestAFileBelowUpgradeUntilDoesNotMeetTheCutoff(t *testing.T) {
 	}
 }
 
+func (f searchFixture) sweptTitles(t *testing.T) []domain.TitleID {
+	t.Helper()
+	if err := f.searches.SweepCutoffUnmet(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var titles []domain.TitleID
+	for _, later := range f.jobs.laterTasks() {
+		if req, ok := acquisition.SearchTaskOf(later.task); ok {
+			titles = append(titles, req.Title)
+		}
+	}
+	return titles
+}
+
+// Seeds acquisition #15 and #29.
+func TestFilesBelowTheCutoffAreSweptWhateverTheirOrigin(t *testing.T) {
+	for _, origin := range []domain.Origin{domain.OriginDownload, domain.OriginLibraryScan, domain.OriginMigration} {
+		t.Run(string(origin), func(t *testing.T) {
+			f := newSearchFixture(t)
+			f.useScoredProfile(t, cutoffAt2160p)
+			f.deliverScores(t, f.fileImported(low2160p, parse.QualityWEBDL2160p, origin))
+
+			if swept := f.sweptTitles(t); !slices.Equal(swept, []domain.TitleID{f.title.ID}) {
+				t.Errorf("swept %v, want the title", swept)
+			}
+		})
+	}
+	t.Run("met or transcoded", func(t *testing.T) {
+		f := newSearchFixture(t)
+		f.useScoredProfile(t, cutoffAt2160p)
+		f.deliverScores(t, f.fileImported(high2160p, parse.QualityWEBDL2160p, domain.OriginDownload))
+		transcoded := f.fileImported(low2160p, parse.QualityWEBDL2160p, domain.OriginDownload)
+		f.deliverScores(t, transcoded)
+		f.deliverScores(t, libraryapi.FileTranscoded{MediaFile: transcoded.MediaFile, Path: transcoded.Path})
+
+		if swept := f.sweptTitles(t); len(swept) != 0 {
+			t.Errorf("swept %v, want nothing", swept)
+		}
+	})
+}
+
 // Seed acquisition #14.
 func TestARedeliveredFileImportedPublishesCutoffMetOnce(t *testing.T) {
 	f := newSearchFixture(t)

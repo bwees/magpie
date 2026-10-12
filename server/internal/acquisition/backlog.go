@@ -37,26 +37,21 @@ func (s *SearchService) SweepMissing(ctx context.Context) error {
 }
 
 // SweepCutoffUnmet queues an AUTO search for every wanted item whose file is below its profile's cutoff and
-// may still be upgraded.
+// may still be upgraded, whether it was downloaded, scanned or migrated.
 func (s *SearchService) SweepCutoffUnmet(ctx context.Context) error {
 	return s.sweep(ctx, func(ctx context.Context, w wantedTitle) ([]catalogapi.Episode, bool, error) {
-		profile, err := s.profileFor(ctx, w.title)
-		if err != nil || !profile.Profile().UpgradeAllowed {
+		below, err := upgradableFileScores(s.deps.DB.Read(ctx), w.title.ID)
+		if err != nil {
 			return nil, false, err
 		}
 		unmet := map[domain.EpisodeID]bool{}
-		movie := false
-		for _, f := range scoreFiles(w.files, w.title, profile) {
-			if f.Eval.CutoffMet || f.File.Transcoded {
-				continue
-			}
-			movie = true
-			for _, ref := range f.File.Episodes {
-				unmet[ref.Episode] = true
+		for _, f := range below {
+			for _, ep := range f.Episodes {
+				unmet[ep] = true
 			}
 		}
-		below := slices.DeleteFunc(slices.Clone(w.episodes), func(ep catalogapi.Episode) bool { return !unmet[ep.ID] })
-		return below, movie, nil
+		episodes := slices.DeleteFunc(slices.Clone(w.episodes), func(ep catalogapi.Episode) bool { return !unmet[ep.ID] })
+		return episodes, len(below) > 0, nil
 	})
 }
 

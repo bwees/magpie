@@ -137,6 +137,13 @@ func scoredTitles(conn *gorm.DB, profile domain.ProfileID) ([]domain.TitleID, er
 	return titles, query.Pluck("title_id", &titles).Error
 }
 
+// upgradableFileScores are a title's files below the cutoff that may still be upgraded: not transcoded, and
+// under a profile that allows upgrades.
+func upgradableFileScores(conn *gorm.DB, title domain.TitleID) ([]FileScore, error) {
+	return fileScoresWhere(conn, "title_id = ? AND cutoff_met = ? AND transcoded = ? AND profile_id IN (?)",
+		title, false, false, conn.Model(&profileRow{}).Select("id").Where("upgrade_allowed = ?", true))
+}
+
 // cutoffStatus is what the title page shows for a file. Upgrades stop once it is transcoded or when its
 // profile doesn't allow them.
 func cutoffStatus(conn *gorm.DB, f FileScore) (api.CutoffStatus, error) {

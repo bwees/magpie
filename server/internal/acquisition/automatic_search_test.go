@@ -629,11 +629,17 @@ func TestTitleRemovedCancelsSearchesDropsPendingAndRemovesDownloads(t *testing.T
 
 func TestBacklogSweepsQueueMissingAndCutoffUnmetItemsTwoSecondsPerQuery(t *testing.T) {
 	s := newSeriesFixture(t)
-	s.library.Put(librarytest.StoredFile{File: libraryapi.MediaFile{
+	file := libraryapi.MediaFile{
 		ID: domain.NewID[domain.MediaFileID](), Title: s.title.ID, Path: "/tv/Severance/S01E01.mkv",
 		Episodes:    []domain.EpisodeRef{{Episode: s.episodes[0].ID, Season: 1, Number: 1}},
 		ReleaseName: "Severance.S01E01.720p.WEB-DL.DDP5.1.H.264-GRP", Quality: profileQuality(parse.QualityWEBDL720p),
-	}})
+		Origin: domain.OriginDownload,
+	}
+	s.library.Put(librarytest.StoredFile{File: file})
+	s.deliverScores(t, libraryapi.FileImported{
+		MediaFile: file.ID, Title: file.Title, Episodes: file.Episodes, Path: file.Path, Quality: file.Quality,
+		ReleaseName: file.ReleaseName, Origin: file.Origin,
+	})
 
 	if err := s.searches.SweepMissing(context.Background()); err != nil {
 		t.Fatal(err)
