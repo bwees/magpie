@@ -256,3 +256,144 @@ func TestAFailedImportIsBlocklistedDeletedAndTheNextReleaseGrabbed(t *testing.T)
 		t.Errorf("%d deletions after a second ImportFailed, want 1", n)
 	}
 }
+
+func manualImport(id domain.DownloadID) libraryapi.ImportFailed {
+	return libraryapi.ImportFailed{Download: id, Reason: "Couldn't tell which episode Extras.mkv is", Manual: true}
+}
+
+func (f searchFixture) downloadView(t *testing.T, id domain.DownloadID) acquisition.DownloadView {
+	t.Helper()
+	views, err := f.downloads.Downloads(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range views {
+		if v.ID == id {
+			return v
+		}
+	}
+	t.Fatalf("download %s isn't in the Downloads tab", id)
+	return acquisition.DownloadView{}
+}
+
+// Seed acquisition #38.
+func TestAManualImportKeepsTheTorrentAndGrabsNothing(t *testing.T) {
+	f := newSearchFixture(t)
+	id := f.completedDownload(t, acceptedName, otherName)
+	hash := magnetHash(acceptedName)
+
+	f.deliverLibrary(t, manualImport(id))
+	f.deliverLibrary(t, manualImport(id))
+
+	if d := f.download(t, id); d.State != api.StateImportPendingUser || d.RemovedAt != nil {
+		t.Errorf("download = %+v, want IMPORT_PENDING_USER and still in qBittorrent", d)
+	}
+	if len(f.qbit.Deletions()) != 0 {
+		t.Errorf("deletions = %+v, want the torrent and its data kept", f.qbit.Deletions())
+	}
+	if entries := f.blocklist(t); len(entries) != 0 {
+		t.Errorf("blocklist = %+v, want nothing", entries)
+	}
+	if n := len(f.events.ofType(api.TypeReleaseRejected)); n != 0 {
+		t.Errorf("%d ReleaseRejected, want none", n)
+	}
+	if n := len(f.events.ofType(api.TypeReleaseGrabbed)); n != 1 {
+		t.Errorf("%d ReleaseGrabbed, want only the first grab", n)
+	}
+
+	f.qbit.Update(hash, func(tr *acquisition.Torrent) { tr.Ratio = globalRatio })
+	f.poll(t)
+	f.checkGoals(t)
+	if len(f.qbit.Deletions()) != 0 {
+		t.Errorf("deletions = %+v, want the seeding goal to leave a waiting download", f.qbit.Deletions())
+	}
+	if v := f.downloadView(t, id); v.Live == nil || v.Live.State != api.StateImportPendingUser {
+		t.Errorf("Downloads tab live = %+v, want IMPORT_PENDING_USER", v.Live)
+	}
+}
+
+// Seed acquisition #38, the queue part.
+func TestAManualImportCountsAsQueuedForItsItems(t *testing.T) {
+	f := newSearchFixture(t)
+	id := f.completedDownload(t, acceptedName)
+	f.deliverLibrary(t, manualImport(id))
+
+	f.start(t)
+	again := payload[api.SearchCompleted](t, f.events.waitFor(t, api.TypeSearchCompleted, 2)[1])
+	snapshot, err := f.searches.Search(again.Search)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range snapshot.Releases {
+		if !slices.ContainsFunc(r.Rejections, func(rej api.Rejection) bool { return rej.Reason == api.RejectAlreadyQueued }) {
+			t.Errorf("%s rejected for %+v, want ALREADY_QUEUED", r.Name, r.Rejections)
+		}
+	}
+}
+
+// Seed acquisition #39.
+func TestMappingAWaitingImportMarksItImportedAndAppliesTheSeedingMode(t *testing.T) {
+	f := newSearchFixture(t)
+	f.setSeeding(t, api.DontSeed)
+	id := f.completedDownload(t, acceptedName)
+	f.deliverLibrary(t, manualImport(id))
+
+	f.deliverLibrary(t, imported(id))
+
+	want := []fakes.Deletion{{Hash: magnetHash(acceptedName), DeleteFiles: false}}
+	if !slices.Equal(f.qbit.Deletions(), want) {
+		t.Errorf("deletions = %+v, want %+v", f.qbit.Deletions(), want)
+	}
+	if d := f.download(t, id); d.State != api.StateImported || d.RemovedAt == nil {
+		t.Errorf("download = %+v, want IMPORTED and removed", d)
+	}
+}
+
+// Seed acquisition #40.
+func TestRemovingAWaitingImportBlocklistsDeletesAndGrabsTheNext(t *testing.T) {
+	f := newSearchFixture(t)
+	id := f.completedDownload(t, acceptedName, otherName)
+	f.deliverLibrary(t, manualImport(id))
+	removed := libraryapi.ImportRemoved{Download: id, Title: f.title.ID, ReleaseName: acceptedName}
+
+	f.deliverLibrary(t, removed)
+
+	hash := magnetHash(acceptedName)
+	if !slices.Equal(f.qbit.Deletions(), []fakes.Deletion{{Hash: hash, DeleteFiles: true}}) {
+		t.Errorf("deletions = %+v, want the torrent with its data", f.qbit.Deletions())
+	}
+	if entry := f.assertBlocklisted(t, api.BlocklistImportFailed, nil); entry.InfoHash != hash {
+		t.Errorf("blocklist entry = %+v", entry)
+	}
+	next := payload[api.ReleaseGrabbed](t, f.events.waitFor(t, api.TypeReleaseGrabbed, 2)[1])
+	if next.Release != otherName {
+		t.Errorf("next grab = %+v, want %s", next, otherName)
+	}
+	f.assertRejected(t, api.RejectImportFailed, &next.Download)
+	if d := f.download(t, id); d.State != api.StateImportFailed || d.RemovedAt == nil {
+		t.Errorf("download = %+v, want IMPORT_FAILED and removed", d)
+	}
+
+	f.deliverLibrary(t, removed)
+	if n := len(f.qbit.Deletions()); n != 1 {
+		t.Errorf("%d deletions after a redelivered ImportRemoved, want 1", n)
+	}
+	if n := len(f.blocklist(t)); n != 1 {
+		t.Errorf("%d blocklist rows after a redelivered ImportRemoved, want 1", n)
+	}
+}
+
+func TestRemovingAnImportedDownloadLeavesItAlone(t *testing.T) {
+	f := newSearchFixture(t)
+	id := f.completedDownload(t, acceptedName, otherName)
+	f.deliverLibrary(t, imported(id))
+
+	f.deliverLibrary(t, libraryapi.ImportRemoved{Download: id, Title: f.title.ID, ReleaseName: acceptedName})
+
+	if len(f.qbit.Deletions()) != 0 {
+		t.Errorf("deletions = %+v, want the imported torrent kept", f.qbit.Deletions())
+	}
+	if d := f.download(t, id); d.State != api.StateImported || d.RemovedAt != nil {
+		t.Errorf("download = %+v, want IMPORTED", d)
+	}
+}

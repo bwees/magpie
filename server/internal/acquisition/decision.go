@@ -86,7 +86,7 @@ type activeGrab struct {
 }
 
 // queuedStates are downloads still on their way to the library.
-var queuedStates = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading, api.StateCompleted}
+var queuedStates = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading, api.StateCompleted, api.StateImportPendingUser}
 
 // grabsOf turns a title's downloads into the Queue (still in qBittorrent) and the History (grabbed within
 // RecentGrabWindow) the specs read, each scored against the search's profile. Failed downloads count for neither.

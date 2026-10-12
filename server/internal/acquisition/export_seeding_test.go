@@ -10,7 +10,7 @@ import (
 
 // LibraryHandlers are Acquisition's handlers of Library's import events.
 func LibraryHandlers(s *DownloadService) []bus.Handler {
-	return []bus.Handler{newFileImportedHandler(s), newImportFailedHandler(s)}
+	return []bus.Handler{newFileImportedHandler(s), newImportFailedHandler(s), newImportRemovedHandler(s)}
 }
 
 // IsImportJob reports whether a queued task is one of the jobs Library's import events queue.

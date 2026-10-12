@@ -333,7 +333,7 @@ func (s *DownloadService) newDownload(st *search, d decidedRelease, override boo
 }
 
 // droppable are the states a rejection can drop a download from.
-var droppable = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading, api.StateCompleted}
+var droppable = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading, api.StateCompleted, api.StateImportPendingUser}
 
 // commit stores a grab outcome and publishes its events. When nothing was grabbed after a rejection,
 // it queues a fresh AUTO search for the rejected release's items.

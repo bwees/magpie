@@ -84,6 +84,7 @@ var downloadOptions = fx.Options(
 		jobs.AsTicker(newDownloadPollTicker),
 		bus.AsHandler(newFileImportedHandler),
 		bus.AsHandler(newImportFailedHandler),
+		bus.AsHandler(newImportRemovedHandler),
 		jobs.AsQueue(newReleaseImportedQueue),
 		jobs.AsQueue(newImportFailedQueue),
 		jobs.AsQueue(newSeedingGoalQueue),

@@ -36,7 +36,7 @@ var (
 	finishedStatuses = []TorrentStatus{TorrentUploading, TorrentStalledUp, TorrentStoppedUp, TorrentQueuedUp, TorrentForcedUp}
 	seedingStatuses  = []TorrentStatus{TorrentUploading, TorrentStalledUp, TorrentQueuedUp, TorrentForcedUp}
 	// finishedStates are downloads done downloading that may still seed.
-	finishedStates = []api.DownloadState{api.StateCompleted, api.StateImported}
+	finishedStates = []api.DownloadState{api.StateCompleted, api.StateImported, api.StateImportPendingUser}
 )
 
 // PollInterval is the qBittorrent poll's pace: quick while anything downloads, slow when idle.
@@ -113,8 +113,8 @@ func (s *DownloadService) observe(d download, t Torrent, now time.Time) {
 // displayState is the state the Downloads tab shows, from the stored state and qBittorrent's.
 func displayState(d download, t Torrent) api.DownloadState {
 	switch {
-	case d.State == api.StateAwaitingMetadata:
-		return api.StateAwaitingMetadata
+	case d.State == api.StateAwaitingMetadata, d.State == api.StateImportPendingUser:
+		return d.State
 	case slices.Contains(finishedStates, d.State) && slices.Contains(seedingStatuses, t.Status):
 		return api.StateSeeding
 	case slices.Contains(finishedStates, d.State):

@@ -111,8 +111,9 @@ func (s *DownloadService) SetDownloadSettings(ctx context.Context, o DownloadOpt
 }
 
 const (
-	handlerFileImported = "acquisition.download-on-file-imported"
-	handlerImportFailed = "acquisition.download-on-import-failed"
+	handlerFileImported  = "acquisition.download-on-file-imported"
+	handlerImportFailed  = "acquisition.download-on-import-failed"
+	handlerImportRemoved = "acquisition.download-on-import-removed"
 
 	releaseImportedQueue = "acquisition.release-imported"
 	importFailedQueue    = "acquisition.import-failed"
@@ -131,7 +132,8 @@ func (releaseImportedTask) Config() backlite.QueueConfig {
 	return backlite.QueueConfig{Name: releaseImportedQueue, MaxAttempts: downloadJobAttempts, Backoff: downloadJobBackoff}
 }
 
-// importFailedTask drops a download Library couldn't import and grabs the next release.
+// importFailedTask drops a download Library couldn't import, or whose import the user removed, and grabs
+// the next release.
 type importFailedTask struct {
 	Download domain.DownloadID `json:"download"`
 }
@@ -162,17 +164,36 @@ func newFileImportedHandler(s *DownloadService) bus.Handler {
 	}
 }
 
-// newImportFailedHandler queues dropping a download Library gave up on.
+// newImportFailedHandler keeps a download whose import waits for the user, and queues dropping one
+// Library gave up on.
 func newImportFailedHandler(s *DownloadService) bus.Handler {
 	return bus.Handler{
 		Name:       handlerImportFailed,
 		EventTypes: []string{libraryapi.TypeImportFailed},
 		Handle: func(_ context.Context, tx *gorm.DB, ev bus.Event) error {
 			failed, err := bus.Decode[libraryapi.ImportFailed](ev)
-			if err != nil || failed.Retryable {
+			switch {
+			case err != nil || failed.Retryable:
 				return err
+			case failed.Manual:
+				return s.AwaitUser(tx, failed.Download)
 			}
 			return s.deps.Jobs.EnqueueTx(tx, importFailedTask{Download: failed.Download})
+		},
+	}
+}
+
+// newImportRemovedHandler queues dropping a download whose import the user removed.
+func newImportRemovedHandler(s *DownloadService) bus.Handler {
+	return bus.Handler{
+		Name:       handlerImportRemoved,
+		EventTypes: []string{libraryapi.TypeImportRemoved},
+		Handle: func(_ context.Context, tx *gorm.DB, ev bus.Event) error {
+			removed, err := bus.Decode[libraryapi.ImportRemoved](ev)
+			if err != nil {
+				return err
+			}
+			return s.deps.Jobs.EnqueueTx(tx, importFailedTask{Download: removed.Download})
 		},
 	}
 }
@@ -203,10 +224,19 @@ func newSeedingGoalPeriodic() jobs.Periodic {
 	}
 }
 
-// MarkImported moves a completed download to IMPORTED, once however many files a pack had, and queues
-// the removal of a don't-seed torrent.
+// importableStates are the downloads Library may still import.
+var importableStates = []api.DownloadState{api.StateCompleted, api.StateImportPendingUser}
+
+// AwaitUser keeps a completed download, with its data, while its import waits for the user.
+func (s *DownloadService) AwaitUser(tx *gorm.DB, id domain.DownloadID) error {
+	_, err := moveDownload(tx, id, []api.DownloadState{api.StateCompleted}, map[string]any{"state": api.StateImportPendingUser})
+	return err
+}
+
+// MarkImported moves a completed or waiting download to IMPORTED, once however many files a pack had,
+// and queues the removal of a don't-seed torrent.
 func (s *DownloadService) MarkImported(tx *gorm.DB, id domain.DownloadID) error {
-	moved, err := moveDownload(tx, id, []api.DownloadState{api.StateCompleted}, map[string]any{"state": api.StateImported})
+	moved, err := moveDownload(tx, id, importableStates, map[string]any{"state": api.StateImported})
 	if err != nil || !moved {
 		return err
 	}
@@ -246,13 +276,13 @@ func (s *DownloadService) retire(ctx context.Context, id domain.DownloadID, dele
 }
 
 // DropFailedImport deletes a download Library couldn't import with its data, blocklists the release and
-// grabs the next cached one, or queues a fresh search.
+// grabs the next cached one, or queues a fresh search. An imported or removed download is left alone.
 func (s *DownloadService) DropFailedImport(ctx context.Context, id domain.DownloadID) error {
 	d, err := s.deps.Repo.Download(ctx, id)
 	if errors.Is(err, ErrDownloadNotFound) {
 		return nil
 	}
-	if err != nil || d.RemovedAt != nil {
+	if err != nil || d.RemovedAt != nil || !slices.Contains(droppable, d.State) {
 		return err
 	}
 	cfg, err := s.settings(ctx)

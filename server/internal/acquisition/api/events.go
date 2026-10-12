@@ -55,9 +55,11 @@ const (
 	StateCompleted        DownloadState = "COMPLETED"
 	StateSeeding          DownloadState = "SEEDING"
 	StateImported         DownloadState = "IMPORTED"
-	StateImportFailed     DownloadState = "IMPORT_FAILED"
-	StateFailed           DownloadState = "FAILED"
-	StateRemoved          DownloadState = "REMOVED"
+	// StateImportPendingUser: Library needs the user to map the files; the torrent keeps its data until then.
+	StateImportPendingUser DownloadState = "IMPORT_PENDING_USER"
+	StateImportFailed      DownloadState = "IMPORT_FAILED"
+	StateFailed            DownloadState = "FAILED"
+	StateRemoved           DownloadState = "REMOVED"
 )
 
 type SeedingMode string

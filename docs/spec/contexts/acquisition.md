@@ -7,7 +7,7 @@ Finds, ranks, grabs and downloads the right release for each wanted movie or epi
 - **Consumes:**
   - From Catalog: `TitleAdded`, `MonitoringChanged`, `ProfileChanged`, `EpisodesAnnounced`, `WantedReleased`, `TitleRemoved`.
   - From Requests: `IssueActionRequested` (REGRAB).
-  - From Library: `FileImported`, `ImportFailed`, `FileTranscoded`, `FileDeleted`.
+  - From Library: `FileImported`, `ImportFailed`, `ImportRemoved`, `FileTranscoded`, `FileDeleted`.
 - **Importer entrypoint:** `api.Importer` (migration job only): profiles, custom formats, blocklist, file scores.
 
 Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md), [blocked files](../../../.scratch/v1-spec/issues/11-blocked-file-policy.md), [search UX](../../../.scratch/v1-spec/issues/12-progressive-search-ux.md), [import and library](../../../.scratch/v1-spec/issues/18-import-and-library.md), [Prowlarr integration](../../../.scratch/v1-spec/issues/22-indexer-engine.md), [scheduling](../../../.scratch/v1-spec/issues/24-scheduling.md), [import gaps](../../../.scratch/v1-spec/issues/31-import-wizard-and-model-gaps.md). Research: [03](../../../.scratch/v1-spec/research/03-release-decision-engine.md), [02](../../../.scratch/v1-spec/research/02-cardigann-indexers.md), [04](../../../.scratch/v1-spec/research/04-qbittorrent-and-import.md), [28](../../../.scratch/v1-spec/research/28-arr-import-mapping.md).
@@ -160,7 +160,7 @@ type ReleaseRejected struct {
 // Ephemeral: emitted on each qBittorrent poll that changes progress or state.
 type DownloadProgressed struct {
     Download domain.DownloadID
-    State    DownloadState // AWAITING_METADATA, DOWNLOADING, STALLED, COMPLETED, SEEDING
+    State    DownloadState // AWAITING_METADATA, DOWNLOADING, STALLED, COMPLETED, SEEDING, IMPORT_PENDING_USER
     Progress float64       // 0..1
     SpeedBps int64
     ETA      time.Duration
@@ -210,9 +210,10 @@ Idempotency: every handler records `event.ID` in `processed_events` within the s
 | `catalog.TitleRemoved` | Catalog | Cancel running searches; drop pending releases; remove its downloads from qBittorrent (`deleteFiles=true` only if `deleteFiles`); keep blocklist rows. | qBit unreachable → retry job. |
 | `requests.IssueActionRequested{REGRAB}` | Requests | Resolve the current file for `Title`/`Episode` via `library.Reader` (its source info hash and release name). Blocklist that hash permanently (`ISSUE`) and enqueue a REGRAB search for the episode or movie. A transcoded file does **not** block a REGRAB. | No source hash (scan/migration file) → blocklist by release name + indexer if known, else just search. |
 | `requests.IssueActionRequested{RERUN_SUBTITLES}` | Requests | Ignored. | — |
-| `library.FileImported` | Library | Compute CF score from `ReleaseName` (fall back to file name). Upsert `file_scores` with `Origin`. If cutoff met → publish `CutoffMet{Origin}`. If `Download` set: move the download `COMPLETED` → `IMPORTED` (once per download, however many files a pack had); if its mode is `DONT_SEED`, queue a job that removes the torrent (no data delete; Library moved it) and sets `removed_at`. `Replaces` is informational; cleanup of the old file happens on `FileDeleted`. | qBittorrent unreachable → the job retries. |
+| `library.FileImported` | Library | Compute CF score from `ReleaseName` (fall back to file name). Upsert `file_scores` with `Origin`. If cutoff met → publish `CutoffMet{Origin}`. If `Download` set: move the download `COMPLETED` or `IMPORT_PENDING_USER` → `IMPORTED` (once per download, however many files a pack had); if its mode is `DONT_SEED`, queue a job that removes the torrent (no data delete; Library moved it) and sets `removed_at`. `Replaces` is informational; cleanup of the old file happens on `FileDeleted`. | qBittorrent unreachable → the job retries. |
 | `library.FileDeleted` | Library | Drop the file's `file_scores` row (any `Reason`). | — |
-| `library.ImportFailed` | Library | `Retryable:false` only. Queue a job that drops the download like any rejection: remove torrent with data, state `IMPORT_FAILED` with `removed_at`, blocklist (`IMPORT_FAILED`), `ReleaseRejected`, grab next cached release or search. A download already removed is left alone. | qBittorrent unreachable → the job retries. |
+| `library.ImportFailed` | Library | `Retryable:false` only. `Manual:true`: move the download `COMPLETED` → `IMPORT_PENDING_USER`; the torrent keeps seeding with its data, nothing is blocklisted and nothing else is grabbed. Otherwise queue a job that drops the download like any rejection: remove torrent with data, state `IMPORT_FAILED` with `removed_at`, blocklist (`IMPORT_FAILED`), `ReleaseRejected`, grab next cached release or search. A download already removed or imported is left alone. | qBittorrent unreachable → the job retries. |
+| `library.ImportRemoved` | Library | The user removed the import: queue the same drop job as a non-manual `ImportFailed`. A download already removed or imported is left alone, so a redelivery changes nothing. | qBittorrent unreachable → the job retries. |
 | `library.FileTranscoded` | Library | Set `file_scores.transcoded = true`; upgrades stop for that file. Its CF score is **not** recomputed from the new file. | — |
 
 ## External ports
@@ -475,6 +476,7 @@ The check is on by default and can be turned off in settings.
   - Every 5 min (the `acquisition.seeding-goals` periodic job), check ratio and seeding time of each `IMPORTED` download against the indexer's goals, else the global goal (`acquisition.seedingGoal`, default ratio 2.0 or 14 days, whichever first). The indexer's ratio and days override the global ones separately. When either goal is met: `Delete(deleteFiles=true)` and set `removed_at`; the state stays `IMPORTED`. The library copy is a hardlink or copy, so it survives.
   - The Downloads tab shows an `IMPORTED` download as Seeding while qBittorrent uploads it.
 - **DONT_SEED:** after `FileImported`, `Delete(deleteFiles=false)`. Library has already moved the files.
+- **Manual import:** a download whose import waits for the user (`IMPORT_PENDING_USER`) keeps its torrent and data. The seeding-goal check skips it, the poll treats it as finished, the Downloads tab shows it as waiting, and the decision engine counts it as queued for its items, so nothing else is grabbed for them. When the user maps it, `FileImported` moves it to `IMPORTED` and the seeding mode applies; when the user removes it, `ImportRemoved` drops it like a failed import.
 - Downloads not grabbed by Magpie (other categories) are ignored.
 - The poll ticker only syncs, emits progress and enqueues one check job per download that needs action (metadata arrived, metadata timeout, completion, failure, stall). The job re-reads the state, so a repeated check changes nothing. A torrent missing from qBittorrent for over a minute is marked `REMOVED`.
 
@@ -533,7 +535,7 @@ The check is on by default and can be turned off in settings.
 20. **Don't seed:** given the global mode `DONT_SEED`, when `FileImported` arrives, then `Delete(deleteFiles=false)` is called immediately.
     - Given an indexer override `SEED_UNTIL_GOALS`, then the torrent stays.
 21. **DownloadCompleted payload:** given a pack with `S01E01.mkv` (priority 1) and `sample.mkv` (priority 0), then `Files` contains only `S01E01.mkv` and `SeedingMode` reflects the indexer override.
-22. **Import failed:** given `ImportFailed` for download D, then D's hash is blocklisted (`IMPORT_FAILED`), the torrent is deleted with data, and the next cached release is grabbed.
+22. **Import failed:** given `ImportFailed{Manual:false}` for download D, then D's hash is blocklisted (`IMPORT_FAILED`), the torrent is deleted with data, and the next cached release is grabbed.
 23. **ID-then-title:**
     - Given an indexer whose caps lack `tmdbid` but support `imdbid`, then the search query uses `imdbid`.
     - Given no ID support, the query uses title + year. Given zero results, the status is `SKIPPED`.
@@ -564,3 +566,6 @@ The check is on by default and can be turned off in settings.
     - Given a profile named "Remux-1080p + WEB" and a Sonarr guide profile "Bluray-1080p Remux + WEB", then the sync links them by aliased name and scores the guide profile's formats; renaming the profile keeps the link.
     - Given TRaSH is unreachable, when the sync runs, then no format or score changes and the status shows the error.
 37. **Block term:** given three profiles, when the term `HC.Subs` is blocked, then each profile scores the new format −10000, and a release named `….HC.Subs.…` scores −10000 while `….HCxSubs.…` scores 0.
+38. **Manual import waits:** given `ImportFailed{Manual:true}` for completed download D with a cached next release, then D is `IMPORT_PENDING_USER`, its torrent is not deleted, no blocklist row or `ReleaseRejected` exists, and nothing is grabbed. When D's ratio passes the seeding goal, the seeding-goal check still leaves it. A release covering D's items is rejected `ALREADY_QUEUED`.
+39. **Manual import mapped:** given D in `IMPORT_PENDING_USER` and mode `DONT_SEED`, when `FileImported{Download: D}` arrives, then D is `IMPORTED` and `Delete(deleteFiles=false)` is called.
+40. **Manual import removed:** given D in `IMPORT_PENDING_USER` and a cached next release, when `ImportRemoved{D}` arrives, then D's hash is blocklisted (`IMPORT_FAILED`), the torrent is deleted with data, D is `IMPORT_FAILED` with `removed_at`, and the next release is grabbed. Redelivering `ImportRemoved` changes nothing.
