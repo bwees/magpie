@@ -193,11 +193,18 @@ func (s *DownloadService) Grab(ctx context.Context, searchID domain.SearchID, re
 // fallback grabs the next accepted, not yet tried release of the search, skipping those that are rejected
 // in turn. Without a cached search it leaves the outcome as is, and commit queues a fresh search.
 func (s *DownloadService) fallback(ctx context.Context, out *grabOutcome, cfg grabSettings) {
+	s.fallbackWhere(ctx, out, cfg, anyRelease)
+}
+
+func anyRelease(decidedRelease) bool { return true }
+
+// fallbackWhere is fallback among the releases keep allows.
+func (s *DownloadService) fallbackWhere(ctx context.Context, out *grabOutcome, cfg grabSettings, keep func(decidedRelease) bool) {
 	if out.search == nil {
 		return
 	}
 	for {
-		next, ok := out.search.nextUntried()
+		next, ok := out.search.nextUntried(keep)
 		if !ok {
 			return
 		}
@@ -349,7 +356,7 @@ func (s *DownloadService) commit(ctx context.Context, out grabOutcome) error {
 			return nil
 		}
 		first := out.rejections[0]
-		return s.deps.Jobs.EnqueueTx(tx, searchTask{Title: first.Title, Episodes: nonNil(first.Episodes), Trigger: api.TriggerAuto})
+		return queueSearch(tx, s.deps.Jobs, searchTask{Title: first.Title, Episodes: nonNil(first.Episodes), Trigger: api.TriggerAuto}, now)
 	})
 	if err != nil {
 		return err

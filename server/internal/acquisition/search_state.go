@@ -42,6 +42,28 @@ type releaseKey struct {
 	guid    string
 }
 
+// settlePhase is where a search that grabs on its own stands with that grab.
+type settlePhase string
+
+const (
+	// settleNever: an interactive search, where the user grabs.
+	settleNever   settlePhase = ""
+	settleWaiting settlePhase = "WAITING"
+	// settleQueued: the automatic grab is queued and the search completes once it ran.
+	settleQueued settlePhase = "QUEUED"
+	settleDone   settlePhase = "DONE"
+)
+
+// heldReasons are the rejections that send a release to the pending queue.
+var heldReasons = []api.RejectionReason{api.RejectDelayed, api.RejectPending}
+
+// searchStep is what a change to a search asks of the service: queue its automatic grab, publish its completion.
+type searchStep struct {
+	settle    bool
+	completed bool
+	done      api.SearchCompleted
+}
+
 // search is one search and its cached results. Every change emits under mu, so the events of one
 // search reach the live gateway in the order they were decided.
 type search struct {
@@ -49,6 +71,8 @@ type search struct {
 	trigger   api.SearchTrigger
 	startedAt time.Time
 	input     *decisionInput
+	// quiet searches (RSS and the pending queue) publish no search events; only their grabs show.
+	quiet bool
 	// cacheFor is how long an indexer's answer to one query is reused.
 	cacheFor time.Duration
 	ctx      context.Context
@@ -57,16 +81,93 @@ type search struct {
 
 	mu        sync.Mutex
 	expiry    *time.Timer
+	window    *time.Timer
 	runs      []IndexerRun
 	releases  []decidedRelease
 	keys      map[releaseKey]bool
 	completed bool
 	cancelled bool
+	settle    settlePhase
+	// windowClosed is set once the settle window passed.
+	windowClosed bool
+	// held is set when the automatic grab left releases in the pending queue.
+	held bool
 	// tried holds releases already grabbed or rejected, so the fallback never picks them again.
 	tried map[domain.ReleaseID]bool
 	// triedHashes catches the same torrent listed by another indexer.
 	triedHashes map[string]bool
 	grabbed     *domain.DownloadID
+}
+
+// step reports what the search's latest change asks for. Caller holds mu.
+func (st *search) step() searchStep {
+	s := searchStep{settle: st.claimSettle()}
+	s.done, s.completed = st.completion()
+	return s
+}
+
+// claimSettle moves a waiting search to its automatic grab once every indexer answered, a release nothing
+// can beat arrived, or the settle window passed with something accepted. Caller holds mu.
+func (st *search) claimSettle() bool {
+	if st.settle != settleWaiting || st.cancelled {
+		return false
+	}
+	early := slices.ContainsFunc(st.releases, func(d decidedRelease) bool { return d.accepted() && st.input.grabsEarly(d.Candidate) })
+	windowPassed := st.windowClosed && slices.ContainsFunc(st.releases, decidedRelease.accepted)
+	if !st.allReported() && !early && !windowPassed {
+		return false
+	}
+	st.settle = settleQueued
+	return true
+}
+
+func (st *search) allReported() bool {
+	return !slices.ContainsFunc(st.runs, func(r IndexerRun) bool { return r.Status == IndexerPending })
+}
+
+func (st *search) closeWindow() searchStep {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.windowClosed = true
+	return st.step()
+}
+
+// finishSettle records that the automatic grab ran; held says it left releases pending.
+func (st *search) finishSettle(held bool) searchStep {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.settle == settleQueued {
+		st.settle = settleDone
+		st.held = held
+	}
+	return st.step()
+}
+
+func (st *search) isCancelled() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.cancelled
+}
+
+func (st *search) stopTimers() {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.expiry.Stop()
+	if st.window != nil {
+		st.window.Stop()
+	}
+}
+
+// heldReleases are the releases waiting only on the delay or the pending queue, among those keep allows.
+func (st *search) heldReleases(keep func(decidedRelease) bool) []decidedRelease {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return slices.DeleteFunc(slices.Clone(st.releases), func(d decidedRelease) bool {
+		onlyHeld := !d.accepted() && !slices.ContainsFunc(d.Rejections, func(r api.Rejection) bool {
+			return !r.Temporary || !slices.Contains(heldReasons, r.Reason)
+		})
+		return !onlyHeld || !keep(d)
+	})
 }
 
 // try claims a release for a grab. It is false when the release was tried before.
@@ -93,12 +194,12 @@ func (st *search) noteHash(hash string) {
 	st.triedHashes[strings.ToLower(hash)] = true
 }
 
-// nextUntried claims the best accepted release not tried yet.
-func (st *search) nextUntried() (decidedRelease, bool) {
+// nextUntried claims the best accepted release not tried yet among those keep allows.
+func (st *search) nextUntried(keep func(decidedRelease) bool) (decidedRelease, bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	accepted := slices.DeleteFunc(slices.Clone(st.releases), func(d decidedRelease) bool {
-		return !d.accepted() || st.tried[d.ID] ||
+		return !d.accepted() || st.tried[d.ID] || !keep(d) ||
 			(d.Candidate.Item.InfoHash != "" && st.triedHashes[strings.ToLower(d.Candidate.Item.InfoHash)])
 	})
 	if len(accepted) == 0 {
@@ -122,31 +223,42 @@ func (st *search) runIndex(prowlarrID int) int {
 	return slices.IndexFunc(st.runs, func(r IndexerRun) bool { return r.Indexer.ProwlarrID == prowlarrID })
 }
 
-// fail reports an indexer FAILED unless it already answered. It returns the completion when this was
-// the last indexer to report.
-func (st *search) fail(ix Indexer, message string) (api.SearchCompleted, bool) {
+// fail reports an indexer FAILED unless it already answered.
+func (st *search) fail(ix Indexer, message string) searchStep {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	i := st.runIndex(ix.ProwlarrID)
 	if i < 0 || st.runs[i].Status != IndexerPending {
-		return api.SearchCompleted{}, false
+		return searchStep{}
 	}
 	st.runs[i].Status, st.runs[i].Message = api.IndexerFailed, message
 	st.emit(api.SearchResultsReceived{Search: st.id, Indexer: ix.Name, Status: api.IndexerFailed, Message: message, Releases: []api.ReleaseDecision{}})
-	return st.completion()
+	return st.step()
 }
 
 // answer adds an indexer's decided releases. A late answer replaces the FAILED its timeout reported,
 // as long as the search is still open.
-func (st *search) answer(ix Indexer, status api.IndexerRunStatus, message string, decided []decidedRelease) (api.SearchCompleted, bool) {
+func (st *search) answer(ix Indexer, status api.IndexerRunStatus, message string, decided []decidedRelease) searchStep {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	i := st.runIndex(ix.ProwlarrID)
 	if i < 0 || st.cancelled || st.runs[i].Status == api.IndexerDone || st.runs[i].Status == api.IndexerSkipped {
-		return api.SearchCompleted{}, false
+		return searchStep{}
 	}
 	st.runs[i].Status, st.runs[i].Message = status, message
+	added := st.add(ix, decided)
 
+	current := ranks(st.releases)
+	decisions := make([]api.ReleaseDecision, 0, len(added))
+	for _, d := range st.releases[len(st.releases)-len(added):] {
+		decisions = append(decisions, d.decision(current[d.ID]))
+	}
+	st.emit(api.SearchResultsReceived{Search: st.id, Indexer: ix.Name, Status: status, Message: message, Releases: decisions})
+	return st.step()
+}
+
+// add keeps the releases the search hasn't seen from that indexer yet. Caller holds mu.
+func (st *search) add(ix Indexer, decided []decidedRelease) []domain.ReleaseID {
 	added := make([]domain.ReleaseID, 0, len(decided))
 	for _, d := range decided {
 		key := releaseKey{indexer: ix.ProwlarrID, guid: releaseGUID(d.Candidate.Item)}
@@ -159,22 +271,15 @@ func (st *search) answer(ix Indexer, status api.IndexerRunStatus, message string
 		st.releases = append(st.releases, d)
 		added = append(added, d.ID)
 	}
-
-	current := ranks(st.releases)
-	decisions := make([]api.ReleaseDecision, 0, len(added))
-	for _, d := range st.releases[len(st.releases)-len(added):] {
-		decisions = append(decisions, d.decision(current[d.ID]))
-	}
-	st.emit(api.SearchResultsReceived{Search: st.id, Indexer: ix.Name, Status: status, Message: message, Releases: decisions})
-	return st.completion()
+	return added
 }
 
 // cancelPending marks every indexer still running FAILED with message, so the search completes.
-func (st *search) cancelPending(message string) (api.SearchCompleted, bool) {
+func (st *search) cancelPending(message string) searchStep {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.cancelled {
-		return api.SearchCompleted{}, false
+		return searchStep{}
 	}
 	st.cancelled = true
 	for i, run := range st.runs {
@@ -184,12 +289,14 @@ func (st *search) cancelPending(message string) (api.SearchCompleted, bool) {
 		st.runs[i].Status, st.runs[i].Message = api.IndexerFailed, message
 		st.emit(api.SearchResultsReceived{Search: st.id, Indexer: run.Indexer.Name, Status: api.IndexerFailed, Message: message, Releases: []api.ReleaseDecision{}})
 	}
-	return st.completion()
+	return st.step()
 }
 
-// completion returns SearchCompleted the first time every indexer has reported. Caller holds mu.
+// completion returns SearchCompleted the first time every indexer has reported and any automatic grab
+// has run. Caller holds mu.
 func (st *search) completion() (api.SearchCompleted, bool) {
-	if st.completed || slices.ContainsFunc(st.runs, func(r IndexerRun) bool { return r.Status == IndexerPending }) {
+	grabPending := st.settle == settleQueued || (st.settle == settleWaiting && !st.cancelled)
+	if st.completed || grabPending || !st.allReported() {
 		return api.SearchCompleted{}, false
 	}
 	st.completed = true
@@ -198,15 +305,21 @@ func (st *search) completion() (api.SearchCompleted, bool) {
 		Title:          st.input.Title.ID,
 		Total:          len(st.releases),
 		FailedIndexers: []string{},
-		Outcome:        api.OutcomeNothingAccepted,
-	}
-	if st.grabbed != nil {
-		done.Outcome, done.Grabbed = api.OutcomeGrabbed, st.grabbed
 	}
 	for _, d := range st.releases {
 		if d.accepted() {
 			done.Accepted++
 		}
+	}
+	switch {
+	case st.grabbed != nil:
+		done.Outcome, done.Grabbed = api.OutcomeGrabbed, st.grabbed
+	case st.held:
+		done.Outcome = api.OutcomePendingDelay
+	case st.settle == settleNever && done.Accepted > 0:
+		done.Outcome = api.OutcomeReleasesFound
+	default:
+		done.Outcome = api.OutcomeNothingAccepted
 	}
 	for _, run := range st.runs {
 		if run.Status == api.IndexerFailed {

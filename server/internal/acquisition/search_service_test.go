@@ -19,6 +19,7 @@ import (
 	"magpie/internal/domain"
 	librarytest "magpie/internal/library/api/contracttest"
 	"magpie/internal/platform/bus"
+	"magpie/internal/platform/db"
 	"magpie/internal/platform/db/dbtest"
 	"magpie/internal/platform/settings"
 )
@@ -111,6 +112,8 @@ func payload[T any](t *testing.T, ev bus.Event) T {
 
 type searchFixture struct {
 	fixture
+	db        *db.DB
+	quality   *acquisition.QualityService
 	searches  *acquisition.SearchService
 	downloads *acquisition.DownloadService
 	jobs      *recordingQueue
@@ -129,7 +132,8 @@ func newSearchFixture(t *testing.T) searchFixture {
 	store := settings.NewStore(d)
 	repo := acquisition.NewRepository(d)
 	quality := acquisition.NewQualityRepository(d)
-	if err := acquisition.NewQualityService(d, quality, store).SeedPresets(ctx); err != nil {
+	qualityService := acquisition.NewQualityService(d, quality, store)
+	if err := qualityService.SeedPresets(ctx); err != nil {
 		t.Fatal(err)
 	}
 	options := acquisition.IndexerOptions{
@@ -149,20 +153,22 @@ func newSearchFixture(t *testing.T) searchFixture {
 	b := bus.New()
 	f := searchFixture{
 		fixture: fixture{repo: repo, prowlarr: fakes.NewProwlarr(), store: store},
+		db:      d,
+		quality: qualityService,
 		catalog: catalogtest.NewFake(catalogtest.Fixture{Titles: []catalogapi.Title{title}}),
 		library: librarytest.NewFake(librarytest.Fixture{}),
 		qbit:    fakes.NewQBittorrent(),
 		events:  newRecorder(b),
 		title:   title,
+		jobs:    &recordingQueue{},
 	}
 	f.service = acquisition.NewService(repo, f.prowlarr, store)
 	registry := acquisition.NewSearchRegistry()
 	f.searches = acquisition.NewSearchService(acquisition.SearchDeps{
 		DB: d, Repo: repo, Quality: quality, Catalog: f.catalog, Library: f.library,
-		Prowlarr: f.prowlarr, QBittorrent: f.qbit, Store: store, Bus: b, Searches: registry,
+		Prowlarr: f.prowlarr, QBittorrent: f.qbit, Store: store, Bus: b, Searches: registry, Jobs: f.jobs,
 	})
 	t.Cleanup(f.searches.Close)
-	f.jobs = &recordingQueue{}
 	f.clock = &clock{now: time.Now().Truncate(time.Second)}
 	f.downloads = acquisition.NewDownloadService(acquisition.DownloadDeps{
 		DB: d, Repo: repo, Catalog: f.catalog, Prowlarr: f.prowlarr, QBittorrent: f.qbit,
@@ -335,8 +341,8 @@ func TestInteractiveSearchNeverGrabsAndOverridePassesTheGrabCheck(t *testing.T) 
 	done := f.completed(t)
 	time.Sleep(quietPeriod)
 
-	if done.Outcome != api.OutcomeNothingAccepted || done.Grabbed != nil {
-		t.Errorf("SearchCompleted = %+v, want NOTHING_ACCEPTED with no grab", done)
+	if done.Outcome != api.OutcomeReleasesFound || done.Grabbed != nil {
+		t.Errorf("SearchCompleted = %+v, want RELEASES_FOUND with no grab", done)
 	}
 	if n := len(f.events.ofType(api.TypeReleaseGrabbed)); n != 0 || f.qbit.Called(fakes.QBittorrentAddTorrent) != 0 {
 		t.Errorf("an interactive search grabbed: %d ReleaseGrabbed", n)

@@ -114,7 +114,7 @@ func TestSearchEndpointProblems(t *testing.T) {
 		status                   int
 		problemType              problem.Type
 	}{
-		{"automatic search", http.MethodPost, "/api/acquisition/searches", `{"title":"` + string(f.title.ID) + `","interactive":false}`, http.StatusBadRequest, problem.TypeBadRequest},
+		{"automatic search of an unknown title", http.MethodPost, "/api/acquisition/searches", `{"title":"missing","interactive":false}`, http.StatusNotFound, acquisition.TypeTitleNotFound},
 		{"unknown title", http.MethodPost, "/api/acquisition/searches", startBody("missing"), http.StatusNotFound, acquisition.TypeTitleNotFound},
 		{"unknown search", http.MethodGet, "/api/acquisition/searches/missing", "", http.StatusNotFound, acquisition.TypeSearchNotFound},
 		{"rejected without override", http.MethodPost, grab, `{"releaseId":"` + string(rejected) + `","override":false}`, http.StatusConflict, acquisition.TypeReleaseRejected},

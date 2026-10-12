@@ -78,7 +78,6 @@ type existingFile struct {
 }
 
 // activeGrab is a download in the queue, a recent grab, or a pending release covering some items.
-// Ticket 13 fills Queue and History, ticket 14 Pending.
 type activeGrab struct {
 	Episodes    []domain.EpisodeID // empty for a movie
 	QualityRank int
@@ -118,6 +117,20 @@ func grabOf(d download, title catalogapi.Title, p ScoringProfile) activeGrab {
 	return activeGrab{Episodes: d.Episodes, QualityRank: eval.QualityRank, Score: eval.Score, CutoffMet: eval.CutoffMet}
 }
 
+// pendingGrabs scores the title's held releases against the search's profile.
+func pendingGrabs(held []PendingRelease, title catalogapi.Title, p ScoringProfile) []activeGrab {
+	grabs := make([]activeGrab, 0, len(held))
+	for _, r := range held {
+		release, err := parse.ParseRelease(r.Release.Title, title.Kind)
+		if err != nil {
+			release = parse.Release{Name: r.Release.Title, Kind: title.Kind}
+		}
+		eval := Evaluate(ReleaseFacts{Release: release, SizeBytes: r.Release.SizeBytes, OriginalLanguage: title.OriginalLanguage}, p)
+		grabs = append(grabs, activeGrab{Episodes: r.Episodes, QualityRank: eval.QualityRank, Score: eval.Score, CutoffMet: eval.CutoffMet})
+	}
+	return grabs
+}
+
 // decisionInput is everything the specs read besides the release itself. It is built once per search.
 type decisionInput struct {
 	Trigger api.SearchTrigger
@@ -134,6 +147,8 @@ type decisionInput struct {
 	History   []activeGrab
 	Pending   []activeGrab
 	Delay     time.Duration
+	// MaxScore is the profile's maximum attainable CF score: the early-grab and delay-bypass threshold.
+	MaxScore int
 	// MaximumSize is the global size cap in bytes; 0 means none.
 	MaximumSize int64
 	// FreeSpace reports the download disk's free bytes, or false when it is unknown.
@@ -604,7 +619,12 @@ func history(c candidate, in *decisionInput) (api.Rejection, bool) {
 	return accept, false
 }
 
+// pending holds a release with the pending ones covering its items, so the best of them is grabbed when the
+// delay passes. A release that skips the delay isn't held.
 func pending(c candidate, in *decisionInput) (api.Rejection, bool) {
+	if in.bypassesDelay(c) {
+		return accept, false
+	}
 	if len(in.overlapping(c, in.Pending)) > 0 {
 		return temporary(api.RejectPending, "A pending release already covers these items"), true
 	}
@@ -708,15 +728,25 @@ func released(c candidate, in *decisionInput) (api.Rejection, bool) {
 	return accept, false
 }
 
-// delayed holds a release until the delay has passed since the indexer published it, unless it meets the cutoff.
+// delayed holds a release until the delay has passed since the indexer published it.
 func delayed(c candidate, in *decisionInput) (api.Rejection, bool) {
-	if in.Delay == 0 || c.Eval.CutoffMet {
+	if in.Delay == 0 || in.bypassesDelay(c) {
 		return accept, false
 	}
 	if wait := c.Item.PublishedAt.Add(in.Delay).Sub(in.Now); wait > 0 {
 		return temporary(api.RejectDelayed, "Waiting %s for a better release", wait.Round(time.Minute)), true
 	}
 	return accept, false
+}
+
+// bypassesDelay is a release that meets the cutoff, or reaches the profile's maximum attainable score.
+func (in *decisionInput) bypassesDelay(c candidate) bool {
+	return c.Eval.CutoffMet || (in.MaxScore > 0 && c.Eval.Score >= in.MaxScore)
+}
+
+// grabsEarly is a release nothing can beat: at the cutoff with the maximum attainable score.
+func (in *decisionInput) grabsEarly(c candidate) bool {
+	return c.Eval.CutoffMet && c.Eval.Score >= in.MaxScore
 }
 
 func freeSpace(c candidate, in *decisionInput) (api.Rejection, bool) {

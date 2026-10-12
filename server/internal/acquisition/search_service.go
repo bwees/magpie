@@ -16,9 +16,11 @@ import (
 	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
+	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/parse"
 	"magpie/internal/platform/settings"
 
+	"github.com/mikestefanello/backlite"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
 )
@@ -59,7 +61,17 @@ type SearchDeps struct {
 	Store       *settings.Store
 	Bus         *bus.Bus
 	Searches    *SearchRegistry
+	Jobs        searchJobs
 }
+
+// searchJobs queues the jobs searching starts: the automatic grab, more searches, some of them for later.
+type searchJobs interface {
+	jobs.Enqueuer
+	EnqueueTxAt(tx *gorm.DB, task backlite.Task, at time.Time) error
+}
+
+// grabsOnItsOwn are the triggers whose searches grab without the user.
+var grabsOnItsOwn = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerUserAuto, api.TriggerRegrab}
 
 // SearchService fans a search out to every indexer, decides each release as its indexer answers, and
 // keeps the results in memory for the result-cache time.
@@ -105,29 +117,12 @@ func NewSearchService(deps SearchDeps) *SearchService {
 func (s *SearchService) Close() {
 	s.stop()
 	for _, st := range s.deps.Searches.all() {
-		st.mu.Lock()
-		st.expiry.Stop()
-		st.mu.Unlock()
+		st.stopTimers()
 	}
 	s.running.Wait()
 }
 
-// Start records the search, publishes SearchStarted and asks every indexer whose caps cover the title's
-// kind in parallel. Results stream out as SearchResultsReceived.
-func (s *SearchService) Start(ctx context.Context, req SearchRequest) (SearchSnapshot, error) {
-	in, target, err := s.decisionInput(ctx, req)
-	if err != nil {
-		return SearchSnapshot{}, err
-	}
-	options, err := IndexerOptionsKey.Get(ctx, s.deps.Store)
-	if err != nil {
-		return SearchSnapshot{}, err
-	}
-	indexers, err := s.deps.Repo.Indexers(ctx, false)
-	if err != nil {
-		return SearchSnapshot{}, err
-	}
-
+func (s *SearchService) newSearch(req SearchRequest, in *decisionInput, options IndexerOptions) *search {
 	st := &search{
 		id:          domain.NewID[domain.SearchID](),
 		trigger:     req.Trigger,
@@ -138,8 +133,44 @@ func (s *SearchService) Start(ctx context.Context, req SearchRequest) (SearchSna
 		tried:       map[domain.ReleaseID]bool{},
 		triedHashes: map[string]bool{},
 	}
+	if grabsOnItsOwn.has(req.Trigger) {
+		st.settle = settleWaiting
+	}
 	st.ctx, st.cancel = context.WithCancel(s.life)
 	st.emit = func(e api.SearchResultsReceived) { s.deps.Bus.Emit(bus.EventOf(e)) }
+	return st
+}
+
+// keep caches a search's results until they expire.
+func (s *SearchService) keep(st *search, options IndexerOptions) {
+	st.mu.Lock()
+	st.expiry = time.AfterFunc(searchRetention(options), func() { s.expire(st) })
+	st.mu.Unlock()
+	s.deps.Searches.add(st)
+}
+
+// Start records the search, publishes SearchStarted and asks every indexer whose caps cover the title's
+// kind in parallel. Results stream out as SearchResultsReceived. A search that grabs on its own does so
+// once every indexer answered, the settle window passed or a release nothing can beat arrived.
+func (s *SearchService) Start(ctx context.Context, req SearchRequest) (SearchSnapshot, error) {
+	in, target, err := s.decisionInput(ctx, req)
+	if err != nil {
+		return SearchSnapshot{}, err
+	}
+	options, err := IndexerOptionsKey.Get(ctx, s.deps.Store)
+	if err != nil {
+		return SearchSnapshot{}, err
+	}
+	window, err := SettleWindowKey.Get(ctx, s.deps.Store)
+	if err != nil {
+		return SearchSnapshot{}, err
+	}
+	indexers, err := s.deps.Repo.Indexers(ctx, false)
+	if err != nil {
+		return SearchSnapshot{}, err
+	}
+
+	st := s.newSearch(req, in, options)
 	names := []string{}
 	for _, ix := range indexers {
 		if ix.Caps.covers(target.Title.Kind) {
@@ -167,10 +198,12 @@ func (s *SearchService) Start(ctx context.Context, req SearchRequest) (SearchSna
 		return SearchSnapshot{}, err
 	}
 
-	st.mu.Lock()
-	st.expiry = time.AfterFunc(searchRetention(options), func() { s.expire(st) })
-	st.mu.Unlock()
-	s.deps.Searches.add(st)
+	s.keep(st, options)
+	if st.settle == settleWaiting {
+		st.mu.Lock()
+		st.window = time.AfterFunc(window.Std(), func() { s.follow(st, st.closeWindow()) })
+		st.mu.Unlock()
+	}
 
 	timeout := options.SearchTimeout.Std()
 	for _, run := range st.runs {
@@ -178,9 +211,7 @@ func (s *SearchService) Start(ctx context.Context, req SearchRequest) (SearchSna
 		s.running.Add(1)
 		go s.ask(st, run.Indexer, plan, hasIDTier, timeout)
 	}
-	if done, completed := st.completionNow(); completed {
-		s.publishCompleted(done)
-	}
+	s.follow(st, st.stepNow())
 	return st.snapshot(), nil
 }
 
@@ -190,10 +221,23 @@ func searchRetention(o IndexerOptions) time.Duration {
 	return cmp.Or(o.ResultCache.Std(), DefaultResultCache)
 }
 
-func (st *search) completionNow() (api.SearchCompleted, bool) {
+func (st *search) stepNow() searchStep {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	return st.completion()
+	return st.step()
+}
+
+// follow does what a change to a search asked for.
+func (s *SearchService) follow(st *search, step searchStep) {
+	if step.settle {
+		if err := s.deps.Jobs.Enqueue(context.WithoutCancel(s.life), settleTask{Search: st.id}); err != nil {
+			slog.Error("queueing the automatic grab; the search completes without one", "search", st.id, "error", err)
+			s.follow(st, st.finishSettle(false))
+		}
+	}
+	if step.completed {
+		s.publishCompleted(st, step.done)
+	}
 }
 
 func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*decisionInput, searchTarget, error) {
@@ -217,13 +261,7 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 	}
 	in.Searched = target.Episodes
 
-	profileID := title.Profile
-	if profileID == "" {
-		if profileID, err = DefaultProfileKey.Get(ctx, s.deps.Store); err != nil {
-			return nil, searchTarget{}, err
-		}
-	}
-	if in.Profile, err = s.deps.Quality.ScoringProfile(ctx, profileID); err != nil {
+	if in.Profile, err = s.profileFor(ctx, title); err != nil {
 		return nil, searchTarget{}, err
 	}
 	files, err := s.deps.Library.FilesForTitle(ctx, title.ID)
@@ -239,6 +277,12 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 		return nil, searchTarget{}, err
 	}
 	in.Queue, in.History = grabsOf(downloads, title, in.Profile, in.Now)
+	held, err := s.deps.Repo.PendingReleases(ctx, title.ID)
+	if err != nil {
+		return nil, searchTarget{}, err
+	}
+	in.Pending = pendingGrabs(held, title, in.Profile)
+	in.MaxScore = in.Profile.MaxAttainableScore()
 	delay, err := DefaultDelayKey.Get(ctx, s.deps.Store)
 	if err != nil {
 		return nil, searchTarget{}, err
@@ -320,9 +364,7 @@ func (s *SearchService) ask(st *search, ix Indexer, plan []TorznabQuery, hasIDTi
 		return
 	case <-timer.C:
 		s.recordHealth(ix, fmt.Sprintf(messageTimeout, timeout))
-		if done, completed := st.fail(ix, fmt.Sprintf(messageTimeout, timeout)); completed {
-			s.publishCompleted(done)
-		}
+		s.follow(st, st.fail(ix, fmt.Sprintf(messageTimeout, timeout)))
 	}
 	if answer := <-result; answer.err == nil {
 		s.answered(st, ix, answer)
@@ -336,22 +378,22 @@ func (s *SearchService) answered(st *search, ix Indexer, answer indexerAnswer) {
 		}
 		message := indexerErrorMessage(answer.err)
 		s.recordHealth(ix, message)
-		if done, completed := st.fail(ix, message); completed {
-			s.publishCompleted(done)
-		}
+		s.follow(st, st.fail(ix, message))
 		return
 	}
 	if answer.asked {
 		s.recordHealth(ix, "")
 	}
-	decided := make([]decidedRelease, 0, len(answer.items))
-	for _, item := range answer.items {
-		c := st.input.newCandidate(item, ix)
-		decided = append(decided, decidedRelease{Candidate: c, Rejections: decide(c, st.input)})
+	s.follow(st, st.answer(ix, answer.status, answer.message, st.input.decideAll(answer.items, ix)))
+}
+
+func (in *decisionInput) decideAll(items []TorznabItem, ix Indexer) []decidedRelease {
+	decided := make([]decidedRelease, 0, len(items))
+	for _, item := range items {
+		c := in.newCandidate(item, ix)
+		decided = append(decided, decidedRelease{Candidate: c, Rejections: decide(c, in)})
 	}
-	if done, completed := st.answer(ix, answer.status, answer.message, decided); completed {
-		s.publishCompleted(done)
-	}
+	return decided
 }
 
 // query tries each tier in turn until one returns releases.
@@ -418,16 +460,20 @@ func (s *SearchService) recordHealth(ix Indexer, failure string) {
 	}
 }
 
-func (s *SearchService) publishCompleted(done api.SearchCompleted) {
-	err := s.deps.DB.Write(context.WithoutCancel(s.life), func(tx *gorm.DB) error {
-		if err := completeSearch(tx, done, s.now().UTC()); err != nil {
-			return err
-		}
-		return s.deps.Bus.Publish(tx, bus.EventOf(done))
-	})
-	if err != nil {
+func (s *SearchService) publishCompleted(st *search, done api.SearchCompleted) {
+	if err := recordCompletion(context.WithoutCancel(s.life), s.deps.DB, s.deps.Bus, st, done, s.now().UTC()); err != nil {
 		slog.Error("publishing SearchCompleted", "search", done.Search, "error", err)
 	}
+}
+
+// recordCompletion stores a search's counts and publishes SearchCompleted, unless the search is quiet.
+func recordCompletion(ctx context.Context, d *db.DB, b *bus.Bus, st *search, done api.SearchCompleted, at time.Time) error {
+	return d.Write(ctx, func(tx *gorm.DB) error {
+		if err := completeSearch(tx, done, at); err != nil || st.quiet {
+			return err
+		}
+		return b.Publish(tx, bus.EventOf(done))
+	})
 }
 
 // Search returns a search's cached state. ErrSearchNotFound once it expired.
@@ -451,13 +497,14 @@ func (s *SearchService) Cancel(id domain.SearchID) error {
 
 func (s *SearchService) cancel(st *search) {
 	st.cancel()
-	if done, completed := st.cancelPending(messageCancelled); completed {
-		s.publishCompleted(done)
-	}
+	s.follow(st, st.cancelPending(messageCancelled))
 }
 
+// expire drops a search from the cache. An automatic grab that never ran no longer holds up its completion.
 func (s *SearchService) expire(st *search) {
+	st.stopTimers()
 	s.cancel(st)
+	s.follow(st, st.finishSettle(false))
 	s.deps.Searches.remove(st.id)
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -26,8 +26,8 @@ const (
 	TypeQBittorrentUnsupported problem.Type = "urn:magpie:problem:qbittorrent-unsupported"
 )
 
-// StartSearchRequest searches a title, or some of a series' episodes. Only interactive searches can be
-// started from the API for now.
+// StartSearchRequest searches a title, or some of a series' episodes. A non-interactive search is the title
+// page's Search button: it grabs on its own and ignores the delay.
 type StartSearchRequest struct {
 	Title       domain.TitleID     `json:"title"`
 	Episodes    []domain.EpisodeID `json:"episodes,omitempty"`
@@ -101,7 +101,7 @@ func (c *SearchController) Register(s *fuego.Server) {
 
 	fuego.Post(s, "/acquisition/searches", c.start, tags,
 		fuego.OptionOperationID("startSearch"),
-		fuego.OptionSummary("Start an interactive search; results stream on the live topic search:<id> (admin)"),
+		fuego.OptionSummary("Start a search; results stream on the live topic search:<id>, and a non-interactive one grabs on its own (admin)"),
 		fuego.OptionDefaultStatusCode(http.StatusCreated))
 	fuego.Get(s, "/acquisition/searches/{id}", c.get, tags, searchPath,
 		fuego.OptionOperationID("getSearch"),
@@ -124,10 +124,11 @@ func (c *SearchController) start(ctx fuego.ContextWithBody[StartSearchRequest]) 
 	if err != nil {
 		return SearchResponse{}, err
 	}
-	if !body.Interactive {
-		return SearchResponse{}, problem.New(problem.TypeBadRequest, http.StatusBadRequest, "only interactive searches can be started for now")
+	trigger := api.TriggerUserAuto
+	if body.Interactive {
+		trigger = api.TriggerInteractive
 	}
-	snapshot, err := c.searches.Start(ctx.Context(), SearchRequest{Title: body.Title, Episodes: body.Episodes, Trigger: api.TriggerInteractive})
+	snapshot, err := c.searches.Start(ctx.Context(), SearchRequest{Title: body.Title, Episodes: body.Episodes, Trigger: trigger})
 	if err != nil {
 		return SearchResponse{}, searchProblem(err)
 	}

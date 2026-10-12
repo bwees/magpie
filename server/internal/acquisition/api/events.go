@@ -42,6 +42,8 @@ const (
 	OutcomeGrabbed         SearchOutcome = "GRABBED"
 	OutcomeNothingAccepted SearchOutcome = "NOTHING_ACCEPTED"
 	OutcomePendingDelay    SearchOutcome = "PENDING_DELAY"
+	// OutcomeReleasesFound: an interactive search found accepted releases and leaves the pick to the user.
+	OutcomeReleasesFound SearchOutcome = "RELEASES_FOUND"
 )
 
 type DownloadState string
@@ -162,7 +164,7 @@ type SearchCompleted struct {
 	Accepted       int             `json:"accepted"`
 	Total          int             `json:"total"`
 	FailedIndexers []string        `json:"failedIndexers"`
-	// Outcome for interactive searches is NOTHING_ACCEPTED, or GRABBED after a user grab.
+	// Outcome for interactive searches is GRABBED after a user grab, else RELEASES_FOUND or NOTHING_ACCEPTED.
 	Outcome SearchOutcome      `json:"outcome"`
 	Grabbed *domain.DownloadID `json:"grabbed"` // set when Outcome = GRABBED
 }

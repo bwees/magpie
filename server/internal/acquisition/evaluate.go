@@ -29,6 +29,16 @@ func (p ScoringProfile) Profile() api.Profile {
 	return p.profile
 }
 
+// MaxAttainableScore sums the profile's positive format scores. No release can score more, so a release
+// at the cutoff with this score can be grabbed without waiting for others.
+func (p ScoringProfile) MaxAttainableScore() int {
+	total := 0
+	for _, s := range p.profile.FormatScores {
+		total += max(s.Score, 0)
+	}
+	return total
+}
+
 // Evaluation is what the quality model says about one release under one profile.
 type Evaluation struct {
 	Quality domain.Quality

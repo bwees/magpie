@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 
+	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/jobs"
@@ -32,6 +33,31 @@ var Module = fx.Module(string(owner.Acquisition),
 	qualityOptions,
 	searchOptions,
 	downloadOptions,
+	automaticSearchOptions,
+)
+
+// automaticSearchOptions wires the searches nobody starts by hand: on add and release, RSS, the pending
+// queue and the backlog sweeps, and the automatic grab they end in.
+var automaticSearchOptions = fx.Options(
+	fx.Provide(
+		func(q *jobs.Queue) searchJobs { return q },
+		httpserver.AsController(NewAutomaticSearchController),
+		jobs.AsQueue(newSettleQueue),
+		jobs.AsQueue(newRemoveTitleQueue),
+		jobs.AsQueue(newRSSSyncQueue),
+		jobs.AsQueue(newRSSFeedQueue),
+		jobs.AsQueue(newPendingCheckQueue),
+		jobs.AsQueue(newMissingSweepQueue),
+		jobs.AsQueue(newCutoffSweepQueue),
+		jobs.AsPeriodic(newRSSSyncPeriodic),
+		jobs.AsPeriodic(newMissingSweepPeriodic),
+		jobs.AsPeriodic(newCutoffSweepPeriodic),
+		jobs.AsTicker(newPendingCheckTicker),
+		bus.AsHandler(newTitleAddedHandler),
+		bus.AsHandler(newMonitoringChangedHandler),
+		bus.AsHandler(newWantedReleasedHandler),
+		bus.AsHandler(newTitleRemovedHandler),
+	),
 )
 
 // searchOptions wires interactive search: the fan-out, decision engine and result cache.

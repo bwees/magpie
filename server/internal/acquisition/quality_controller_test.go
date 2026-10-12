@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"magpie/internal/acquisition"
 	"magpie/internal/acquisition/fakes"
@@ -18,16 +21,54 @@ import (
 	"gorm.io/gorm"
 )
 
-type recordingQueue struct{ tasks []backlite.Task }
+// recordingQueue keeps every task instead of running it. Searches enqueue from their own goroutines.
+type recordingQueue struct {
+	mu    sync.Mutex
+	tasks []backlite.Task
+	later []laterTask
+}
+
+type laterTask struct {
+	task backlite.Task
+	at   time.Time
+}
 
 func (q *recordingQueue) Enqueue(_ context.Context, task backlite.Task) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	q.tasks = append(q.tasks, task)
 	return nil
 }
 
 func (q *recordingQueue) EnqueueTx(_ *gorm.DB, task backlite.Task) error {
+	return q.Enqueue(context.Background(), task)
+}
+
+func (q *recordingQueue) EnqueueTxAt(_ *gorm.DB, task backlite.Task, at time.Time) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	q.tasks = append(q.tasks, task)
+	q.later = append(q.later, laterTask{task: task, at: at})
 	return nil
+}
+
+func (q *recordingQueue) queued() []backlite.Task {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return slices.Clone(q.tasks)
+}
+
+func (q *recordingQueue) laterTasks() []laterTask {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return slices.Clone(q.later)
+}
+
+// drop forgets the tasks that ran.
+func (q *recordingQueue) drop(ran func(backlite.Task) bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.tasks = slices.DeleteFunc(q.tasks, ran)
 }
 
 func serveQuality(t *testing.T, principal *domain.Principal) (http.Handler, *recordingQueue) {
