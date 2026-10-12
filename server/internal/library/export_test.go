@@ -18,6 +18,7 @@ var (
 	NewTranscodeVerifiedHandler   = newTranscodeVerifiedHandler
 	NewScanFolderMatchedHandler   = newScanFolderMatchedHandler
 	NewEpisodeGroupChangedHandler = newEpisodeGroupChangedHandler
+	NewTitleRemovedHandler        = newTitleRemovedHandler
 )
 
 // RunSwapTask runs a queued swap task. It reports false for a task of another queue.
@@ -44,6 +45,8 @@ func RunTask(ctx context.Context, s *Service, task backlite.Task, later func(bac
 		return true, s.LinkFolder(ctx, t.Folder)
 	case renameTask:
 		return true, s.RenameForGroup(ctx, t.Change)
+	case removeTitleTask:
+		return true, s.RemoveTitle(ctx, t.Title, t.DeleteFiles)
 	}
 	return false, nil
 }

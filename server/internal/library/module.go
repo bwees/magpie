@@ -39,6 +39,8 @@ var Module = fx.Module(string(owner.Library),
 		jobs.AsQueue(newScanQueue),
 		jobs.AsQueue(newLinkQueue),
 		jobs.AsQueue(newRenameQueue),
+		bus.AsHandler(newTitleRemovedHandler),
+		jobs.AsQueue(newRemoveTitleQueue),
 	),
 	fx.Invoke(startJellyfinWatch),
 )

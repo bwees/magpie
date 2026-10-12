@@ -195,6 +195,11 @@ func (c *Controller) Register(s *fuego.Server) {
 		fuego.OptionPath(pathFileID, "Media file ID"),
 		fuego.OptionOperationID("getMediaFile"),
 		fuego.OptionSummary("One media file with its media info (admin)"))
+	fuego.Delete(s, "/library/files/{id}", c.deleteFile, tags,
+		fuego.OptionPath(pathFileID, "Media file ID"),
+		fuego.OptionOperationID("deleteMediaFile"),
+		fuego.OptionSummary("Delete a media file from disk; other contexts drop what they keep for it (admin)"),
+		fuego.OptionDefaultStatusCode(http.StatusNoContent))
 	fuego.Get(s, "/library/root-folders", c.rootFolders, tags,
 		fuego.OptionOperationID("listRootFolders"),
 		fuego.OptionSummary("Root folders with their hardlink check (admin)"))
@@ -343,6 +348,13 @@ func (c *Controller) addRootFolder(ctx fuego.ContextWithBody[AddRootFolderReques
 		return RootFolderResponse{}, libraryProblem(err)
 	}
 	return rootFolderResponse(folder), nil
+}
+
+func (c *Controller) deleteFile(ctx fuego.ContextNoBody) (any, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return nil, err
+	}
+	return nil, libraryProblem(c.library.DeleteFile(ctx.Context(), domain.MediaFileID(ctx.PathParam(pathFileID))))
 }
 
 func (c *Controller) removeRootFolder(ctx fuego.ContextNoBody) (any, error) {

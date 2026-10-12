@@ -3591,6 +3591,29 @@ export function listMediaFiles({ title, titles, transcoded, accept }: {
     }));
 }
 /**
+ * Delete a media file from disk; other contexts drop what they keep for it (admin)
+ */
+export function deleteMediaFile(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/files/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
  * One media file with its media info (admin)
  */
 export function getMediaFile(id: string, { accept }: {

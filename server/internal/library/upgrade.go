@@ -54,16 +54,20 @@ func replacedBy(existing []api.MediaFile, kind domain.MediaKind, episodes []doma
 	})
 }
 
-func deleteMediaFile(tx *gorm.DB, id domain.MediaFileID) error {
+// deleteMediaFile reports false when the record was already gone.
+func deleteMediaFile(tx *gorm.DB, id domain.MediaFileID) (bool, error) {
 	if err := tx.Where("media_file_id = ?", id).Delete(&mediaFileEpisodeRow{}).Error; err != nil {
-		return err
+		return false, err
 	}
-	return tx.Where("id = ?", id).Delete(&mediaFileRow{}).Error
+	deleted := tx.Where("id = ?", id).Delete(&mediaFileRow{})
+	return deleted.RowsAffected > 0, deleted.Error
 }
 
 // forgetFile deletes a file's record and publishes FileDeleted, the one signal other contexts clean up on.
+// A record already gone publishes nothing.
 func (s *Service) forgetFile(tx *gorm.DB, f api.MediaFile, reason api.DeleteReason) error {
-	if err := deleteMediaFile(tx, f.ID); err != nil {
+	deleted, err := deleteMediaFile(tx, f.ID)
+	if err != nil || !deleted {
 		return err
 	}
 	return s.deps.Bus.Publish(tx, bus.EventOf(api.FileDeleted{
