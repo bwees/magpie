@@ -12,8 +12,6 @@ import (
 	"magpie/internal/catalog"
 	"magpie/internal/identity"
 	"magpie/internal/library"
-	libraryapi "magpie/internal/library/api"
-	librarytest "magpie/internal/library/api/contracttest"
 	libraryfakes "magpie/internal/library/fakes"
 	"magpie/internal/subtitles"
 	subtitlesfakes "magpie/internal/subtitles/fakes"
@@ -35,6 +33,7 @@ var PortFakes = fx.Provide(
 	fx.Annotate(libraryfakes.NewMediaProber, fx.As(new(library.MediaProber))),
 	fx.Annotate(libraryfakes.NewHasher, fx.As(new(library.Hasher))),
 	fx.Annotate(libraryfakes.NewJellyfinLibrary, fx.As(new(library.JellyfinLibrary))),
+	fx.Annotate(libraryfakes.NewDownloadLocation, fx.As(new(library.DownloadLocation))),
 	fx.Annotate(subtitlesfakes.NewOpenSubtitles, fx.As(new(subtitles.OpenSubtitles))),
 	fx.Annotate(subtitlesfakes.NewSyncer, fx.As(new(subtitles.Syncer))),
 	fx.Annotate(transcodefakes.NewFileStat, fx.As(new(transcode.FileStat))),
@@ -43,6 +42,4 @@ var PortFakes = fx.Provide(
 
 // ReaderFakes provides the in-memory Reader of each context whose repository isn't built yet.
 // A slice that implements a context's Reader removes that context's line here.
-var ReaderFakes = fx.Provide(
-	fx.Annotate(func() *librarytest.Fake { return librarytest.NewFake(librarytest.Fixture{}) }, fx.As(new(libraryapi.Reader))),
-)
+var ReaderFakes = fx.Provide()

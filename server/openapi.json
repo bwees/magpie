@@ -49,6 +49,22 @@
 				],
 				"type": "object"
 			},
+			"AddRootFolderRequest": {
+				"description": "AddRootFolderRequest schema",
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kind",
+					"path"
+				],
+				"type": "object"
+			},
 			"AgentCapabilityResponse": {
 				"properties": {
 					"capability": {
@@ -823,6 +839,9 @@
 							"null"
 						]
 					},
+					"infoHash": {
+						"type": "string"
+					},
 					"quality": {
 						"$ref": "#/components/schemas/Quality"
 					},
@@ -842,6 +861,7 @@
 					"download",
 					"episodes",
 					"files",
+					"infoHash",
 					"quality",
 					"releaseName",
 					"seedingMode",
@@ -1175,6 +1195,25 @@
 				],
 				"type": "object"
 			},
+			"EpisodeRefResponse": {
+				"properties": {
+					"episode": {
+						"type": "string"
+					},
+					"number": {
+						"type": "integer"
+					},
+					"season": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"episode",
+					"number",
+					"season"
+				],
+				"type": "object"
+			},
 			"EpisodeResponse": {
 				"properties": {
 					"airDate": {
@@ -1400,6 +1439,24 @@
 				],
 				"type": "object"
 			},
+			"FileMappingRequest": {
+				"properties": {
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"path": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodes",
+					"path"
+				],
+				"type": "object"
+			},
 			"FileTranscoded": {
 				"description": "FileTranscoded schema",
 				"properties": {
@@ -1616,6 +1673,28 @@
 				},
 				"type": "object"
 			},
+			"HardlinkCheckResponse": {
+				"description": "HardlinkCheckResponse schema",
+				"properties": {
+					"downloadPath": {
+						"type": "string"
+					},
+					"problem": {
+						"type": "string"
+					},
+					"rootFolders": {
+						"items": {
+							"$ref": "#/components/schemas/RootFolderResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"downloadPath",
+					"rootFolders"
+				],
+				"type": "object"
+			},
 			"HealthResponse": {
 				"description": "HealthResponse schema",
 				"properties": {
@@ -1677,6 +1756,29 @@
 				],
 				"type": "object"
 			},
+			"ImportEpisodeResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"number": {
+						"type": "integer"
+					},
+					"season": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"number",
+					"season"
+				],
+				"type": "object"
+			},
 			"ImportFailed": {
 				"description": "ImportFailed schema",
 				"properties": {
@@ -1694,6 +1796,96 @@
 					"download",
 					"reason",
 					"retryable"
+				],
+				"type": "object"
+			},
+			"ImportFileResponse": {
+				"properties": {
+					"episodes": {
+						"items": {
+							"$ref": "#/components/schemas/EpisodeRefResponse"
+						},
+						"type": "array"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"sample": {
+						"type": "boolean"
+					},
+					"size": {
+						"format": "int64",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"episodes",
+					"kind",
+					"path",
+					"sample",
+					"size"
+				],
+				"type": "object"
+			},
+			"ImportResponse": {
+				"description": "ImportResponse schema",
+				"properties": {
+					"attempts": {
+						"type": "integer"
+					},
+					"download": {
+						"type": "string"
+					},
+					"episodes": {
+						"items": {
+							"$ref": "#/components/schemas/ImportEpisodeResponse"
+						},
+						"type": "array"
+					},
+					"files": {
+						"items": {
+							"$ref": "#/components/schemas/ImportFileResponse"
+						},
+						"type": "array"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"titleName": {
+						"type": "string"
+					},
+					"updatedAt": {
+						"format": "date-time",
+						"type": "string"
+					}
+				},
+				"required": [
+					"attempts",
+					"download",
+					"episodes",
+					"files",
+					"kind",
+					"reason",
+					"releaseName",
+					"status",
+					"title",
+					"titleName",
+					"updatedAt"
 				],
 				"type": "object"
 			},
@@ -2154,6 +2346,21 @@
 				],
 				"type": "object"
 			},
+			"ManualImportRequest": {
+				"description": "ManualImportRequest schema",
+				"properties": {
+					"files": {
+						"items": {
+							"$ref": "#/components/schemas/FileMappingRequest"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"files"
+				],
+				"type": "object"
+			},
 			"MeResponse": {
 				"properties": {
 					"displayName": {
@@ -2182,6 +2389,74 @@
 					"permissions",
 					"role",
 					"username"
+				],
+				"type": "object"
+			},
+			"MediaFileResponse": {
+				"description": "MediaFileResponse schema",
+				"properties": {
+					"available": {
+						"type": "boolean"
+					},
+					"download": {
+						"type": "string"
+					},
+					"episodes": {
+						"items": {
+							"$ref": "#/components/schemas/EpisodeRefResponse"
+						},
+						"type": "array"
+					},
+					"id": {
+						"type": "string"
+					},
+					"importedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"mediaInfo": {
+						"$ref": "#/components/schemas/MediaInfoResponse"
+					},
+					"origin": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"quality": {
+						"$ref": "#/components/schemas/Quality"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"rootFolder": {
+						"type": "string"
+					},
+					"size": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"title": {
+						"type": "string"
+					},
+					"transcoded": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"available",
+					"episodes",
+					"id",
+					"importedAt",
+					"mediaInfo",
+					"origin",
+					"path",
+					"quality",
+					"releaseName",
+					"rootFolder",
+					"size",
+					"title",
+					"transcoded"
 				],
 				"type": "object"
 			},
@@ -2220,6 +2495,45 @@
 					"bitrateKbps",
 					"container",
 					"duration",
+					"hdr",
+					"height",
+					"streams",
+					"width"
+				],
+				"type": "object"
+			},
+			"MediaInfoResponse": {
+				"properties": {
+					"bitrateKbps": {
+						"type": "integer"
+					},
+					"container": {
+						"type": "string"
+					},
+					"durationSeconds": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"hdr": {
+						"type": "string"
+					},
+					"height": {
+						"type": "integer"
+					},
+					"streams": {
+						"items": {
+							"$ref": "#/components/schemas/StreamResponse"
+						},
+						"type": "array"
+					},
+					"width": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"bitrateKbps",
+					"container",
+					"durationSeconds",
 					"hdr",
 					"height",
 					"streams",
@@ -3552,6 +3866,29 @@
 				],
 				"type": "object"
 			},
+			"RootFolderResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"link": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"kind",
+					"link",
+					"path"
+				],
+				"type": "object"
+			},
 			"RunAgentJob": {
 				"description": "RunAgentJob schema",
 				"properties": {
@@ -4077,6 +4414,53 @@
 				"type": "object"
 			},
 			"Stream": {
+				"properties": {
+					"bitDepth": {
+						"type": "integer"
+					},
+					"bitrateKbps": {
+						"type": "integer"
+					},
+					"channels": {
+						"type": "integer"
+					},
+					"codec": {
+						"type": "string"
+					},
+					"default": {
+						"type": "boolean"
+					},
+					"forced": {
+						"type": "boolean"
+					},
+					"image": {
+						"type": "boolean"
+					},
+					"index": {
+						"type": "integer"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"language": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"bitDepth",
+					"bitrateKbps",
+					"channels",
+					"codec",
+					"default",
+					"forced",
+					"image",
+					"index",
+					"kind",
+					"language"
+				],
+				"type": "object"
+			},
+			"StreamResponse": {
 				"properties": {
 					"bitDepth": {
 						"type": "integer"
@@ -11083,6 +11467,718 @@
 				]
 			}
 		},
+		"/api/library/files": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).files`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listMediaFiles",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "query",
+						"name": "title",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/MediaFileResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "A title's media files, newest first (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
+		"/api/library/files/{id}": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).file`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getMediaFile",
+				"parameters": [
+					{
+						"description": "Media file ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MediaFileResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "One media file with its media info (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
+		"/api/library/hardlink-check": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).hardlinkCheck`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getHardlinkCheck",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HardlinkCheckResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Whether qBittorrent's download folder shares a filesystem with each root folder (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
+		"/api/library/imports": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).imports`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listImports",
+				"parameters": [
+					{
+						"description": "Comma-separated statuses: PENDING, IMPORTED, FAILED, MANUAL",
+						"in": "query",
+						"name": "status",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ImportResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Imports in the given statuses, most recently changed first (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
+		"/api/library/imports/{downloadId}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).removeImport`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "removeImport",
+				"parameters": [
+					{
+						"description": "Download ID",
+						"in": "path",
+						"name": "downloadId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Drop a failed or manual import from the queue (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
+		"/api/library/imports/{downloadId}/manual": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).importManually`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "importManually",
+				"parameters": [
+					{
+						"description": "Download ID",
+						"in": "path",
+						"name": "downloadId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ManualImportRequest"
+							}
+						}
+					},
+					"description": "Request body for library.ManualImportRequest",
+					"required": true
+				},
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ImportResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Import a failed or manual import with a file → episodes mapping (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
+		"/api/library/imports/{downloadId}/retry": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).retryImport`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "retryImport",
+				"parameters": [
+					{
+						"description": "Download ID",
+						"in": "path",
+						"name": "downloadId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ImportResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Run a failed or manual import again (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
+		"/api/library/root-folders": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).rootFolders`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listRootFolders",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RootFolderResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Root folders with their hardlink check (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			},
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).addRootFolder`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "addRootFolder",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AddRootFolderRequest"
+							}
+						}
+					},
+					"description": "Request body for library.AddRootFolderRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RootFolderResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Add a root folder; it must exist and be writable (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
+		"/api/library/root-folders/{id}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/library.(*Controller).removeRootFolder`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "removeRootFolder",
+				"parameters": [
+					{
+						"description": "Root folder ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Forget a root folder that holds no media files (admin)",
+				"tags": [
+					"api",
+					"library"
+				]
+			}
+		},
 		"/api/platform/backups": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).list`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -12596,6 +13692,9 @@
 		},
 		{
 			"name": "identity"
+		},
+		{
+			"name": "library"
 		},
 		{
 			"name": "platform"

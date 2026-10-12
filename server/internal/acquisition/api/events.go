@@ -233,6 +233,7 @@ type DownloadCompleted struct {
 	ContentPath string             `json:"contentPath"` // as qBittorrent reports it (remote path mapping already applied)
 	Files       []DownloadFile     `json:"files"`       // only files with priority > 0
 	ReleaseName string             `json:"releaseName"`
+	InfoHash    string             `json:"infoHash"`
 	Quality     domain.Quality     `json:"quality"`
 	CFScore     int                `json:"cfScore"`
 	SeedingMode SeedingMode        `json:"seedingMode"`

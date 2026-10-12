@@ -638,6 +638,96 @@ export type UpdateUserRequest = {
     role?: string;
     viewOthersRequests?: boolean;
 };
+export type EpisodeRefResponse = {
+    episode: string;
+    "number": number;
+    season: number;
+};
+export type StreamResponse = {
+    bitDepth: number;
+    bitrateKbps: number;
+    channels: number;
+    codec: string;
+    "default": boolean;
+    forced: boolean;
+    image: boolean;
+    index: number;
+    kind: string;
+    language: string;
+};
+export type MediaInfoResponse = {
+    bitrateKbps: number;
+    container: string;
+    durationSeconds: number;
+    hdr: string;
+    height: number;
+    streams: StreamResponse[];
+    width: number;
+};
+export type MediaFileResponse = {
+    available: boolean;
+    download?: string;
+    episodes: EpisodeRefResponse[];
+    id: string;
+    importedAt: string;
+    mediaInfo: MediaInfoResponse;
+    origin: string;
+    path: string;
+    quality: Quality;
+    releaseName: string;
+    rootFolder: string;
+    size: number;
+    title: string;
+    transcoded: boolean;
+};
+export type RootFolderResponse = {
+    id: string;
+    kind: string;
+    link: string;
+    path: string;
+};
+export type HardlinkCheckResponse = {
+    downloadPath: string;
+    problem?: string;
+    rootFolders: RootFolderResponse[];
+};
+export type ImportEpisodeResponse = {
+    id: string;
+    name: string;
+    "number": number;
+    season: number;
+};
+export type ImportFileResponse = {
+    episodes: EpisodeRefResponse[];
+    kind: string;
+    path: string;
+    sample: boolean;
+    size: number;
+};
+export type ImportResponse = {
+    attempts: number;
+    download: string;
+    episodes: ImportEpisodeResponse[];
+    files: ImportFileResponse[];
+    kind: string;
+    reason: string;
+    releaseName: string;
+    status: string;
+    title: string;
+    titleName: string;
+    updatedAt: string;
+};
+export type FileMappingRequest = {
+    episodes: string[];
+    path: string;
+};
+export type ManualImportRequest = {
+    files: FileMappingRequest[];
+};
+export type AddRootFolderRequest = {
+    kind: string;
+    path: string;
+};
 export type BackupResponse = {
     createdAt: string;
     kind: string;
@@ -839,6 +929,7 @@ export type DownloadCompleted = {
     download: string;
     episodes: string[] | null;
     files: DownloadFile[] | null;
+    infoHash: string;
     quality: Quality;
     releaseName: string;
     seedingMode: string;
@@ -3163,6 +3254,237 @@ export function updateUser(id: string, updateUserRequest: UpdateUserRequest, { a
             Accept: accept
         })
     })));
+}
+/**
+ * A title's media files, newest first (admin)
+ */
+export function listMediaFiles(title: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MediaFileResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/files${QS.query(QS.explode({
+        title
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * One media file with its media info (admin)
+ */
+export function getMediaFile(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MediaFileResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/files/${encodeURIComponent(id)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Whether qBittorrent's download folder shares a filesystem with each root folder (admin)
+ */
+export function getHardlinkCheck({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: HardlinkCheckResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/library/hardlink-check", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Imports in the given statuses, most recently changed first (admin)
+ */
+export function listImports(status: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ImportResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/imports${QS.query(QS.explode({
+        status
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Drop a failed or manual import from the queue (admin)
+ */
+export function removeImport(downloadId: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/imports/${encodeURIComponent(downloadId)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Import a failed or manual import with a file → episodes mapping (admin)
+ */
+export function importManually(downloadId: string, manualImportRequest: ManualImportRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: ImportResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/imports/${encodeURIComponent(downloadId)}/manual`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: manualImportRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Run a failed or manual import again (admin)
+ */
+export function retryImport(downloadId: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: ImportResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/imports/${encodeURIComponent(downloadId)}/retry`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Root folders with their hardlink check (admin)
+ */
+export function listRootFolders({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RootFolderResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/library/root-folders", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Add a root folder; it must exist and be writable (admin)
+ */
+export function addRootFolder(addRootFolderRequest: AddRootFolderRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: RootFolderResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/library/root-folders", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: addRootFolderRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Forget a root folder that holds no media files (admin)
+ */
+export function removeRootFolder(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/library/root-folders/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
 }
 /**
  * List database backups, newest first (admin)

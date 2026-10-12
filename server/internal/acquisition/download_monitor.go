@@ -254,7 +254,7 @@ func (s *DownloadService) complete(ctx context.Context, d download, t Torrent, c
 	}
 	completed := api.DownloadCompleted{
 		Download: d.ID, Title: d.Title, Episodes: nonNil(d.Episodes), ContentPath: t.ContentPath,
-		Files: make([]api.DownloadFile, 0, len(wanted)), ReleaseName: d.ReleaseName, Quality: d.Quality,
+		Files: make([]api.DownloadFile, 0, len(wanted)), ReleaseName: d.ReleaseName, InfoHash: d.InfoHash, Quality: d.Quality,
 		CFScore: d.CFScore, SeedingMode: d.SeedingMode,
 	}
 	for _, f := range wanted {
