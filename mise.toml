@@ -115,6 +115,11 @@ description = "Run the web unit tests"
 dir = "web"
 run = "pnpm test"
 
+[tasks."test:screens"]
+description = "Run the web screenshot tests at phone and tablet sizes (pass --update-snapshots after a deliberate UI change)"
+dir = "web"
+run = "pnpm test:screens"
+
 [tasks.test]
 description = "Run all tests"
 depends = ["test:server", "test:web"]
