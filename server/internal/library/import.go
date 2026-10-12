@@ -95,14 +95,16 @@ func (s *Service) importDownload(ctx context.Context, id domain.DownloadID) erro
 		return err
 	}
 	// The files are in the library by now, so their records must be written even during shutdown.
-	if err := s.commitImport(context.WithoutCancel(ctx), plan, placed); err != nil {
+	retired, err := s.commitImport(context.WithoutCancel(ctx), plan, placed)
+	if err != nil {
 		return err
 	}
-	targets := make([]string, 0, len(placed))
+	s.retireReplaced(ctx, retired)
+	targets := make([]string, 0, len(placed)+len(retired))
 	for _, v := range placed {
 		targets = append(targets, v.target)
 	}
-	s.refreshFolders(ctx, targets)
+	s.refreshFolders(ctx, append(targets, retired...))
 	return nil
 }
 
@@ -507,19 +509,32 @@ func (s *Service) transfer(ctx context.Context, src, dst string, mode acquisitio
 	return err
 }
 
-func (s *Service) commitImport(ctx context.Context, plan importPlan, placed []placedVideo) error {
+// commitImport records the placed videos. A video replaces the title's files covering its episodes: their
+// records go in the same transaction, each FileImported followed by FileDeleted{UPGRADED} for the files it
+// replaced. It returns the replaced files still on disk; a replaced file the new one landed on is already gone.
+func (s *Service) commitImport(ctx context.Context, plan importPlan, placed []placedVideo) ([]string, error) {
 	now := s.now().UTC()
 	files, err := encodeFiles(plan.files)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	payload := plan.imp.Payload
 	download := payload.Download
-	return s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
+	targets := make([]string, 0, len(placed))
+	for _, v := range placed {
+		targets = append(targets, v.target)
+	}
+	var retired []string
+	err = s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
+		retired = nil
 		moved, err := moveImport(tx, download, []ImportStatus{ImportPending}, map[string]any{
 			"status": ImportImported, "last_error": "", "files": files, "updated_at": now,
 		})
 		if err != nil || !moved {
+			return err
+		}
+		existing, err := titleFiles(tx, plan.title.ID)
+		if err != nil {
 			return err
 		}
 		for _, v := range placed {
@@ -536,12 +551,29 @@ func (s *Service) commitImport(ctx context.Context, plan importPlan, placed []pl
 			if err := insertMediaFile(tx, file); err != nil {
 				return err
 			}
-			if err := s.deps.Bus.Publish(tx, bus.EventOf(importedEvent(file, v.sidecars))); err != nil {
+			replaced := replacedBy(existing, plan.title.Kind, v.episodes)
+			imported := importedEvent(file, v.sidecars)
+			if len(replaced) > 0 {
+				imported.Replaces = &replaced[0].ID
+			}
+			if err := s.deps.Bus.Publish(tx, bus.EventOf(imported)); err != nil {
 				return err
 			}
+			for _, old := range replaced {
+				if err := s.forgetFile(tx, old, api.DeleteUpgraded); err != nil {
+					return err
+				}
+				if !slices.Contains(targets, old.Path) {
+					retired = append(retired, old.Path)
+				}
+			}
+			existing = slices.DeleteFunc(existing, func(f api.MediaFile) bool {
+				return slices.ContainsFunc(replaced, func(old api.MediaFile) bool { return old.ID == f.ID })
+			})
 		}
 		return nil
 	})
+	return retired, err
 }
 
 func importedEvent(f storedFile, sidecars []plannedSidecar) api.FileImported {
