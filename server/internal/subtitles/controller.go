@@ -64,6 +64,8 @@ type CoverageResponse struct {
 	NextAttemptAt *time.Time        `json:"nextAttemptAt,omitempty"`
 	// WaitingForQuota is true when a subtitle was found and waits for tomorrow's downloads.
 	WaitingForQuota bool `json:"waitingForQuota"`
+	// WaitingForWhisper is true while an agent generates the track with Whisper.
+	WaitingForWhisper bool `json:"waitingForWhisper"`
 }
 
 type FileSubtitlesResponse struct {
@@ -316,6 +318,7 @@ func fileResponse(id domain.MediaFileID, view FileView) FileSubtitlesResponse {
 		out.Coverage = append(out.Coverage, CoverageResponse{
 			Language: row.Language, Forced: row.Forced, Status: row.Status.Coverage(), Source: row.Source,
 			Reason: row.Reason, NextAttemptAt: row.NextAttemptAt, WaitingForQuota: row.Candidate != nil,
+			WaitingForWhisper: row.Status == StatusWaitingWhisper,
 		})
 	}
 	return out

@@ -48,6 +48,7 @@ func call[T any](t *testing.T, handler http.Handler, method, path string, body a
 
 func TestFileSubtitlesCandidatesAndDownloadOverHTTP(t *testing.T) {
 	h := newHarness(t, english)
+	h.whisperOff()
 	file := h.episodeFile(spanishImage())
 	h.imported(file)
 	h.runDue()

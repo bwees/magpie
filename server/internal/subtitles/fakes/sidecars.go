@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"io/fs"
 	"maps"
 	"slices"
 	"sync"
@@ -13,6 +14,7 @@ import (
 const (
 	SidecarFilesWrite  scripted.Method = "SidecarFiles.Write"
 	SidecarFilesRemove scripted.Method = "SidecarFiles.Remove"
+	SidecarFilesMove   scripted.Method = "SidecarFiles.Move"
 )
 
 // SidecarFiles keeps sidecar files in memory, keyed by path.
@@ -56,6 +58,21 @@ func (f *SidecarFiles) Write(path string, content []byte) error {
 		return err
 	}
 	f.Put(path, content)
+	return nil
+}
+
+func (f *SidecarFiles) Move(from, to string) error {
+	if err := f.Enter(context.Background(), SidecarFilesMove); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	content, ok := f.files[from]
+	if !ok {
+		return &fs.PathError{Op: "rename", Path: from, Err: fs.ErrNotExist}
+	}
+	delete(f.files, from)
+	f.files[to] = content
 	return nil
 }
 

@@ -45,6 +45,14 @@ func (SidecarFiles) Write(path string, content []byte) (err error) {
 	return os.Rename(tmp.Name(), path)
 }
 
+// Move renames within one filesystem, which a staged Whisper subtitle shares with its video.
+func (SidecarFiles) Move(from, to string) error {
+	if err := os.Chmod(from, sidecarPerm); err != nil {
+		return err
+	}
+	return os.Rename(from, to)
+}
+
 func (SidecarFiles) Remove(path string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err

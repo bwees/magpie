@@ -66,6 +66,8 @@ type SidecarFiles interface {
 	Write(path string, content []byte) error
 	// Remove deletes path. A missing file is not an error.
 	Remove(path string) error
+	// Move renames from to to, replacing to. A missing from returns an error matching fs.ErrNotExist.
+	Move(from, to string) error
 }
 
 var (

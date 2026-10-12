@@ -203,6 +203,19 @@ func newHarness(t *testing.T, global ...domain.Language) *harness {
 
 func (h *harness) advance(d time.Duration) { h.now = h.now.Add(d) }
 
+// whisperOff turns the Whisper fallback off, so a track nothing was found for ends MISSING.
+func (h *harness) whisperOff() {
+	h.t.Helper()
+	cfg, err := h.service.Settings(h.ctx)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	cfg.WhisperEnabled = false
+	if _, err := h.service.SetSettings(h.ctx, cfg); err != nil {
+		h.t.Fatal(err)
+	}
+}
+
 // episodeFile is S01E02 of the show, as Library stores it.
 func (h *harness) episodeFile(streams ...libraryapi.Stream) libraryapi.MediaFile {
 	return libraryapi.MediaFile{

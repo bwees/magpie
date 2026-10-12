@@ -573,13 +573,17 @@
 					},
 					"waitingForQuota": {
 						"type": "boolean"
+					},
+					"waitingForWhisper": {
+						"type": "boolean"
 					}
 				},
 				"required": [
 					"forced",
 					"language",
 					"status",
-					"waitingForQuota"
+					"waitingForQuota",
+					"waitingForWhisper"
 				],
 				"type": "object"
 			},

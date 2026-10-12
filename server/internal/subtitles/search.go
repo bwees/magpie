@@ -234,15 +234,23 @@ func (s *Service) searchTrack(ctx context.Context, sr *searcher, t target, row w
 	}
 	ranked := rank(t.Video, row.track(), cands, blocked)
 	if len(ranked) == 0 || !ranked[0].Score.Meets(t.minScore(cfg)) {
+		if wantsWhisper(cfg, row, t.Title.OriginalLanguage) {
+			return s.requestWhisper(ctx, row, cfg)
+		}
 		return s.markMissing(ctx, t, row, cfg)
 	}
 	return s.fetchAndStore(ctx, t, row, pendingDownload{Candidate: ranked[0].Candidate, Score: ranked[0].Score}, cfg, priority)
 }
 
-// missingReason is why nothing was found. The Whisper fallback is a no-op until agents can run it.
-func missingReason(cfg Settings, lang, original domain.Language) api.MissingReason {
-	if cfg.WhisperEnabled && lang != original {
+// missingReason is why nothing was found and Whisper won't be asked.
+func missingReason(cfg Settings, row wantedRow, original domain.Language) api.MissingReason {
+	switch {
+	case !cfg.WhisperEnabled:
+		return api.MissingNoMatch
+	case row.Language != original:
 		return api.MissingNotOriginalLanguage
+	case row.WhisperAttempts >= maxWhisperAttempts:
+		return api.MissingWhisperFailed
 	}
 	return api.MissingNoMatch
 }
@@ -260,7 +268,7 @@ func (s *Service) markMissing(ctx context.Context, t target, row wantedRow, cfg 
 	return s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
 		now := s.now()
 		next := nextMissingAttempt(cfg, row.CreatedAt, now)
-		reason := missingReason(cfg, row.Language, t.Title.OriginalLanguage)
+		reason := missingReason(cfg, row, t.Title.OriginalLanguage)
 		wasMissing := row.Status == StatusMissing
 		row.Status, row.Reason, row.NextAttemptAt, row.Source, row.Candidate = StatusMissing, reason, &next, nil, nil
 		if err := saveWanted(tx, []wantedRow{row}); err != nil {
@@ -361,24 +369,6 @@ func (s *Service) store(ctx context.Context, t target, track wantedTrack, pick p
 		now := s.now()
 		c := pick.Candidate
 		path := sidecarPath(t.File.Path, track.Language, track.Forced, c.HearingImpaired)
-		var replaced []SubtitleID
-		var stalePaths []string
-		replaces := false
-		for _, sub := range st.Subtitles {
-			sameTrack := sub.Language == track.Language && sub.Forced == track.Forced &&
-				(sub.Source == api.SourceProvider || sub.Source == api.SourceWhisper)
-			if !sameTrack && (sub.Path != path || sub.Source == api.SourceEmbedded) {
-				continue
-			}
-			replaced = append(replaced, sub.ID)
-			replaces = replaces || sameTrack
-			if sub.Path != path {
-				stalePaths = append(stalePaths, sub.Path)
-			}
-		}
-		if err := deleteSubtitles(tx, replaced); err != nil {
-			return err
-		}
 		points, max, fileID := pick.Score.Points, pick.Score.Max, c.FileID
 		row := subtitleRow{
 			ID: newSubtitleID(), MediaFileID: t.File.ID, Language: track.Language, Forced: track.Forced,
@@ -393,36 +383,61 @@ func (s *Service) store(ctx context.Context, t target, track wantedTrack, pick p
 			until := now.Add(window)
 			row.UpgradeUntil = &until
 		}
-		if err := saveSubtitle(tx, row); err != nil {
-			return err
-		}
-		if err := s.markSatisfied(tx, st.Wanted, track, api.SourceProvider); err != nil {
-			return err
-		}
-		if err := s.deps.Sidecars.Write(path, got.Content); err != nil {
-			return err
-		}
-		for _, stale := range stalePaths {
-			used, err := pathInUse(tx, stale)
-			if err != nil {
-				return err
-			}
-			if used {
-				continue
-			}
-			if err := s.deps.Sidecars.Remove(stale); err != nil {
-				return err
-			}
-		}
-		added := api.SubtitleAdded{
-			MediaFile: t.File.ID, Language: track.Language, Forced: track.Forced, SDH: row.SDH,
-			Source: api.SourceProvider, Synced: got.Synced, Replaces: replaces,
-		}
-		if err := s.publish(tx, added); err != nil {
-			return err
-		}
-		return s.settle(tx, t.File.ID)
+		return s.keep(tx, st, row, func() error { return s.deps.Sidecars.Write(path, got.Content) })
 	})
+}
+
+// keep stores sub as its track's sidecar, replacing the track's provider or Whisper subtitle and anything
+// else at its path, and publishes SubtitleAdded. write puts the file at sub.Path.
+func (s *Service) keep(tx *gorm.DB, st fileState, sub subtitleRow, write func() error) error {
+	track := wantedTrack{Language: sub.Language, Forced: sub.Forced}
+	var replaced []SubtitleID
+	var stalePaths []string
+	replaces := false
+	for _, old := range st.Subtitles {
+		sameTrack := old.Language == track.Language && old.Forced == track.Forced &&
+			(old.Source == api.SourceProvider || old.Source == api.SourceWhisper)
+		if !sameTrack && (old.Path != sub.Path || old.Source == api.SourceEmbedded) {
+			continue
+		}
+		replaced = append(replaced, old.ID)
+		replaces = replaces || sameTrack
+		if old.Path != sub.Path {
+			stalePaths = append(stalePaths, old.Path)
+		}
+	}
+	if err := deleteSubtitles(tx, replaced); err != nil {
+		return err
+	}
+	if err := saveSubtitle(tx, sub); err != nil {
+		return err
+	}
+	if err := s.markSatisfied(tx, st.Wanted, track, sub.Source); err != nil {
+		return err
+	}
+	if err := write(); err != nil {
+		return err
+	}
+	for _, stale := range stalePaths {
+		used, err := pathInUse(tx, stale)
+		if err != nil {
+			return err
+		}
+		if used {
+			continue
+		}
+		if err := s.deps.Sidecars.Remove(stale); err != nil {
+			return err
+		}
+	}
+	added := api.SubtitleAdded{
+		MediaFile: sub.MediaFileID, Language: sub.Language, Forced: sub.Forced, SDH: sub.SDH,
+		Source: sub.Source, Synced: sub.Synced, Replaces: replaces,
+	}
+	if err := s.publish(tx, added); err != nil {
+		return err
+	}
+	return s.settle(tx, sub.MediaFileID)
 }
 
 // markSatisfied closes the wanted row of a track, if the track is wanted.

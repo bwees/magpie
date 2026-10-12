@@ -18,6 +18,7 @@ var (
 	NewLibraryHandler          = newLibraryHandler
 	NewIssueActionHandler      = newIssueActionHandler
 	NewLanguagesChangedHandler = newLanguagesChangedHandler
+	NewWhisperHandler          = newWhisperHandler
 )
 
 func SetClock(s *Service, now func() time.Time) { s.now = now }

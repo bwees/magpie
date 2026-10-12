@@ -23,8 +23,8 @@ Decisions: [07](../../../.scratch/v1-spec/issues/07-subtitles.md), [16](../../..
 | Table | Key columns |
 |---|---|
 | `files` | media_file_id, title_id, settled (false while a wanted track is in progress), imported_at |
-| `subtitles` | id, media_file_id, language, forced, sdh, source (EMBEDDED/RELEASE/PROVIDER/WHISPER), stream_index? (EMBEDDED), provider_file_id?, release_name, score?, max_score?, synced, sync_offset_ms?, path?, added_at, upgrade_until? |
-| `wanted` | media_file_id, language, forced, hearing_impaired (HI ok), position (wanted order), status (PENDING/SEARCHING/WAITING_WHISPER/MISSING/SATISFIED), source? (when SATISFIED), reason? (when MISSING), priority (IMPORT/MANUAL/UPGRADE/BACKLOG), next_attempt_at?, candidate? (an accepted subtitle waiting for quota) |
+| `subtitles` | id, media_file_id, language, forced, sdh, source (EMBEDDED/RELEASE/PROVIDER/WHISPER), stream_index? (EMBEDDED), provider_file_id?, release_name, score?, max_score?, synced, sync_offset_ms?, path?, added_at, upgrade_until?, job_id? (WHISPER: the job that wrote it) |
+| `wanted` | media_file_id, language, forced, hearing_impaired (HI ok), position (wanted order), status (PENDING/SEARCHING/WAITING_WHISPER/MISSING/SATISFIED), source? (when SATISFIED), reason? (when MISSING), priority (IMPORT/MANUAL/UPGRADE/BACKLOG), next_attempt_at?, candidate? (an accepted subtitle waiting for quota), whisper_attempts (Whisper jobs asked for since the track was last reopened) |
 | `blocklist` | media_file_id, provider_file_id (filled by RERUN_SUBTITLES and by deleting a provider subtitle) |
 | `opensubtitles_session` | downloads_remaining, reset_at, vip, token_expires_at, paused_until, problem (the token itself stays in the adapter's memory; login credentials live in `platform.connections.opensubtitles`) |
 | `settings` | one settings key: whisper_enabled, whisper_model (default `large-v3-turbo`), auto_sync, min_score_episode (90), min_score_movie (70), upgrade_window_days (7), upgrade_check_interval (6 h) |
@@ -110,8 +110,8 @@ type CoverageSettled struct {
 | `library.FileRenamed` | Rewrite the stored path of each of the file's subtitles found at a sidecar's `OldPath` to its `NewPath`. A sidecar it doesn't store is ignored | event ID; a row already at its new path isn't touched | none |
 | `requests.IssueActionRequested{RERUN_SUBTITLES}` | Delete PROVIDER/WHISPER subtitles for the file and blocklist their provider file IDs for this file, then re-run the search | issue ID | none |
 | `catalog.LanguagesChanged` | Recompute `wanted` for affected files (one title, or all titles if global) | event ID | Done in batches via a backlite job |
-| `transcode.WhisperCompleted` | Move the staged SRT to the sidecar path; source WHISPER, not synced; publish `SubtitleAdded` | job ID | If the staged file is missing, treat as `JobFailed` |
-| `transcode.JobFailed` (Kind WHISPER) | Mark the language MISSING `WHISPER_FAILED`; publish `SubtitleMissing` | job ID | Retried by the next sweep, at most 3 attempts |
+| `transcode.WhisperCompleted` | Move the staged SRT to the sidecar path of the video's current path (re-read from `library.Reader`); source WHISPER, not synced; publish `SubtitleAdded`. A result for a track that was found meanwhile, is no longer wanted, or whose file is gone is deleted instead. | job ID (stored on the subtitle row) | If the staged file is missing, treat as `JobFailed` |
+| `transcode.JobFailed` (Kind WHISPER, `Final` only; earlier attempts are Transcode's own retries) | Mark the `Language` track MISSING `WHISPER_FAILED`; publish `SubtitleMissing` the first time Whisper fails it | only a WAITING_WHISPER track moves | Retried by the next sweep, at most 3 Whisper jobs per track until it is reopened |
 
 ## External ports
 
@@ -141,6 +141,8 @@ type SidecarFiles interface {
 	Write(path string, content []byte) error
 	// Remove deletes path. A missing file is not an error.
 	Remove(path string) error
+	// Move renames from to to, replacing to. A missing from returns an error matching fs.ErrNotExist.
+	Move(from, to string) error
 }
 ```
 
@@ -178,6 +180,9 @@ All routes are admin only.
    - Skip machine-translated results.
    - Download (uses quota), sync if `auto_sync` (on `ErrNoSpeech` keep it unsynced), write the sidecar, publish `SubtitleAdded`.
 4. **Whisper:** only when step 3 finds nothing, `whisper_enabled` is on, and the language is the title's original language (from `catalog.Reader`). Send `RunAgentJob{Kind: WHISPER, MediaFile, Language, Model}` and set WAITING_WHISPER. Output is never synced.
+   - Only the regular track: Whisper doesn't write forced or SDH subtitles, so a forced track goes to step 5.
+   - At most 3 Whisper jobs per track; after that the track stays MISSING `WHISPER_FAILED`. Reopening the track (RERUN_SUBTITLES, deleting its subtitle) starts the count again.
+   - The Files tab shows a track waiting for Whisper (`waitingForWhisper` on the coverage entry).
 5. Otherwise mark MISSING and publish `SubtitleMissing`. Retry on the 6-hourly sweep for 7 days, then daily.
 
 **Quota:**

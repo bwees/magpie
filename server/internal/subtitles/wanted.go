@@ -120,6 +120,7 @@ func (r *wantedRow) satisfy(source api.Source) {
 // reopen queues the track for a search now.
 func (r *wantedRow) reopen(priority Priority) {
 	r.Status, r.Source, r.Reason, r.NextAttemptAt, r.Candidate, r.Priority = StatusPending, nil, "", nil, nil, priority
+	r.WhisperAttempts = 0
 }
 
 func (r wantedRow) track() wantedTrack {

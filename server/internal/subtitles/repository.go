@@ -55,6 +55,8 @@ type subtitleRow struct {
 	Path           string
 	AddedAt        time.Time
 	UpgradeUntil   *time.Time
+	// JobID is the Whisper job that wrote a WHISPER subtitle.
+	JobID *domain.JobID
 }
 
 func (subtitleRow) TableName() string { return "subtitles_subtitles" }
@@ -89,6 +91,8 @@ type wantedRow struct {
 	// Candidate is an accepted subtitle waiting for download quota, as JSON.
 	Candidate *string
 	CreatedAt time.Time
+	// WhisperAttempts is how many Whisper jobs this track asked for since it was last reopened.
+	WhisperAttempts int
 }
 
 func (wantedRow) TableName() string { return "subtitles_wanted" }

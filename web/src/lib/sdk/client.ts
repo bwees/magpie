@@ -921,6 +921,7 @@ export type CoverageResponse = {
     source?: string;
     status: string;
     waitingForQuota: boolean;
+    waitingForWhisper: boolean;
 };
 export type SubtitleResponse = {
     addedAt: string;
