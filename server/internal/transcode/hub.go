@@ -17,6 +17,9 @@ type envelopeID string
 
 // frameSender is one agent's open control channel.
 type frameSender interface {
+	// greet sends the Welcome. Frames passed to send wait until it is out, since an agent expects the
+	// Welcome first.
+	greet(ctx context.Context, welcome agentproto.Envelope) error
 	send(ctx context.Context, env agentproto.Envelope) error
 	// replaced closes a channel that a newer connection from the same agent took over.
 	replaced()
@@ -61,6 +64,14 @@ func (h *AgentHub) Resumable() map[domain.JobID]resumableHold {
 		}
 	}
 	return holds
+}
+
+// join attaches the agent, then sends its Welcome. A scheduling pass that runs once the agent has its
+// Welcome finds it attached.
+func (h *AgentHub) join(ctx context.Context, hello agentproto.Hello, conn frameSender, welcome agentproto.Envelope) error {
+	h.SetResumable(hello.AgentID, hello.ResumableJobs)
+	h.attach(hello.AgentID, conn)
+	return conn.greet(ctx, welcome)
 }
 
 func (h *AgentHub) attach(id domain.AgentID, conn frameSender) {

@@ -90,14 +90,17 @@ func (s *AgentSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	channel := &controlChannel{conn: conn}
 	env, err := newEnvelope(agentproto.TypeWelcome, welcome)
-	if err != nil || channel.send(ctx, env) != nil {
+	if err != nil {
+		slog.ErrorContext(ctx, "transcode: greeting agent", "agent", id, "error", err)
+		_ = conn.Close(websocket.StatusInternalError, closeReasonServerErr)
 		return
 	}
-	s.hub.attach(id, channel)
+	channel := newControlChannel(conn)
 	defer s.hub.detach(id, channel)
-	s.hub.SetResumable(id, hello.ResumableJobs)
+	if s.hub.join(ctx, hello, channel, env) != nil {
+		return
+	}
 	s.wake.Kick()
 	slog.InfoContext(ctx, "transcode: agent connected", "agent", id, "hostname", hello.Hostname,
 		"devices", len(hello.Devices), "resumable", len(hello.ResumableJobs))
@@ -184,10 +187,29 @@ func handleBody[T any](env agentproto.Envelope, fn func(T) error) error {
 
 // controlChannel is one agent's WebSocket.
 type controlChannel struct {
-	conn *websocket.Conn
+	conn    *websocket.Conn
+	greeted chan struct{}
+}
+
+func newControlChannel(conn *websocket.Conn) *controlChannel {
+	return &controlChannel{conn: conn, greeted: make(chan struct{})}
+}
+
+func (c *controlChannel) greet(ctx context.Context, welcome agentproto.Envelope) error {
+	defer close(c.greeted)
+	return c.write(ctx, welcome)
 }
 
 func (c *controlChannel) send(ctx context.Context, env agentproto.Envelope) error {
+	select {
+	case <-c.greeted:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return c.write(ctx, env)
+}
+
+func (c *controlChannel) write(ctx context.Context, env agentproto.Envelope) error {
 	ctx, cancel := context.WithTimeout(ctx, frameWriteTimeout)
 	defer cancel()
 	return wsjson.Write(ctx, c.conn, env)

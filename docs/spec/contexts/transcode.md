@@ -278,6 +278,7 @@ type Envelope struct {
 - The socket path is `agentproto.ControlPath` (`/api/transcode/agents/ws`).
 - The types live in `internal/transcode/api/agentproto`, shared by the server and `agent/`. Bodies use camelCase JSON fields.
 - The server answers `CapabilitiesChanged` and `DeviceUnhealthy` with `Ack`. `Hello` is answered by `Welcome`.
+- The server registers the agent (and its `ResumableJobs`) before it sends `Welcome`, so a scheduling pass right after can offer it a job. No other frame goes out before `Welcome`.
 - Enumerated string fields below are typed there (`Mode`, `Vendor`, `Capability`, `Stage`, `RejectReason`, `Outcome`, `JobKind`). Codec, encoder, container and Whisper model names stay ffmpeg/whisper.cpp spellings.
 
 Agent → server:

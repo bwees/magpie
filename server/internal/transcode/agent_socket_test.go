@@ -128,20 +128,7 @@ func (f *fixture) connect(hello agentproto.Hello) (*testAgent, agentproto.Welcom
 	a := &testAgent{t: f.t, id: hello.AgentID, conn: conn}
 	a.send(agentproto.TypeHello, hello)
 	welcome := decodeBody[agentproto.Welcome](f.t, a.expect(agentproto.TypeWelcome))
-	f.attached(hello)
 	return a, welcome
-}
-
-// attached waits for the socket to register the agent with the hub, which happens just after Welcome.
-func (f *fixture) attached(hello agentproto.Hello) {
-	f.t.Helper()
-	deadline := time.Now().Add(eventuallyWithin)
-	for !f.hub.attachedWith(hello) {
-		if time.Now().After(deadline) {
-			f.t.Fatalf("agent %s never attached to the hub", hello.AgentID)
-		}
-		time.Sleep(eventuallyEvery)
-	}
 }
 
 func (h *AgentHub) attachedWith(hello agentproto.Hello) bool {
@@ -271,6 +258,23 @@ func TestFirstHelloRegistersTheAgent(t *testing.T) {
 	}
 	if online := f.published(api.TypeAgentOnline); len(online) != 1 {
 		t.Fatalf("AgentOnline published %d times, want once", len(online))
+	}
+}
+
+func TestSchedulingRightAfterWelcomeReachesTheAgent(t *testing.T) {
+	f := newFixture(t)
+	file := f.addFile(h264Movie(0))
+	f.cutoff(file, domain.OriginDownload)
+	hello := capableHello("gpu-a")
+	hello.ResumableJobs = []agentproto.ResumableJob{{Job: domain.NewID[domain.JobID](), SourceETag: "kept-scratch"}}
+
+	a, _ := f.connect(hello)
+
+	if !f.hub.attachedWith(hello) {
+		t.Fatal("the agent got its Welcome before the hub knew it and its resumable jobs")
+	}
+	if offer := f.offered(a); offer.Spec.Job != f.onlyJob(file).ID {
+		t.Fatalf("offered job %s, want the file's job", offer.Spec.Job)
 	}
 }
 
