@@ -279,7 +279,7 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/searches` | Start a search `{title, episodes?, interactive}` → the search state below, with `searchId`. Results arrive over the live WebSocket. Only `interactive: true` is accepted until automatic search lands (400 otherwise). |
+| POST | `/searches` | Start a search `{title, episodes?, interactive}` → `201` with the search state below and its `searchId`. Results arrive over the live WebSocket. Only `interactive: true` is accepted until automatic search lands (400 otherwise). |
 | GET | `/searches/{id}` | The cached state for reconnect/refresh: indexers with `PENDING`/`DONE`/`FAILED`/`SKIPPED` and message, releases in arrival order with current ranks, `completed`, `cancelled`, and the profile's buckets (allowed items in order, quality IDs, `meetsCutoff` on the cutoff item and those above it) and penalized formats (scored below 0). 404 `search-not-found` once expired. |
 | POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results. 404 `release-not-found`; 409 `release-rejected` for a rejected release without `override` |
 | DELETE | `/searches/{id}` | Cancel in-flight indexer queries; indexers still asked report `FAILED` ("Search cancelled") and `SearchCompleted` follows. Results stay cached. |

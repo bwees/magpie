@@ -58,8 +58,9 @@ func TestStartSearchReturnsTheSearchWithBucketsAndPendingIndexers(t *testing.T) 
 	handler := serveSearches(f, admin())
 
 	rec := do(handler, http.MethodPost, "/api/acquisition/searches", startBody(f.title.ID))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Content-Type"), "json") {
-		t.Fatalf("start = %d %s %s", rec.Code, rec.Header().Get("Content-Type"), rec.Body)
+	contentType := rec.Result().Header.Get("Content-Type")
+	if rec.Code != http.StatusCreated || !strings.Contains(contentType, "json") {
+		t.Fatalf("start = %d %s %s", rec.Code, contentType, rec.Body)
 	}
 	got := decode[acquisition.SearchResponse](t, rec)
 	if got.SearchID == "" || got.Trigger != api.TriggerInteractive || got.Completed {

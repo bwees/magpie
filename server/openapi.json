@@ -6051,7 +6051,7 @@
 					"required": true
 				},
 				"responses": {
-					"200": {
+					"201": {
 						"content": {
 							"application/json": {
 								"schema": {
@@ -6059,7 +6059,7 @@
 								}
 							}
 						},
-						"description": "OK"
+						"description": "Created"
 					},
 					"400": {
 						"content": {

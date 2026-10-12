@@ -1543,7 +1543,7 @@ export function startSearch(startSearchRequest: StartSearchRequest, { accept }: 
     accept?: string;
 } = {}, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
-        status: 200;
+        status: 201;
         data: SearchResponse;
     } | {
         status: 400;
