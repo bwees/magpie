@@ -38,11 +38,11 @@ func newRunningQueue(t *testing.T, d *db.DB) (*Queue, <-chan pingTask) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	q.Start(ctx)
+	q.Start(context.Background())
 	t.Cleanup(func() {
-		q.client.Stop(context.Background())
-		cancel()
+		if err := q.Stop(context.Background()); err != nil {
+			t.Error(err)
+		}
 	})
 	return q, ran
 }
@@ -203,7 +203,11 @@ func TestTickerOnlyEnqueues(t *testing.T) {
 		Enqueue:  func(ctx context.Context, q Enqueuer) error { return q.Enqueue(ctx, pingTask{Note: "tick"}) },
 	}}}
 	s.Start()
-	t.Cleanup(s.Stop)
+	t.Cleanup(func() {
+		if err := s.Stop(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
 
 	select {
 	case task := <-ran:

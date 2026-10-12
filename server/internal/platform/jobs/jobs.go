@@ -20,6 +20,8 @@ const (
 	// releaseAfter returns a claimed task to its queue if a crash left it unfinished.
 	releaseAfter    = time.Hour
 	cleanupInterval = time.Hour
+	// settleTime is how long backlite gets to record the results of jobs cancelled at shutdown.
+	settleTime = time.Second
 
 	queuesGroup    = `group:"job_queues"`
 	periodicsGroup = `group:"job_periodics"`
@@ -36,7 +38,9 @@ type Enqueuer interface {
 }
 
 type Queue struct {
-	client *backlite.Client
+	client  *backlite.Client
+	running *runningJobs
+	halt    context.CancelFunc
 }
 
 var Module = fx.Module("jobs",
@@ -80,21 +84,12 @@ func New(p Params) (*Queue, error) {
 	if err != nil {
 		return nil, err
 	}
-	var cancel context.CancelFunc
 	p.Lifecycle.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			var runCtx context.Context
-			runCtx, cancel = context.WithCancel(context.Background())
-			q.client.Start(runCtx)
+			q.Start(context.Background())
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
-			defer cancel()
-			if !q.client.Stop(ctx) {
-				slog.WarnContext(ctx, "jobs still running at shutdown; they will be released and retried")
-			}
-			return nil
-		},
+		OnStop: q.Stop,
 	})
 	return q, nil
 }
@@ -118,7 +113,7 @@ func Open(d *db.DB, queues ...backlite.Queue) (*Queue, error) {
 	if err := client.Install(); err != nil {
 		return nil, err
 	}
-	q := &Queue{client: client}
+	q := &Queue{client: client, running: newRunningJobs()}
 	q.Register(queues...)
 	return q, nil
 }
@@ -126,13 +121,35 @@ func Open(d *db.DB, queues ...backlite.Queue) (*Queue, error) {
 // Register adds queues. Call it before Start.
 func (q *Queue) Register(queues ...backlite.Queue) {
 	for _, queue := range queues {
-		q.client.Register(queue)
+		q.client.Register(cancellableQueue{Queue: queue, running: q.running})
 	}
 }
 
-// Start runs the workers until ctx ends. fx-managed queues start themselves.
+// Start runs the workers until Stop or until ctx ends. fx-managed queues start themselves.
 func (q *Queue) Start(ctx context.Context) {
+	ctx, q.halt = context.WithCancel(ctx)
 	q.client.Start(ctx)
+}
+
+// Stop cancels running jobs and waits for them until ctx ends. A cancelled job counts as a failed
+// attempt, like any other error.
+func (q *Queue) Stop(ctx context.Context) error {
+	defer q.halt()
+
+	// Backlite's own Stop can wait forever: a task its fetcher hands over while the workers exit is
+	// never picked up. So it gets only settleTime after the jobs return, to record their results.
+	settle, endSettle := context.WithCancel(ctx)
+	defer endSettle()
+	workersStopped := make(chan bool, 1)
+	go func() { workersStopped <- q.client.Stop(settle) }()
+
+	err := q.running.cancelAndWait(ctx)
+	settleTimer := time.AfterFunc(settleTime, endSettle)
+	defer settleTimer.Stop()
+	if !<-workersStopped {
+		slog.WarnContext(ctx, "jobs: workers did not all stop; unfinished tasks are released and retried later")
+	}
+	return err
 }
 
 func (q *Queue) Enqueue(ctx context.Context, task backlite.Task) error {

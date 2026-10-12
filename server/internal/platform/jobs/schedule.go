@@ -131,11 +131,12 @@ func (s *Scheduler) Start() {
 	}
 }
 
-func (s *Scheduler) Stop() {
+// Stop cancels the tickers and waits for them until ctx ends.
+func (s *Scheduler) Stop(ctx context.Context) error {
 	if s.cancel != nil {
 		s.cancel()
 	}
-	s.wg.Wait()
+	return waitFor(ctx, &s.wg)
 }
 
 func (s *Scheduler) runTicker(ctx context.Context, ticker Ticker) {
