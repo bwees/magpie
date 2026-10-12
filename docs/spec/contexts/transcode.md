@@ -40,7 +40,7 @@ Decisions:
 | `agent_devices` | `agent_id`, `device_id` (e.g. `cuda:0`, `/dev/dri/renderD128`), `vendor`, `name`, `driver`, `max_sessions` (NVIDIA GeForce 12, others unset), `healthy`, `retest_at` (set while unhealthy), `tested_at` |
 | `device_capabilities` | `agent_id`, `device_id`, `capability` (`ENC_HEVC_10`, `ENC_AV1_10`, `DEC_H264_8`, … `WHISPER_VULKAN`), `ok`, `error`, `tested_at` |
 | `eligible_files` | `media_file_id`, `title_id`, `origin` (`DOWNLOAD` \| `LIBRARY_SCAN` \| `MIGRATION`, from `CutoffMet.Origin`), `cutoff_met_at` |
-| `jobs` | `id`, `kind` (`TRANSCODE` \| `WHISPER`), `media_file_id`, `state`, `priority`, `attempt`, `not_before`, `agent_id`, `device_id`, `lease_expires_at`, `source_etag`, `source_size`, `spec` (JSON `JobSpec`), `result` (JSON), `excluded_agents` |
+| `jobs` | `id`, `kind` (`TRANSCODE` \| `WHISPER`), `media_file_id`, `title_id`, `origin`, `state`, `priority`, `attempt`, `not_before`, `target_codec`, `max_rate_kbps`, `hdr10`, `agent_id`, `device_id`, `offered_at`, `lease_expires_at`, `prefetch`, `last_agent_id`, `avoid_agent_id`, `avoid_until`, `source_etag`, `transfer_etag`, `source_size`, `staging_path`, `spec` (JSON `JobSpec`), `result` (JSON `JobResult`), `output_sha256`, `output_size`, `progress`, `error`, `excluded_agents` |
 | `job_attempts` | `job_id`, `attempt`, `agent_id`, `outcome`, `error`, `started_at`, `ended_at` |
 | `exclusions` | `scope` (`TITLE` \| `ROOT_FOLDER`), `ref` |
 | `skips` | `media_file_id`, `reason`, `policy_hash`. A file isn't re-evaluated until the policy changes. |
@@ -48,6 +48,10 @@ Decisions:
 
 - Tables carry the `transcode_` prefix like every context's (`transcode_agents`, `transcode_agent_devices`, `transcode_device_capabilities`, …).
 - The agent settings (`transfer_cap`, `default_slots_per_gpu`) live in the platform settings store under the key `transcode.agents`, not in `transcode_settings`.
+- Until ticket 25 adds the Transcode settings page, the policy (target, preset, caps, `min_saving_pct`, `vmaf_samples`) is the settings-store key `transcode.policy` with the defaults below; `Target()` reads it.
+- A job keeps two ETags: `source_etag` is Library's `ProcessingSource.ETag` at offer time, which `TranscodeVerified.SourceETag` carries for Library's own re-check; `transfer_etag` is the strong HTTP ETag from `FileStat` (`"<inode>-<size>-<mtime_ns>"`) that `SourceRef.ETag`, `ResumableJob.SourceETag` and the server's verification compare.
+- `staging_path` (`<StagingDir>/<job>.mkv`) is fixed at offer time, so a cancel can remove the staged file after Library forgot the media file.
+- `excluded_agents` gains an agent once it has two `FAILED` attempts at the job; lost leases don't count, since they are usually restarts the agent may resume from.
 
 The calibration table (`preset × encoder → params`) ships as a versioned file in the server binary and isn't user data.
 
@@ -208,7 +212,15 @@ type FileStat interface {
 	Stat(path string) (FileInfo, error)
 }
 type FileInfo struct { Size int64; ModTime time.Time; Inode, Device uint64 }
+
+// MediaProber reads a staged output with ffprobe for the server's own check. The ffprobe adapter
+// implements it next to Library's port of the same shape.
+type MediaProber interface {
+	Probe(ctx context.Context, path string) (libraryapi.MediaInfo, error)
+}
 ```
+
+- `adapters/disk.FileStat` implements `FileStat` on the server's disks.
 
 ## HTTP surface
 
@@ -216,9 +228,9 @@ Admin UI (session auth, Admin role):
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/transcode/jobs?state=&kind=` | List jobs |
-| POST | `/api/transcode/jobs/{id}/cancel` | Cancel a job |
-| POST | `/api/transcode/jobs/{id}/retry` | Re-queue a `FAILED` / `NOT_WORTH_IT` job and clear the skip |
+| GET | `/api/transcode/jobs?state=&kind=&limit=` | `{jobs, counts, backlog}`: jobs agents hold, then queued ones in offer order, then finished ones newest first (default limit 200); `counts` per state over every job; `backlog` the queued jobs of `LIBRARY_SCAN`/`MIGRATION` files. Each job carries its title name, episode label, file name, origin, target, agent name, attempt of `maxAttempts`, progress, `prefetched` and error. `400` on an unknown state or kind |
+| POST | `/api/transcode/jobs/{id}/cancel` | Cancel an unfinished job; `409` once finished, `404` unknown |
+| POST | `/api/transcode/jobs/{id}/retry` | Re-queue a `FAILED` / `NOT_WORTH_IT` job at attempt 1, forgetting its attempts, exclusions and skip; `409` in any other state |
 | GET | `/api/transcode/agents` | Agents, devices, capabilities |
 | PATCH | `/api/transcode/agents/{id}` | `slots_override` (0–8, null = default), `mode`, `draining`. All three are sent together. `400` out of range, `404` unknown agent. |
 | POST | `/api/transcode/agents/{id}/retest` | Ask the agent to re-run capability tests. `202`; `409` when the agent isn't connected. |
@@ -236,7 +248,7 @@ Agent endpoints (agent auth, see [Auth](#auth)):
 | HEAD | `/api/transcode/agents/jobs/{id}/output` | Committed upload offset |
 | PUT | `/api/transcode/agents/jobs/{id}/output` | Upload bytes at an offset |
 
-All agent HTTP endpoints return `409 Conflict` unless the job is currently leased to the calling agent.
+All agent HTTP endpoints return `409 Conflict` unless the job is currently leased to the calling agent. A job still `OFFERED` to the caller counts, since an agent starts fetching as it sends `JobAccept`. The byte endpoints are hidden from the OpenAPI spec like the socket: only agents call them, and `HEAD` has no fuego route. Paths and headers are constants in `agentproto` (`JobsPath`, `SourcePath`, `OutputPath`, `HeaderUploadOffset`, …).
 
 ## Agent protocol
 
@@ -280,7 +292,7 @@ type Hello struct {
 }
 type DeviceReport struct {
 	DeviceID     string // cuda:0, /dev/dri/renderD128
-	Vendor       string // NVIDIA | INTEL | AMD
+	Vendor       string // NVIDIA | INTEL | AMD | CPU (software encoders, only with MAGPIE_AGENT_CPU)
 	Name, Driver string
 	MaxSessions  int    // 0 = unknown
 	Capabilities []CapabilityResult
@@ -313,7 +325,7 @@ type JobResult struct {
 	Job     domain.JobID
 	Outcome string       // UPLOADED | NOT_WORTH_IT | FAILED
 	Verify  VerifyReport // agent-side checks
-	Error   string
+	Error   string       // FAILED: SOURCE_CHANGED, VERIFY_FAILED (Verify says which check) or the error text
 }
 type VerifyReport struct {
 	DecodeOK        bool     // ffmpeg -xerror -f null passed
@@ -392,7 +404,9 @@ type WhisperParams struct {
 
 - **Heartbeat:** the agent sends one every 10 s.
 - **Lease extension:** each heartbeat that lists a job extends its lease to `now + 60 s`. This includes jobs in `FETCHING` and `UPLOADING`.
-- **Expiry:** a lease that passes `lease_expires_at` returns the job to `QUEUED` with `attempt + 1`. The job is not re-offered to the same agent for 2 minutes, unless that agent reconnects with a matching `ResumableJob` (same `SourceETag`).
+- **Expiry:** a lease that passes `lease_expires_at` returns the job to `QUEUED` with `attempt + 1` and publishes `JobFailed` (`Final` on the last attempt). It waits out no backoff: instead the job is not re-offered to the same agent for 2 minutes, unless that agent reconnects with a matching `ResumableJob` (same `SourceETag`).
+- **Reject:** a `JobReject` returns the job to `QUEUED` without an attempt and keeps it from that agent for the same 2 minutes, so an agent short of scratch isn't offered it every tick.
+- **Stray jobs:** a heartbeat that lists a job not leased (or offered) to that agent is answered with `Cancel`; so is a late `JobAccept` after the offer timed out.
 - **Offer timeout:** an offer not accepted within 10 s returns the job to `QUEUED` without counting an attempt.
 - **Disconnect:** WebSocket loss doesn't fail jobs on its own; only lease expiry does. After 3 missed heartbeats the agent is marked offline and `AgentOffline` is published. Reconnecting publishes `AgentOnline`.
   - A 5 s sweep finds agents not heard from for 3 × 10 s. `AgentOffline.Since` is the last heartbeat.
@@ -423,8 +437,10 @@ The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `
   - The server writes at the offset into `<StagingDir>/<job>.<ext>`, with `StagingDir` from `library.Reader.SourceForProcessing` (`<root>/.magpie-staging/`), so the later rename stays on one filesystem.
   - Responses:
     - Offset mismatch: `409` with the current `Upload-Offset`.
-    - Digest mismatch on completion: `422`; the staging file is truncated to 0.
-    - Success: `204`.
+    - Digest mismatch on completion: `422`; the staging file is truncated to 0. The agent uploads again from offset 0 (at most twice).
+    - Success: `204` with the new `Upload-Offset`. `HEAD` also answers `204`.
+    - A body that breaks off keeps what arrived; the agent asks `HEAD` and resumes. A body past `Upload-Length` is `400`.
+  - The server hashes the staged file on the last chunk and records the digest; `JobResult{UPLOADED}` must name the same SHA-256 or the attempt fails.
 - **Transfer cap:**
   - A server-wide semaphore (default 2) covers concurrent source downloads plus output uploads.
   - When full, the server returns `503` with `Retry-After: 5`. Uploads skip the queue ahead of downloads, and prefetch downloads go last.
@@ -446,7 +462,10 @@ The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `
    - HDR10 mastering metadata is present when `HDR10`.
    - Sampled VMAF over `VMAFSamples` 10-second windows.
    - Savings: if `(1 − out/src) × 100 < MinSavingPct`, return `NOT_WORTH_IT` without uploading.
-4. Upload (resumable), then send `JobResult{Outcome: UPLOADED}`.
+   - An output that fails a check isn't uploaded: the agent sends `JobResult{FAILED, Error: VERIFY_FAILED, Verify}` and the server decides from `Verify` whether to retry.
+   - The full-GPU pipeline needs the device to have passed the decode test for the source (`DEC_H264_8`, `DEC_HEVC_10`) and `PIPELINE_HEVC_10`. If that encode fails, the agent tries once more with the CPU decoding.
+   - mp4 text subtitles (`mov_text`) are converted to SRT for Matroska and left out of the `streamhash` comparison.
+4. Upload (resumable), then send `JobResult{Outcome: UPLOADED}`. The agent forgets the job before the result goes out, so no later heartbeat lists it; a result that can't be sent is kept and sent again after the next heartbeat or reconnect.
 5. **Whisper:**
    - Extract `AudioStream` as 16 kHz mono PCM.
    - Run whisper.cpp (Vulkan backend, Silero VAD) with `Language`.
@@ -470,6 +489,8 @@ Settings (`transcode_settings`):
 | `transfer_cap` | 2 |
 | `default_slots_per_gpu` | 1 |
 | Imported-library backlog | `LIBRARY_SCAN`/`MIGRATION`-origin jobs run only on slots left free by `DOWNLOAD`-origin jobs |
+
+Until ticket 25, only rules 3 (a skip under the same policy hash), 4 without its cap check (the video is already in the target codec → `ALREADY_TARGET`) and 7 apply, every audio and subtitle stream is kept, and `EncoderArgs` come from one fixed set per encoder. Resolution classes go by the frame's width or height: 2160P from 3200×1800, 1080P from 1600×900, 720P from 1100×650, else SD.
 
 Evaluation of one media file (on `CutoffMet`, a sweep, or a settings change). The first matching rule wins:
 
@@ -527,6 +548,8 @@ ENCODING → NOT_WORTH_IT    (agent outcome; recorded as skip, TranscodeSkipped{
 ```
 
 ### Server-side verification (`UPLOADED` → `VERIFIED`)
+
+These checks run as the backlite job `transcode.verify-upload`, queued in the transaction that moves the job to `VERIFYING`.
 
 1. The upload digest matches `VerifyReport.SHA256`.
 2. ffprobe on the staged file: codec and bit depth as specified, duration within ±1 s of the source.

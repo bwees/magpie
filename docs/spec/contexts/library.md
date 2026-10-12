@@ -242,13 +242,14 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 - Any item whose path equals a media file's path sets `jellyfin_item_id`/`available_at` (kept from the first confirmation) and publishes `ItemAvailable` once per (file, Jellyfin item). Paths must match exactly: Magpie and Jellyfin must see the root folders at the same paths.
 - A file that Jellyfin still hasn't confirmed after 24 h shows a warning on the title (no event).
 
-**Transcode swap** (on `TranscodeVerified`):
-1. Load the file. If it's gone, reject (`FILE_GONE`).
-2. Current ETag must equal `sourceETag`, else reject (`SOURCE_CHANGED`, e.g. an upgrade landed meanwhile).
+**Transcode swap** (on `TranscodeVerified`): the handler queues the backlite job `library.transcode-swap`, which does the disk work. A redelivered event whose staged file is gone while the file is already transcoded is a no-op.
+1. Load the file. If it's gone (record or disk), reject (`FILE_GONE`).
+2. Current ETag must equal `sourceETag`, both the stored one and one computed from the file on disk now, else reject (`SOURCE_CHANGED`, e.g. an upgrade landed meanwhile).
 3. The staged file must sit in that file's `StagingDir`, and its SHA-256 must equal the payload's, else reject (`HASH_MISMATCH`).
 4. Probe the staged file. The duration must be within 1 s of the original and the stream count must match `stats`, else reject (`PROBE_FAILED`).
 5. Atomic rename staged → final path (always `.mkv`). If the extension changed, remove the old file after the rename. Sidecars keep their basename, so they stay valid.
-6. Update size, media info, ETag, `transcoded=true`, `original_size`. Keep `os_hash` and `release_name`. Publish `FileTranscoded`, then refresh Jellyfin.
+6. Update path, size, media info (the staged file's probe), ETag, `transcoded=true`, `transcoded_at`, `original_size` (the first original's size is kept across transcodes). Keep `os_hash` and `release_name`. Publish `FileTranscoded`, then refresh Jellyfin for the file's folder; the new Jellyfin item publishes `ItemAvailable` again.
+7. A rejection deletes the staged file and publishes `TranscodeSwapRejected`.
 
 **Library scan:** walk the root folders. For each top-level folder not linked to a title, publish `FolderFound` with the parsed title/year and any `[tmdbid-N]`/`{tmdb-N}` hint. Catalog decides the match (exact ID, else fuzzy with a review queue it owns) and publishes `ScanFolderMatched` (plus `TitleAdded{Origin: LIBRARY_SCAN}` for new Titles). Library then links that folder's files in place, without moving or renaming unless the user opted in ([18](../../../.scratch/v1-spec/issues/18-import-and-library.md)), and publishes `FileImported{Origin: LIBRARY_SCAN}`.
 

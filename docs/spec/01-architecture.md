@@ -70,7 +70,7 @@ web/                           SvelteKit SPA
 - Every event and command struct (`app.Messages()`) is also an OpenAPI component schema, so the web client gets a TypeScript type for each live-event payload. A test in `internal/app` fails when a struct changed without regenerating.
 - Auth: session cookie (HttpOnly, SameSite=Lax), issued by Identity. Middleware resolves the user and role and puts them on the request context. Admin-only routes are marked per route.
   - A module provides middleware with `httpserver.AsMiddleware`; it wraps every route, the API not-found handler and the SPA. Identity's is the only one in v1.
-  - Routes that check their own credentials declare their path with `httpserver.AsSelfAuthenticated`; Identity's middleware lets that path and everything under it through, so neither the setup gate nor the session check answers there. Transcode's agent socket (`/api/transcode/agents/ws`) is the one in v1; ticket 24 adds the agent job endpoints.
+  - Routes that check their own credentials declare their path with `httpserver.AsSelfAuthenticated`; Identity's middleware lets that path and everything under it through, so neither the setup gate nor the session check answers there. Transcode declares two in v1: the agent socket (`/api/transcode/agents/ws`) and the agent job byte endpoints (`/api/transcode/agents/jobs`).
   - Before setup every `/api` route except `identity/setup/admin` and `health` answers `409 setup-required`. After setup, routes other than setup and `identity/login/*` answer `401` without a session.
 - Errors: RFC 9457 problem JSON with a stable `type` per domain error.
 

@@ -17,7 +17,8 @@ Set on the container. Everything else lives in SQLite and is edited in the UI ([
 | `MAGPIE_URL` | agent | none (required) | absolute URL | Server to dial |
 | `MAGPIE_AGENT_SECRET` | agent | none (required) | must equal the server secret | Agent auth |
 | `MAGPIE_AGENT_NAME` | agent | hostname | `[a-z0-9-]` | Name shown in the UI. The stable agent ID is a ULID the agent creates on first start in `<scratch>/.magpie-agent-id`. |
-| `MAGPIE_SCRATCH_DIR` | agent | `/scratch` | writable dir | Source/output scratch space and the agent ID; mount it as a volume |
+| `MAGPIE_SCRATCH_DIR` | agent | `/scratch` | writable dir | Source/output scratch space and the agent ID; mount it as a volume. Each job's scratch is `jobs/<job>/` (`job.json`, `source`, `output.mkv`); scratch that survives a restart is offered back as a `ResumableJob` and deleted after 10 minutes if no offer resumes it. |
+| `MAGPIE_AGENT_CPU` | agent | `false` | `true` \| `false` | Offers the software encoders (libx265, libsvtav1) as device `cpu` with vendor `CPU`, for testing without a GPU. |
 
 ## General
 
