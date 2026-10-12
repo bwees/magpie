@@ -86,10 +86,11 @@ func (c *SearchController) Register(s *fuego.Server) {
 	tags := fuego.OptionTags(tagAcquisition)
 	searchPath := fuego.OptionPath(pathSearchID, "Search ID")
 
+	// 200, not 201: fuego writes a non-200 default status before the JSON content type, so the body
+	// would go out as text/plain.
 	fuego.Post(s, "/acquisition/searches", c.start, tags,
 		fuego.OptionOperationID("startSearch"),
-		fuego.OptionSummary("Start an interactive search; results stream on the live topic search:<id> (admin)"),
-		fuego.OptionDefaultStatusCode(http.StatusCreated))
+		fuego.OptionSummary("Start an interactive search; results stream on the live topic search:<id> (admin)"))
 	fuego.Get(s, "/acquisition/searches/{id}", c.get, tags, searchPath,
 		fuego.OptionOperationID("getSearch"),
 		fuego.OptionSummary("A search's cached state, for reconnect and refresh (admin)"))

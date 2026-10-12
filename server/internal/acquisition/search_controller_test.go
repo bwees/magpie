@@ -2,6 +2,7 @@ package acquisition_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"magpie/internal/acquisition"
@@ -57,8 +58,8 @@ func TestStartSearchReturnsTheSearchWithBucketsAndPendingIndexers(t *testing.T) 
 	handler := serveSearches(f, admin())
 
 	rec := do(handler, http.MethodPost, "/api/acquisition/searches", startBody(f.title.ID))
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("start = %d %s", rec.Code, rec.Body)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Content-Type"), "json") {
+		t.Fatalf("start = %d %s %s", rec.Code, rec.Header().Get("Content-Type"), rec.Body)
 	}
 	got := decode[acquisition.SearchResponse](t, rec)
 	if got.SearchID == "" || got.Trigger != api.TriggerInteractive || got.Completed {
