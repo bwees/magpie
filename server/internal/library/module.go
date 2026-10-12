@@ -30,9 +30,6 @@ var Module = fx.Module(string(owner.Library),
 		bus.AsHandler(newDownloadCompletedHandler),
 		bus.AsHandler(newTranscodeVerifiedHandler),
 		jobs.AsQueue(newImportQueue),
-		httpserver.AsController(NewAvailabilityController),
-		jobs.AsQueue(newReconcileQueue),
-		jobs.AsPeriodic(newReconcilePeriodic),
 		jobs.AsQueue(newSwapQueue),
 		httpserver.AsController(NewScanController),
 		bus.AsHandler(newScanFolderMatchedHandler),
@@ -43,7 +40,6 @@ var Module = fx.Module(string(owner.Library),
 		bus.AsHandler(newTitleRemovedHandler),
 		jobs.AsQueue(newRemoveTitleQueue),
 	),
-	fx.Invoke(startJellyfinWatch),
 )
 
 // Migrations is Library's goose directory, for tests that open a database without the app.

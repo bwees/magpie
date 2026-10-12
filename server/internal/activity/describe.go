@@ -353,7 +353,7 @@ func init() {
 		return description{subject: titled(e.Title, episodeIDs(e.Episodes)...), Text: "Renamed to " + filepath.Base(e.NewPath), Detail: e.OldPath}
 	})
 	on(func(e libraryapi.ItemAvailable) description {
-		return description{subject: titled(e.Title, e.Episodes...), Text: "Available in Jellyfin"}
+		return description{subject: titled(e.Title, e.Episodes...), Text: "Available"}
 	})
 	on(func(e libraryapi.FolderFound) description {
 		return description{Text: "Found a library folder", Detail: e.Path}

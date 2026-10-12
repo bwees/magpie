@@ -400,16 +400,6 @@ func (s *stack) drain(agent *fakeAgent) {
 	}
 }
 
-// jellyfinAdds makes Jellyfin know the file as an item and announce it, as its library scan would.
-func (s *stack) jellyfinAdds(itemID, path string) {
-	s.t.Helper()
-	s.jellyfin.AddItem(library.JellyfinItem{ID: itemID, Path: path, Type: jellyfinMovie}, time.Now())
-	eventually(s.t, "Library watches Jellyfin", func() bool { return s.jellyfin.Streams() > 0 })
-	s.jellyfin.PushChange(library.LibraryChange{Added: []string{itemID}})
-}
-
-const jellyfinMovie = "Movie"
-
 // Size limits for a quality group added to a profile, in MB per minute of runtime.
 const (
 	groupMinMBPerMin       = 10

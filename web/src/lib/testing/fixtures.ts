@@ -72,7 +72,6 @@ export function mediaFile(overrides: Partial<MediaFileResponse> = {}): MediaFile
 		available: true,
 		episodes: [],
 		importedAt: AT,
-		jellyfinOverdue: false,
 		mediaInfo: {
 			bitrateKbps: 0,
 			container: 'mkv',

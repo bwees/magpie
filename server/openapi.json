@@ -3045,30 +3045,6 @@
 				],
 				"type": "object"
 			},
-			"LibrarySchedulesRequest": {
-				"description": "LibrarySchedulesRequest schema",
-				"properties": {
-					"jellyfinReconcileHours": {
-						"type": "integer"
-					}
-				},
-				"required": [
-					"jellyfinReconcileHours"
-				],
-				"type": "object"
-			},
-			"LibrarySchedulesResponse": {
-				"description": "LibrarySchedulesResponse schema",
-				"properties": {
-					"jellyfinReconcileHours": {
-						"type": "integer"
-					}
-				},
-				"required": [
-					"jellyfinReconcileHours"
-				],
-				"type": "object"
-			},
 			"ManualImportRequest": {
 				"description": "ManualImportRequest schema",
 				"properties": {
@@ -3150,9 +3126,6 @@
 						"format": "date-time",
 						"type": "string"
 					},
-					"jellyfinOverdue": {
-						"type": "boolean"
-					},
 					"mediaInfo": {
 						"$ref": "#/components/schemas/MediaInfoResponse"
 					},
@@ -3190,7 +3163,6 @@
 					"episodes",
 					"id",
 					"importedAt",
-					"jellyfinOverdue",
 					"mediaInfo",
 					"origin",
 					"path",
@@ -13859,7 +13831,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Episodes with a file, episodes Jellyfin confirmed and size per title, in input order (admin)",
+				"summary": "Episodes with a file, episodes available and size per title, in input order (admin)",
 				"tags": [
 					"api",
 					"library"
@@ -14854,139 +14826,6 @@
 					}
 				},
 				"summary": "Choose whether matched folders are renamed to the fixed naming (admin)",
-				"tags": [
-					"api",
-					"library"
-				]
-			}
-		},
-		"/api/library/schedules": {
-			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/library.(*AvailabilityController).schedules`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
-				"operationId": "getLibrarySchedules",
-				"parameters": [
-					{
-						"in": "header",
-						"name": "Accept",
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/LibrarySchedulesResponse"
-								}
-							}
-						},
-						"description": "OK"
-					},
-					"400": {
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPError"
-								}
-							},
-							"application/xml": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPError"
-								}
-							}
-						},
-						"description": "Bad Request _(validation or deserialization error)_"
-					},
-					"500": {
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPError"
-								}
-							},
-							"application/xml": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPError"
-								}
-							}
-						},
-						"description": "Internal Server Error _(panics)_"
-					}
-				},
-				"summary": "How often the Jellyfin full reconcile runs (admin)",
-				"tags": [
-					"api",
-					"library"
-				]
-			},
-			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/library.(*AvailabilityController).setSchedules`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
-				"operationId": "setLibrarySchedules",
-				"parameters": [
-					{
-						"in": "header",
-						"name": "Accept",
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/LibrarySchedulesRequest"
-							}
-						}
-					},
-					"description": "Request body for library.LibrarySchedulesRequest",
-					"required": true
-				},
-				"responses": {
-					"200": {
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/LibrarySchedulesResponse"
-								}
-							}
-						},
-						"description": "OK"
-					},
-					"400": {
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPError"
-								}
-							},
-							"application/xml": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPError"
-								}
-							}
-						},
-						"description": "Bad Request _(validation or deserialization error)_"
-					},
-					"500": {
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPError"
-								}
-							},
-							"application/xml": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPError"
-								}
-							}
-						},
-						"description": "Internal Server Error _(panics)_"
-					}
-				},
-				"summary": "Change how often the Jellyfin full reconcile runs (admin)",
 				"tags": [
 					"api",
 					"library"

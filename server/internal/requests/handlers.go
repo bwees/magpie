@@ -82,7 +82,7 @@ func episodesTitle(ev bus.Event) (domain.TitleID, error) {
 	return announced.Title, err
 }
 
-// newItemAvailableHandler counts a movie or episodes Jellyfin confirmed towards the requests on the Title.
+// newItemAvailableHandler counts an available movie or episodes towards the requests on the Title.
 func newItemAvailableHandler(s *Service) bus.Handler {
 	return bus.Handler{
 		Name:       handlerItemAvailable,

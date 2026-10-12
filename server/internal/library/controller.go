@@ -88,10 +88,7 @@ type MediaFileResponse struct {
 	Download    *domain.DownloadID   `json:"download,omitempty"`
 	Transcoded  bool                 `json:"transcoded"`
 	ImportedAt  time.Time            `json:"importedAt"`
-	// Available is true once Jellyfin has confirmed the file.
-	Available bool `json:"available"`
-	// JellyfinOverdue is true while Jellyfin still hasn't confirmed the file a day after its import.
-	JellyfinOverdue bool `json:"jellyfinOverdue"`
+	Available   bool                 `json:"available"`
 	// RenameProblem says why the file kept its old name after an episode-group change.
 	RenameProblem string `json:"renameProblem,omitempty"`
 }
@@ -189,7 +186,7 @@ func (c *Controller) Register(s *fuego.Server) {
 		fuego.OptionQueryBool(queryTranscoded, "With titles: only transcoded (true) or not transcoded (false) files"))
 	fuego.Get(s, "/library/coverage", c.coverage, tags,
 		fuego.OptionOperationID("getCoverage"),
-		fuego.OptionSummary("Episodes with a file, episodes Jellyfin confirmed and size per title, in input order (admin)"),
+		fuego.OptionSummary("Episodes with a file, episodes available and size per title, in input order (admin)"),
 		fuego.OptionQueryArray(queryTitles, "Title IDs, at most 500", reflect.String))
 	fuego.Get(s, "/library/files/{id}", c.file, tags,
 		fuego.OptionPath(pathFileID, "Media file ID"),
@@ -270,17 +267,11 @@ func (c *Controller) files(ctx fuego.ContextNoBody) ([]MediaFileResponse, error)
 	}
 	out := make([]MediaFileResponse, 0, len(files))
 	for _, f := range files {
-		response := c.fileResponse(f)
+		response := mediaFileResponse(f)
 		response.RenameProblem = problems[f.ID]
 		out = append(out, response)
 	}
 	return out, nil
-}
-
-func (c *Controller) fileResponse(f api.MediaFile) MediaFileResponse {
-	response := mediaFileResponse(f)
-	response.JellyfinOverdue = c.library.JellyfinOverdue(f)
-	return response
 }
 
 func (c *Controller) coverage(ctx fuego.ContextNoBody) ([]TitleCoverageResponse, error) {
@@ -321,7 +312,7 @@ func (c *Controller) file(ctx fuego.ContextNoBody) (MediaFileResponse, error) {
 	if err != nil {
 		return MediaFileResponse{}, libraryProblem(err)
 	}
-	return c.fileResponse(f), nil
+	return mediaFileResponse(f), nil
 }
 
 func (c *Controller) rootFolders(ctx fuego.ContextNoBody) ([]RootFolderResponse, error) {

@@ -212,7 +212,7 @@ Which rows an event changes:
 
 ### Stage derivation
 
-Main stages: Requested → Searching → Downloading → Importing → Available, where Available means Jellyfin confirmed the file. Evaluated top to bottom; the first match wins.
+Main stages: Requested → Searching → Downloading → Importing → Available, where Available means the file is in the library. Evaluated top to bottom; the first match wins.
 
 1. `download=ACTIVE` → `DOWNLOADING` (detail "Upgrade" when `file=PRESENT`).
 2. `file=NONE` and `download=DONE` → `IMPORTING`.
@@ -220,7 +220,7 @@ Main stages: Requested → Searching → Downloading → Importing → Available
 4. `file=NONE` and `search=RUNNING` → `SEARCHING`.
 5. `file=NONE` and `search=NOTHING_ACCEPTED` → `SEARCHING`, `failed=true`.
 6. `file=NONE` → `REQUESTED`.
-7. `jellyfin=false` → `IMPORTING`, detail "Waiting for Jellyfin".
+7. `jellyfin=false` → `IMPORTING`, detail "Waiting for Jellyfin". Library publishes `ItemAvailable` with every `FileImported`, so this only lasts until that event is handled.
 8. Otherwise → `AVAILABLE`.
 
 ### Chips
@@ -340,7 +340,7 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 
 1. **Given** `catalog.TitleAdded` for a movie, **then** one pipeline row exists at `REQUESTED` and one timeline row is written.
 2. **Given** the same event is delivered twice, **then** exactly one timeline row, one history row and one pipeline update exist.
-3. **Given** a movie at `SEARCHING`, **when** `ReleaseGrabbed` then `DownloadCompleted` then `FileImported` arrive, **then** the stage moves `DOWNLOADING` → `IMPORTING` → `IMPORTING` ("Waiting for Jellyfin") and the Subs chip is "Subs …".
+3. **Given** a movie at `SEARCHING`, **when** `ReleaseGrabbed` then `DownloadCompleted` then `FileImported` arrive, **then** the stage moves `DOWNLOADING` → `IMPORTING` → `IMPORTING` ("Waiting for Jellyfin") until `ItemAvailable` and the Subs chip is "Subs …".
 4. **Given** a file imported, **when** `ItemAvailable` arrives, **then** the stage is `AVAILABLE` even while subtitles are still pending; after `CoverageSettled{Satisfied: [en]}` the Subs chip is "Subs ✓ en".
 5. **Given** an available file, **when** `JobQueued` then `JobStarted` then `FileTranscoded` arrive, **then** the stage stays `AVAILABLE` and the Transcode chip goes "Transcode queued" → RUNNING (with job ID) → "Transcoded −N%".
 6. **Given** an available file, **when** an upgrade `ReleaseGrabbed` arrives, **then** `DOWNLOADING` with detail "Upgrade".

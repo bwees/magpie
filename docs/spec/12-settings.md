@@ -31,7 +31,7 @@ Set on the container. Everything else lives in SQLite and is edited in the UI ([
 
 ### Schedules (advanced, collapsed)
 
-All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row is owned by the context that runs the loop. Acquisition's RSS, pending and sweep rows are `GET · PUT /api/acquisition/schedules`; the Jellyfin full reconcile is `GET · PUT /api/library/schedules`; the sweeps' searches are queued 4 s apart.
+All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row is owned by the context that runs the loop. Acquisition's RSS, pending and sweep rows are `GET · PUT /api/acquisition/schedules`; the sweeps' searches are queued 4 s apart.
 
 | Loop | Owner | Default | Bounds |
 |---|---|---|---|
@@ -45,7 +45,6 @@ All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row i
 | TRaSH sync | Acquisition | daily | daily, or off (the TRaSH Guides sync switch under Quality); a weekly option isn't built yet |
 | TMDB refresh | Catalog | continuing series daily; ended series and movies weekly; images < 5 months | images must stay < 6 months (TMDB terms) |
 | Subtitle upgrade check | Subtitles | 6 h | 1–24 h (edited under Settings → Subtitles; the same sweep retries missing languages) |
-| Jellyfin full reconcile | Library | daily | 6 h–weekly |
 
 ## Connections
 
@@ -58,7 +57,7 @@ Owner: **Platform** (`platform.connections.*`). Each adapter is configured once 
 | qBittorrent category | `magpie` | `[a-z0-9-]` |
 | qBittorrent download path / same path in Magpie | none (paths match) | both or neither. The adapter rewrites qBittorrent's `content_path` from the first prefix to the second, whole folders only. |
 | Prowlarr URL, API key | none (required) | Test: lists indexers |
-| Jellyfin URL, API key | none (required) | Test: version ≥ 12, libraries listed, WebSocket connects. Auth header `Authorization: MediaBrowser Token=…` only. |
+| Jellyfin URL, API key | none (required) | Test: version ≥ 12, libraries listed. Auth header `Authorization: MediaBrowser Token=…` only. |
 | OpenSubtitles app key | bundled with Magpie | not user-editable ([ticket 16](../../.scratch/v1-spec/issues/16-subtitle-design.md)) |
 | OpenSubtitles username / password | none | Test login. Shown under Settings → Subtitles; stored as platform connection config. |
 

@@ -169,7 +169,7 @@ type Event struct {
 | `library.FileDeleted` | Library | mediaFile, title, episodes, path, reason `UPGRADED` \| `REMOVED` \| `TITLE_REMOVED` | **Only cleanup signal for a removed file.** Acquisition → drop file score; Subtitles → drop sidecars; Transcode → cancel jobs; Activity |
 | `library.FileRenamed` | Library | mediaFile, title, episodes (new numbering), oldPath, newPath, sidecars [{oldPath, newPath}] (published with the new path) | Subtitles → rewrite stored sidecar paths; Activity → timeline |
 | `library.FolderFound` | Library | path, kind, parsed title/year, tmdbHint | Catalog → match against TMDB or review queue |
-| `library.ItemAvailable` | Library | title, episodes, jellyfinItem | Requests → mark available; Activity |
+| `library.ItemAvailable` | Library | title, episodes | Requests → mark available; Activity |
 | `subtitles.SubtitleAdded` | Subtitles | mediaFile, title, episodes, language, source, synced | Requests → resolve RERUN_SUBTITLES issues; Activity |
 | `subtitles.SubtitleMissing` | Subtitles | mediaFile, language, reason | Activity |
 | `subtitles.CoverageSettled` | Subtitles | mediaFile, title, satisfied, missing | Activity → Subs chip |
@@ -193,7 +193,7 @@ type Event struct {
 
 ## Key flows
 
-1. **Request → Available:** `RequestApproved` → Catalog `TitleAdded{REQUEST}` → Acquisition search → `ReleaseGrabbed` → `DownloadCompleted` → Library `FileImported{DOWNLOAD}` → (Subtitles, Acquisition cutoff) → Library Jellyfin refresh → `ItemAvailable` → Requests `RequestAvailable` → Activity notifies.
+1. **Request → Available:** `RequestApproved` → Catalog `TitleAdded{REQUEST}` → Acquisition search → `ReleaseGrabbed` → `DownloadCompleted` → Library `FileImported{DOWNLOAD}` + `ItemAvailable` → Requests `RequestAvailable` → Activity notifies. Subtitles, the Acquisition cutoff check and the Jellyfin refresh follow the import alongside.
 2. **Blocked file:** Acquisition grab → metadata check fails, or the completion backstop finds a blocked file → `ReleaseRejected` → Acquisition grabs the next cached release or searches. No other context is involved.
 3. **Upgrade:** RSS/backlog in Acquisition reads `library.Reader` (current quality, transcoded?) → grab → `DownloadCompleted` → `FileImported{Replaces: old}` → `FileDeleted{old, UPGRADED}` → consumers clean up the old file.
 4. **Transcode:** `CutoffMet{Origin}` → Transcode `JobQueued` → agent accepts (`JobStarted`) → `TranscodeVerified` → Library re-checks the source ETag and swaps → `FileTranscoded` (or `TranscodeSwapRejected`) → Acquisition stops upgrading.

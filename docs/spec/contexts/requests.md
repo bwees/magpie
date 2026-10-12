@@ -116,7 +116,7 @@ type RequestCancelled struct {
     User    domain.UserID
 }
 
-// RequestAvailable: every item in scope is confirmed in Jellyfin. Published once per request.
+// RequestAvailable: every item in scope is available. Published once per request.
 type RequestAvailable struct {
     Request domain.RequestID
     User    domain.UserID
@@ -219,10 +219,9 @@ DECLINED              FAILED ──retry──▶ APPROVED          PARTIALLY_AV
 ```
 
 - `PENDING` can also end by the user cancelling (row deleted).
-- **Available** ([ticket 18](../../../.scratch/v1-spec/issues/18-import-and-library.md)): an item counts as available only when Jellyfin confirms it (`library.ItemAvailable`), not on import.
+- **Available** ([ticket 18](../../../.scratch/v1-spec/issues/18-import-and-library.md)): an item counts as available once Library imports its file (`library.ItemAvailable`, published with `FileImported`). Magpie doesn't check Jellyfin.
 - Items are the movie, or every released episode in scope. Episodes that release later are added as items.
 - If a new item makes an `AVAILABLE` request incomplete, it moves back to `PARTIALLY_AVAILABLE`. `RequestAvailable` is never published twice for one request.
-- While items are imported but not yet confirmed, the UI shows "Imported, waiting for Jellyfin". That comes from the Activity pipeline projection, not from Requests' status.
 
 **Issues** ([ticket 15](../../../.scratch/v1-spec/issues/15-users-and-auth.md))
 - An Issue has a kind (video, audio, subtitle, other), text, and a comment thread. Reporting needs the "report issues" toggle.

@@ -37,7 +37,7 @@ const (
 	seriesSeason = 1
 	// replacedMovieETag is the movie file the upgrade replaced.
 	replacedMovieETag = "99-1900-1600000000"
-	// Seed 19: a series with 10 episodes, 7 with files and 6 of those confirmed in Jellyfin.
+	// Seed 19: a series with 10 episodes, 7 with files and 6 of those available.
 	seriesEpisodes   = 10
 	episodesWithFile = 7
 	episodesInJelly  = 6

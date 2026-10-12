@@ -548,7 +548,7 @@ func (s *Service) commitImport(ctx context.Context, plan importPlan, placed []pl
 					ID: domain.NewID[domain.MediaFileID](), Title: plan.title.ID, Episodes: v.episodes,
 					RootFolder: plan.root.Path, Path: v.target, Size: v.size, Quality: payload.Quality,
 					ReleaseName: payload.ReleaseName, OSHash: v.osHash, MediaInfo: v.info, Origin: domain.OriginDownload,
-					Download: &download, InfoHash: payload.InfoHash, ImportedAt: now,
+					Download: &download, InfoHash: payload.InfoHash, ImportedAt: now, Available: true,
 				},
 				RootFolderID: plan.root.ID,
 				ETag:         v.etag,
@@ -561,7 +561,7 @@ func (s *Service) commitImport(ctx context.Context, plan importPlan, placed []pl
 			if len(replaced) > 0 {
 				imported.Replaces = &replaced[0].ID
 			}
-			if err := s.deps.Bus.Publish(tx, bus.EventOf(imported)); err != nil {
+			if err := s.publishImported(tx, imported); err != nil {
 				return err
 			}
 			for _, old := range replaced {

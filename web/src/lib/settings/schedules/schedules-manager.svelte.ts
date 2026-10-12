@@ -2,28 +2,16 @@ import { toast } from 'svelte-sonner';
 import {
 	apiErrorMessage,
 	getAcquisitionSchedules,
-	getLibrarySchedules,
 	setAcquisitionSchedules,
-	setLibrarySchedules,
-	type LibrarySchedulesRequest,
-	type LibrarySchedulesResponse,
 	type SchedulesRequest,
 	type SchedulesResponse
 } from '$lib/sdk';
 import { LoadStatus } from '$lib/load-status';
-import {
-	librarySchedulesRequest,
-	schedulesDraft,
-	schedulesError,
-	schedulesRequest,
-	type SchedulesDraft
-} from './schedules';
+import { schedulesDraft, schedulesError, schedulesRequest, type SchedulesDraft } from './schedules';
 
 export interface SchedulesApi {
 	get: () => Promise<SchedulesResponse>;
 	set: (request: SchedulesRequest) => Promise<SchedulesResponse>;
-	getLibrary: () => Promise<LibrarySchedulesResponse>;
-	setLibrary: (request: LibrarySchedulesRequest) => Promise<LibrarySchedulesResponse>;
 }
 
 export interface Notifier {
@@ -33,15 +21,10 @@ export interface Notifier {
 
 const sdkApi: SchedulesApi = {
 	get: () => getAcquisitionSchedules(),
-	set: (request) => setAcquisitionSchedules(request),
-	getLibrary: () => getLibrarySchedules(),
-	setLibrary: (request) => setLibrarySchedules(request)
+	set: (request) => setAcquisitionSchedules(request)
 };
 
-/**
- * State behind Settings → General → Schedules: RSS, the pending queue and the backlog sweeps
- * (Acquisition), and the Jellyfin reconcile (Library).
- */
+/** State behind Settings → General → Schedules: RSS, the pending queue and the backlog sweeps. */
 export class SchedulesManager {
 	status = $state(LoadStatus.LOADING);
 	error = $state('');
@@ -49,8 +32,7 @@ export class SchedulesManager {
 	draft = $state<SchedulesDraft>({
 		rssIntervalMinutes: null,
 		missingSweepDays: null,
-		cutoffSweepDays: null,
-		jellyfinReconcileHours: null
+		cutoffSweepDays: null
 	});
 	draftError = $state<string>();
 	saving = $state(false);
@@ -66,8 +48,7 @@ export class SchedulesManager {
 
 	async load(): Promise<void> {
 		try {
-			const [saved, library] = await Promise.all([this.#api.get(), this.#api.getLibrary()]);
-			this.#apply(saved, library);
+			this.#apply(await this.#api.get());
 			this.status = LoadStatus.READY;
 			this.error = '';
 		} catch (error) {
@@ -83,11 +64,7 @@ export class SchedulesManager {
 		}
 		this.saving = true;
 		try {
-			const [saved, library] = await Promise.all([
-				this.#api.set(schedulesRequest(this.draft)),
-				this.#api.setLibrary(librarySchedulesRequest(this.draft))
-			]);
-			this.#apply(saved, library);
+			this.#apply(await this.#api.set(schedulesRequest(this.draft)));
 			this.#notify.success('Schedules saved');
 		} catch (error) {
 			this.#notify.error(apiErrorMessage(error, 'Could not save the schedules.'));
@@ -96,8 +73,8 @@ export class SchedulesManager {
 		}
 	}
 
-	#apply(saved: SchedulesResponse, library: LibrarySchedulesResponse): void {
+	#apply(saved: SchedulesResponse): void {
 		this.saved = saved;
-		this.draft = schedulesDraft(saved, library);
+		this.draft = schedulesDraft(saved);
 	}
 }

@@ -70,20 +70,6 @@
 	</section>
 {:else}
 	<div class="grid gap-3">
-		{#if files.overdue.length > 0}
-			<div
-				class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200"
-				role="status"
-			>
-				<TriangleAlert class="mt-0.5 size-4 shrink-0" />
-				<p>
-					Jellyfin hasn't picked up {files.overdue.length === 1
-						? 'this file'
-						: `${files.overdue.length} of these files`} a day after import. Check that Jellyfin's library
-					includes the root folder at the same path Magpie uses.
-				</p>
-			</div>
-		{/if}
 		{#each files.files as file (file.id)}
 			{@const cutoff = files.cutoff.get(file.id)}
 			{@const cutoffBadge = CUTOFF_BADGES[files.cutoffOf(file)]}
@@ -113,15 +99,6 @@
 						{/if}
 						{#if cutoff}
 							<span class="text-xs text-muted-foreground">CF {cutoff.cfScore}</span>
-						{/if}
-						{#if file.available}
-							<Badge variant="secondary">In Jellyfin</Badge>
-						{:else if file.jellyfinOverdue}
-							<Badge variant="outline" class="border-amber-500/50 text-amber-400"
-								>Not in Jellyfin</Badge
-							>
-						{:else}
-							<Badge variant="outline" class="text-muted-foreground">Waiting for Jellyfin</Badge>
 						{/if}
 						<span class="text-xs text-muted-foreground">
 							{formatSize(file.size)}

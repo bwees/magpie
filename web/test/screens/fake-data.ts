@@ -875,7 +875,6 @@ export function mediaFile(titleId: string): MediaFileResponse {
 		available: true,
 		episodes: [],
 		importedAt: ago(DAY_MS),
-		jellyfinOverdue: false,
 		mediaInfo: {
 			bitrateKbps: 18_000,
 			container: 'mkv',

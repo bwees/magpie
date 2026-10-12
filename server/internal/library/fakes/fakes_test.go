@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"slices"
 	"testing"
-	"time"
 
 	"magpie/internal/library"
 	"magpie/internal/library/api"
@@ -15,7 +14,6 @@ import (
 const (
 	downloadsDevice uint64 = 2
 	mediaDevice     uint64 = 3
-	waitForChange          = time.Second
 )
 
 func newMountedFS(t *testing.T) *FileSystem {
@@ -131,40 +129,5 @@ func TestProberReturnsSetInfoAndFailsOtherwise(t *testing.T) {
 	}
 	if _, err := p.Probe(context.Background(), "/media/other.mkv"); !errors.Is(err, library.ErrProbeFailed) {
 		t.Errorf("unknown path err = %v", err)
-	}
-}
-
-func TestJellyfinLibraryListsItemsAndStreamsChanges(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	j := NewJellyfinLibrary()
-	saved := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	movie := library.JellyfinItem{ID: "jf-1", Path: "/media/movie.mkv", Type: "Movie"}
-	j.AddItem(movie, saved)
-
-	if items, err := j.Items(ctx, []string{"jf-1", "jf-unknown"}); err != nil || !slices.Equal(items, []library.JellyfinItem{movie}) {
-		t.Errorf("Items = %+v, %v", items, err)
-	}
-	if items, err := j.ItemsSince(ctx, saved.Add(-time.Minute)); err != nil || len(items) != 1 {
-		t.Errorf("ItemsSince(before) = %+v, %v", items, err)
-	}
-	if items, err := j.ItemsSince(ctx, saved); err != nil || len(items) != 0 {
-		t.Errorf("ItemsSince(saved) = %+v, %v; want none", items, err)
-	}
-
-	changes, err := j.Changes(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	j.PushChange(library.LibraryChange{Added: []string{"jf-1"}})
-	select {
-	case c := <-changes:
-		if !slices.Equal(c.Added, []string{"jf-1"}) {
-			t.Errorf("change = %+v", c)
-		}
-	case <-time.After(waitForChange):
-		t.Fatal("no change received")
-	}
-	cancel()
-	for range changes {
 	}
 }

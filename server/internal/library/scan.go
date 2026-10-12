@@ -506,7 +506,7 @@ func (s *Service) commitLink(ctx context.Context, plan linkPlan, placed []placed
 					ID: domain.NewID[domain.MediaFileID](), Title: plan.title.ID, Episodes: v.episodes,
 					RootFolder: plan.root.Path, Path: v.target, Size: v.size,
 					Quality: scannedQuality(v.source.abs, plan.title.Kind, v.info), ReleaseName: scannedReleaseName(v.source.abs, plan.title.Kind),
-					OSHash: v.osHash, MediaInfo: v.info, Origin: domain.OriginLibraryScan, ImportedAt: now,
+					OSHash: v.osHash, MediaInfo: v.info, Origin: domain.OriginLibraryScan, ImportedAt: now, Available: true,
 				},
 				RootFolderID: plan.root.ID,
 				ETag:         v.etag,
@@ -514,7 +514,7 @@ func (s *Service) commitLink(ctx context.Context, plan linkPlan, placed []placed
 			if err := insertMediaFile(tx, file); err != nil {
 				return err
 			}
-			if err := s.deps.Bus.Publish(tx, bus.EventOf(importedEvent(file, v.sidecars))); err != nil {
+			if err := s.publishImported(tx, importedEvent(file, v.sidecars)); err != nil {
 				return err
 			}
 		}

@@ -13,7 +13,6 @@ import (
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	"magpie/internal/library/api"
-	"magpie/internal/platform/bus"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -267,7 +266,7 @@ func (s *Service) linkMigrated(tx *gorm.DB, v migratedVideo) (domain.MediaFileID
 			ID: domain.NewID[domain.MediaFileID](), Title: v.in.Title, Episodes: v.episodes,
 			RootFolder: v.root.Path, Path: v.placed.target, Size: v.placed.size, Quality: v.in.Quality,
 			ReleaseName: strings.TrimSpace(v.in.ReleaseName), OSHash: v.placed.osHash, MediaInfo: v.placed.info,
-			Origin: domain.OriginMigration, ImportedAt: importedAt,
+			Origin: domain.OriginMigration, ImportedAt: importedAt, Available: true,
 		},
 		RootFolderID: v.root.ID,
 		ETag:         v.placed.etag,
@@ -279,5 +278,5 @@ func (s *Service) linkMigrated(tx *gorm.DB, v migratedVideo) (domain.MediaFileID
 	if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&source).Error; err != nil {
 		return "", err
 	}
-	return file.ID, s.deps.Bus.Publish(tx, bus.EventOf(importedEvent(file, v.placed.sidecars)))
+	return file.ID, s.publishImported(tx, importedEvent(file, v.placed.sidecars))
 }

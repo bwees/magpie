@@ -126,8 +126,6 @@ web/                           SvelteKit SPA
 | TRaSH sync | Acquisition | backlite periodic | daily |
 | TMDB refresh | Catalog | backlite periodic | continuing series daily; ended series and movies weekly; images before 5 months |
 | Release-date check (`WantedReleased`) | Catalog | backlite periodic | hourly |
-| Jellyfin full reconcile | Library | backlite periodic | daily |
-| Jellyfin change stream | Library | WebSocket client | live |
 | Subtitle upgrades | Subtitles | backlite periodic | 6 h, within the 7-day window and daily quota |
 | Agent heartbeat / lease | Transcode | agent WebSocket | 10 s heartbeat, 60 s lease |
 | Activity pruning | Activity | backlite periodic | daily |
@@ -182,7 +180,7 @@ type LiveClientMessage struct {
 |---|---|---|---|
 | qBittorrent | ≥ 5.2, API key | Acquisition | No push; poll `sync/maindata`. `stopCondition=MetadataReceived` / `fetchMetadata` for blocked-file checks |
 | Prowlarr | API key | Acquisition | `/api/v1/indexer` list; per-indexer Torznab `/{id}/api`. Never the aggregate search |
-| Jellyfin | 12.x; header `Authorization: MediaBrowser Token="…"` only (`X-Emby-Token` and `api_key` are disabled in 12) | Identity (login), Library (refresh, availability, WebSocket) | `/QuickConnect/Initiate` is POST-only in 12 |
+| Jellyfin | 12.x; header `Authorization: MediaBrowser Token="…"` only (`X-Emby-Token` and `api_key` are disabled in 12) | Identity (login), Library (refresh) | `/QuickConnect/Initiate` is POST-only in 12 |
 | TMDB | User-supplied key (setup wizard) | Catalog | Non-commercial terms, attribution on About page, cache ≤ 6 months |
 | OpenSubtitles.com | Magpie app key shipped in the binary + each install's user login | Subtitles | 20 downloads/day free, 1000 VIP; 5 req/s per IP |
 | TRaSH Guides | Public JSON | Acquisition | Daily sync |

@@ -1,6 +1,6 @@
 # Library
 
-Owns the media files on disk and what Jellyfin sees. Turns a finished download into a correctly named library file, swaps in transcoded files, and reports when Jellyfin confirms an item.
+Owns the media files on disk. Turns a finished download into a correctly named library file, swaps in transcoded files, and asks Jellyfin to rescan what changed.
 
 - **Depends on (Readers):** `catalog.Reader`
 - **Publishes:** `FileImported`, `ImportFailed`, `ImportRemoved`, `FileTranscoded`, `FileDeleted`, `FileRenamed`, `ItemAvailable`, `FolderFound`, `TranscodeSwapRejected`
@@ -17,7 +17,7 @@ Decisions: [04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md), 
 | Import attempts, manual-import queue | Decide cutoff or quality acceptability (Acquisition) |
 | Root folders, naming, hardlink/copy/move | Talk to TMDB or decide what a folder is (Catalog) |
 | Staging area for transcoded files, atomic swap | Run or schedule GPU work, serve bytes to agents (Transcode) |
-| Jellyfin refresh, item lookup, availability | Write or delete subtitle sidecars, except moving them on rename (Subtitles) |
+| Jellyfin refresh, availability | Write or delete subtitle sidecars, except moving them on rename (Subtitles) |
 | Library scan (walking folders) | Create titles (Catalog does, on `FolderFound`) |
 
 ## Data model
@@ -25,7 +25,7 @@ Decisions: [04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md), 
 | Table | Key columns |
 |---|---|
 | `root_folders` | id, kind (MOVIE/SERIES), path, device_id |
-| `media_files` | id, title_id, root_folder_id, path, size, quality (json), release_name, os_hash, media_info (json: streams, duration, HDR), etag, origin (DOWNLOAD/LIBRARY_SCAN/MIGRATION), imported_at, download_id?, info_hash?, transcoded, transcoded_at, original_size, jellyfin_item_id?, available_at? |
+| `media_files` | id, title_id, root_folder_id, path, size, quality (json), release_name, os_hash, media_info (json: streams, duration, HDR), etag, origin (DOWNLOAD/LIBRARY_SCAN/MIGRATION), imported_at, download_id?, info_hash?, transcoded, transcoded_at, original_size, available_at? |
 | `media_file_episodes` | media_file_id, episode_id, season, number (many-to-many: multi-episode files; the numbers as imported) |
 | `imports` | download_id, title_id, release_name, status (PENDING/IMPORTED/FAILED/MANUAL/REMOVED), attempts, last_error, payload (the `DownloadCompleted`), files (json: the last attempt's videos and subtitles with their sample flag and matched episodes), mapping? (json: the user's file → episodes choice), created_at, updated_at |
 | `scan_folders` | path, root_folder_id, kind, status (FOUND/LINKED/IGNORED), title_id? (set on `ScanFolderMatched`), found_at, updated_at |
@@ -53,10 +53,10 @@ type Reader interface {
 	// and a staging directory on the same filesystem. Transcode serves these bytes to agents
 	// itself and writes the uploaded result into StagingDir; it never touches Path.
 	SourceForProcessing(ctx context.Context, id domain.MediaFileID) (ProcessingSource, error)
-	// AvailableEpisodes returns the title's episodes whose files Jellyfin has confirmed (empty for a movie).
+	// AvailableEpisodes returns the title's episodes whose files are available (empty for a movie).
 	AvailableEpisodes(ctx context.Context, title domain.TitleID) ([]domain.EpisodeID, error)
 	// Coverage returns per-title file coverage for the TV page, one entry per input title in input order:
-	// episodes with a file and episodes Jellyfin confirmed. Titles without files return zero counts, not ErrNotFound.
+	// episodes with a file and episodes available. Titles without files return zero counts, not ErrNotFound.
 	Coverage(ctx context.Context, titles []domain.TitleID) ([]TitleCoverage, error)
 }
 
@@ -85,7 +85,7 @@ type FileFilter struct { Transcoded *bool }
 type TitleCoverage struct {
 	Title                domain.TitleID
 	EpisodesWithFile     int
-	EpisodesAvailable    int // confirmed in Jellyfin
+	EpisodesAvailable    int
 	SizeBytes            int64
 }
 
@@ -144,7 +144,7 @@ type FileRenamed struct {
 	NewPath   string
 	Sidecars  []SidecarMove // { OldPath, NewPath string }
 }
-type ItemAvailable struct { Title domain.TitleID; Episodes []domain.EpisodeID; JellyfinItem string }
+type ItemAvailable struct { Title domain.TitleID; Episodes []domain.EpisodeID }
 type FolderFound struct { Path string; Kind domain.MediaKind; ParsedTitle string; Year *int; TmdbHint *domain.TmdbID }
 type TranscodeSwapRejected struct { Job domain.JobID; MediaFile domain.MediaFileID; Reason SwapRejectReason } // SOURCE_CHANGED | HASH_MISMATCH | PROBE_FAILED | FILE_GONE
 ```
@@ -198,19 +198,12 @@ type Hasher interface {
 type JellyfinLibrary interface {
 	// RefreshPath calls POST /Library/Media/Updated for one path.
 	RefreshPath(ctx context.Context, path string) error
-	// Items returns the movies and episodes among ids with their file paths (GET /Items?ids=).
-	// Jellyfin 12's /Items has no path filter, so a LibraryChanged item is resolved by ID, not by path.
-	Items(ctx context.Context, ids []string) ([]JellyfinItem, error)
-	// Changes streams LibraryChanged websocket messages (item IDs added/updated/removed).
-	Changes(ctx context.Context) (<-chan LibraryChange, error)
-	// ItemsSince lists movies and episodes changed since t (GET /Items with minDateLastSaved), for reconcile.
-	ItemsSince(ctx context.Context, t time.Time) ([]JellyfinItem, error)
 }
 
 var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 ```
 
-- `MediaInfo` (streams, duration, HDR format, bitrate, size) lives in `library/api`; `FileInfo`, `JellyfinItem` and `LibraryChange` are spelled out in `internal/library/ports.go`.
+- `MediaInfo` (streams, duration, HDR format, bitrate, size) lives in `library/api`; `FileInfo` is spelled out in `internal/library/ports.go`.
 
 - Every Jellyfin request sends only `Authorization: MediaBrowser Token="…"`. The legacy headers are disabled by default on Jellyfin 12 ([08](../../../.scratch/v1-spec/issues/08-requests-and-jellyfin.md)).
 - The release-name parser is a pure shared package, `internal/platform/parse` (no state, no I/O). Acquisition and Library both use it; Library uses it to map season-pack files to episodes.
@@ -219,10 +212,10 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/library/files?title={id}` | Files for the title page Files tab; each has `available`, `jellyfinOverdue` (not confirmed 24 h after import) and `renameProblem` (set when an episode-group rename failed) |
+| GET | `/api/library/files?title={id}` | Files for the title page Files tab; each has `available` and `renameProblem` (set when an episode-group rename failed) |
 | GET | `/api/library/files?titles={id}&titles={id}…&transcoded={bool}` | Batch files (same shape as above) for the Movies page, grouped by title in input order (`FilesForTitles`); `transcoded` filter optional. Pass exactly one of `title` or `titles`; more than 500 titles is 400 `too-many-titles` (admin) |
 | GET | `/api/library/files/{id}` | One file with media info |
-| GET | `/api/library/coverage?titles={id}&titles={id}…` | Episodes with a file / confirmed in Jellyfin and size per title, in input order (TV page; at most 500 titles, admin) |
+| GET | `/api/library/coverage?titles={id}&titles={id}…` | Episodes with a file / available and size per title, in input order (TV page; at most 500 titles, admin) |
 | DELETE | `/api/library/files/{id}` | Delete a file from disk → `FileDeleted{REMOVED}` (admin). 204; 404 `file-not-found` for an unknown or already deleted file |
 | GET | `/api/library/root-folders` · POST · DELETE `/{id}` | Root folders, each with its hardlink check (`link`: `HARDLINK` \| `COPY` \| `UNKNOWN`); POST validates the path is absolute, exists and is writable (400 `invalid-root-folder`, 409 `root-folder-exists`); DELETE refuses a folder that still holds media files (409 `root-folder-in-use`) |
 | GET | `/api/library/imports?status=FAILED,MANUAL` | Failed and manual imports, with each download's videos and subtitles, the matched episodes, and the series' episodes for the picker |
@@ -233,7 +226,6 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 | GET | `/api/library/scan` | `{running, startedAt, finishedAt, error, reported, found, linked, ignored, renameMatched}`: the last scan, how many folders it reported, and the scan folders by status (admin) |
 | PUT | `/api/library/scan/options` | `{renameMatched}`: "Rename matched folders on scan" (setting `library.scan.options`); answers the scan status (admin) |
 | GET | `/api/library/hardlink-check` | Whether the qBittorrent download path (from `DownloadLocation`) and each root folder share a device; `problem` says why the result is `UNKNOWN` |
-| GET · PUT | `/api/library/schedules` | `{jellyfinReconcileHours}`: the Jellyfin full reconcile interval, 6–168 (400 outside); Settings → General → Schedules (admin) |
 
 ## Behaviour
 
@@ -256,14 +248,11 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
    - After the commit the old file is removed from disk. An old file at the new file's path was already overwritten by the placement, so it isn't removed. A removal error is logged; the record is gone either way.
    - Sidecars of the old file are Subtitles' to remove on `FileDeleted`.
 8. Release subtitles go to `<basename>.<lang>[.forced|.sdh].<ext>`, reported in `Sidecars`. The language (ISO 639-1/2 code or English name) is parsed from the end of the file name; files with no language are dropped. A subtitle belongs to the video whose name it starts with, the only video, or the video covering the episodes its own name gives.
-9. Commit and publish `FileImported`. Then refresh Jellyfin for the parent folder.
+9. Commit and publish `FileImported` and `ItemAvailable`. Then refresh Jellyfin for the parent folder.
 
 **Availability:**
+- A file is available once it is in the library. Every new file (import, scan link, migration) sets `available_at` and publishes `FileImported` then `ItemAvailable` in the same transaction. Magpie doesn't check that Jellyfin picked it up.
 - After each import, transcode swap or rename, call `RefreshPath` once per parent folder. A refresh error is logged and never fails the import.
-- Library keeps one WebSocket open while the server runs, reconnecting with backoff (1 s doubling to 1 min). For each `LibraryChanged`, the added and updated IDs are resolved with `Items`.
-- The reconcile (daily by default, setting 6 h–weekly) runs `ItemsSince` from one hour before the last run (zero on the first run, so everything), then calls `RefreshPath` again for the folder of every file Jellyfin hasn't confirmed.
-- Any item whose path equals a media file's path sets `jellyfin_item_id`/`available_at` (kept from the first confirmation) and publishes `ItemAvailable` once per (file, Jellyfin item). Paths must match exactly: Magpie and Jellyfin must see the root folders at the same paths.
-- A file that Jellyfin still hasn't confirmed after 24 h shows a warning on the title (no event).
 
 **Transcode swap** (on `TranscodeVerified`): the handler queues the backlite job `library.transcode-swap`, which does the disk work. A redelivered event whose staged file is gone while the file is already transcoded is a no-op.
 1. Load the file. If it's gone (record or disk), reject (`FILE_GONE`).
@@ -286,7 +275,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 - A file is affected when one of its episodes is in `Moves` at its stored `From` numbers. Its new path keeps its show folder (the top folder under the root; a file loose in the root moves to the title's folder) and is `Season <NN>/<Show> S<NN>E<NN>[-E<NN>].<ext>` within it.
 - Every file first moves to a temporary name in the target folder, then to its final name, so episodes can trade names. A move that would overwrite a file outside the batch, or fails, is put back: the file keeps its old name and numbers and gets `rename_problem`. A rename an interrupted run already made (old path gone, new one there) is just recorded.
 - Each moved file's new path and numbers are recorded with a `FileRenamed` listing its sidecars' old and new paths, so Subtitles keeps its stored sidecar paths current. A file whose path stays the same publishes nothing.
-- Then `RefreshPath` runs for the old and new folders, and emptied folders are removed. The renamed file gets a new Jellyfin item, which confirms it again.
+- Then `RefreshPath` runs for the old and new folders, and emptied folders are removed.
 
 ## Test seeds
 
@@ -301,13 +290,13 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 9. **Given** `TranscodeVerified` with a matching ETag and hash, **when** handled, **then** the path ends `.mkv`, the old `.mp4` is removed, `transcoded=true`, `os_hash` is unchanged, and `FileTranscoded` is published.
 10. **Given** the file was upgraded after the transcode started (ETag differs), **when** `TranscodeVerified` arrives, **then** the file is unchanged, the staged file is deleted, and `TranscodeSwapRejected{SOURCE_CHANGED}` is published.
 11. **Given** a staged file whose SHA-256 differs from the payload, **when** handled, **then** `TranscodeSwapRejected{HASH_MISMATCH}` is published.
-12. **Given** Jellyfin sends `LibraryChanged` for an item whose path matches an imported file, **when** handled, **then** `ItemAvailable` is published once, and a repeat message publishes nothing.
-13. **Given** the WebSocket missed an item, **when** the daily reconcile runs, **then** `ItemAvailable` is published for it.
+12. **Given** a movie download, **when** imported, **then** the file is available and `ItemAvailable` is published once for the movie.
+13. **Given** a season pack, **when** imported, **then** `ItemAvailable` covers every imported episode.
 14. **Given** `EpisodeGroupChanged` maps S02E01→S01E11, **when** handled, **then** the video and its `.en.srt` are renamed to `S01E11` and the links are updated.
 15. **Given** a root folder containing `Dune (2021) [tmdbid-438631]`, **when** a scan runs, **then** `FolderFound{TmdbHint: 438631}` is published, and after `ScanFolderMatched{Folder, Title}` the file is linked in place without being moved and `FileImported{Origin: LIBRARY_SCAN, Download: nil}` is published; a redelivered `ScanFolderMatched` creates no second row.
-16. **Given** the fake Jellyfin port returns an error on `RefreshPath`, **when** importing, **then** the import still commits and the refresh is retried by the reconcile.
+16. **Given** the fake Jellyfin port returns an error on `RefreshPath`, **when** importing, **then** the import still commits and the file is available.
 17. **Given** `TitleRemoved{DeleteFiles: false}` for a title with two files, **then** the files stay on disk, their records are gone, and two `FileDeleted{Reason: TITLE_REMOVED}` are published.
 18. **Given** a file, **when** `SourceForProcessing` is called, **then** it returns the current ETag and a `StagingDir` on the same device as the file; after the file is replaced by an upgrade, the ETag differs.
-19. **Given** a series with 10 episodes, 7 with files and 6 confirmed in Jellyfin, **then** `Coverage` returns `EpisodesWithFile = 7`, `EpisodesAvailable = 6`.
+19. **Given** a series with 10 episodes, 7 with files and 6 of them available, **then** `Coverage` returns `EpisodesWithFile = 7`, `EpisodesAvailable = 6`.
 20. **Given** a `MANUAL` import, **when** the user removes it (Remove & blocklist), **then** the import is `REMOVED` and leaves the imports queue, `ImportRemoved{Download}` is published once, and removing it again answers 409 `import-not-stopped`.
 21. **Given** an S02E01 file with a `.en.srt` sidecar, **when** `EpisodeGroupChanged` maps S02E01→S01E11, **then** `FileRenamed` is published once with the video's and the sidecar's old and new paths and the new numbers; a redelivered `EpisodeGroupChanged` publishes no second one.

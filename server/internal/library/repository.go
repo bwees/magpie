@@ -37,25 +37,24 @@ type rootFolderRow struct {
 func (rootFolderRow) TableName() string { return "library_root_folders" }
 
 type mediaFileRow struct {
-	ID             domain.MediaFileID `gorm:"primaryKey"`
-	TitleID        domain.TitleID
-	RootFolderID   string
-	Path           string
-	Size           int64
-	Quality        string
-	ReleaseName    string
-	OSHash         string `gorm:"column:os_hash"`
-	MediaInfo      string
-	ETag           string `gorm:"column:etag"`
-	Origin         domain.Origin
-	ImportedAt     time.Time
-	DownloadID     *domain.DownloadID
-	InfoHash       string
-	Transcoded     bool
-	TranscodedAt   *time.Time
-	OriginalSize   *int64
-	JellyfinItemID *string
-	AvailableAt    *time.Time
+	ID           domain.MediaFileID `gorm:"primaryKey"`
+	TitleID      domain.TitleID
+	RootFolderID string
+	Path         string
+	Size         int64
+	Quality      string
+	ReleaseName  string
+	OSHash       string `gorm:"column:os_hash"`
+	MediaInfo    string
+	ETag         string `gorm:"column:etag"`
+	Origin       domain.Origin
+	ImportedAt   time.Time
+	DownloadID   *domain.DownloadID
+	InfoHash     string
+	Transcoded   bool
+	TranscodedAt *time.Time
+	OriginalSize *int64
+	AvailableAt  *time.Time
 }
 
 func (mediaFileRow) TableName() string { return "library_media_files" }

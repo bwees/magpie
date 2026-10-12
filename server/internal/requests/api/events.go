@@ -81,7 +81,7 @@ func (RequestCancelled) Type() string          { return TypeRequestCancelled }
 func (e RequestCancelled) AggregateID() string { return string(e.Request) }
 func (RequestCancelled) Durable() bool         { return true }
 
-// RequestAvailable is durable: every item in scope is confirmed in Jellyfin. Published once per request.
+// RequestAvailable is durable: every item in scope is available. Published once per request.
 type RequestAvailable struct {
 	Request domain.RequestID `json:"request"`
 	User    domain.UserID    `json:"user"`

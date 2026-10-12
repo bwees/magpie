@@ -57,7 +57,7 @@ A grabbed Release in qBittorrent, from grab until the torrent is removed.
 A video file in the library belonging to one movie or one or more episodes.
 
 **Available**:
-A movie or episode whose Media file Jellyfin has confirmed. The last main pipeline stage; subtitles and transcoding are tracked separately.
+A movie or episode whose Media file is in the library. Magpie asks Jellyfin to rescan but doesn't check that it did. The last main pipeline stage; subtitles and transcoding are tracked separately.
 
 ### Subtitles
 

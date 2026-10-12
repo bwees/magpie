@@ -516,7 +516,7 @@ func (s *Service) track(ctx context.Context, tx *gorm.DB, row requestRow) error 
 	return s.repo.save(tx, row)
 }
 
-// MarkAvailable records that Jellyfin confirmed a Title's movie or episodes, then moves each approved
+// MarkAvailable records that a Title's movie or episodes are available, then moves each approved
 // request on it: some items available is PARTIALLY_AVAILABLE, all of them AVAILABLE. A request publishes
 // RequestAvailable the first time it becomes AVAILABLE, and never again.
 func (s *Service) MarkAvailable(tx *gorm.DB, title domain.TitleID, episodes []domain.EpisodeID) error {

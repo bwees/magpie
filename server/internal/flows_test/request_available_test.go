@@ -31,7 +31,6 @@ const (
 	availableTmdb    = domain.TmdbID(1001)
 	availableName    = "Available Flow"
 	availableRelease = "Available.Flow.2024.1080p.WEB-DL.DDP5.1.H.264-GRP"
-	availableItem    = "jf-available-flow"
 
 	// failingHandlerName fails every FileImported it gets, next to the real handlers of that event.
 	failingHandlerName = "flows.always-fails"
@@ -68,8 +67,8 @@ func englishSubbedMovie() libraryapi.MediaInfo {
 	return info
 }
 
-// Flow 1: alice's approved request is added, searched, grabbed, downloaded and imported; Jellyfin confirms
-// the file, the request becomes AVAILABLE and alice hears about it. The admin's live socket sees every step
+// Flow 1: alice's approved request is added, searched, grabbed, downloaded and imported; the import makes
+// the request AVAILABLE and alice hears about it. The admin's live socket sees every step
 // in order, across a dropped connection, and a handler that fails on the import holds back no one else.
 func TestRequestedMovieBecomesAvailable(t *testing.T) {
 	f := newRequestFlow(t, alwaysFailingHandler())
@@ -91,7 +90,6 @@ func TestRequestedMovieBecomesAvailable(t *testing.T) {
 	f.completeDownload(item, grab, englishSubbedMovie(), videoOf(item))
 	imported := f.imported(grab.Download)
 	socket.resume()
-	f.jellyfinAdds(availableItem, imported.Path)
 
 	available := func() []string { return f.availableProblems(pending.ID, title, imported) }
 	settles(t, "the available request", available)

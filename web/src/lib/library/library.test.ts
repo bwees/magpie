@@ -226,8 +226,7 @@ describe('ImportsManager', () => {
 });
 
 describe('TitleFiles', () => {
-	const mediaFile = (id: string, jellyfinOverdue = false) =>
-		({ id, jellyfinOverdue, path: `/tv/${id}.mkv` }) as MediaFileResponse;
+	const mediaFile = (id: string) => ({ id, path: `/tv/${id}.mkv` }) as MediaFileResponse;
 	const status = (file: string, cutoffMet: boolean, upgradesAllowed: boolean) =>
 		({ file, cutoffMet, upgradesAllowed }) as CutoffStatusResponse;
 
@@ -299,18 +298,6 @@ describe('TitleFiles', () => {
 		expect(api.list).toHaveBeenCalledTimes(1);
 		stop();
 		vi.useRealTimers();
-	});
-
-	it('lists the files Jellyfin is overdue on', async () => {
-		const files = new TitleFiles(
-			't1',
-			filesApi([mediaFile('late', true), mediaFile('fine')]),
-			notifier()
-		);
-
-		await files.load();
-
-		expect(files.overdue.map((f) => f.id)).toEqual(['late']);
 	});
 
 	it('tells met, upgrading, kept and unscored files apart', async () => {

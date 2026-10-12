@@ -31,16 +31,14 @@ type Deps struct {
 	Store     *settings.Store
 }
 
-// Service imports downloads into the library, keeps the root folders, serves the files of a title and
-// follows what Jellyfin has.
+// Service imports downloads into the library, keeps the root folders and serves the files of a title.
 type Service struct {
-	deps  Deps
-	now   func() time.Time
-	watch backoff
+	deps Deps
+	now  func() time.Time
 }
 
 func NewService(deps Deps) *Service {
-	return &Service{deps: deps, now: time.Now, watch: watchBackoff}
+	return &Service{deps: deps, now: time.Now}
 }
 
 // FilesForTitle lists a title's media files, newest first.
@@ -53,7 +51,7 @@ func (s *Service) FilesForTitles(ctx context.Context, titles []domain.TitleID, f
 	return s.deps.Repo.FilesForTitles(ctx, titles, f)
 }
 
-// Coverage counts each title's episodes with a file and those Jellyfin confirmed.
+// Coverage counts each title's episodes with a file and those available.
 func (s *Service) Coverage(ctx context.Context, titles []domain.TitleID) ([]api.TitleCoverage, error) {
 	return s.deps.Repo.Coverage(ctx, titles)
 }

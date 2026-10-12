@@ -32,7 +32,7 @@ Each context file has the same sections: owns / must not, data model, query port
 - Indexers through Prowlarr, queried per indexer so results stream in.
 - Torrents through qBittorrent ≥ 5.2; blocked-file rejection before any data downloads.
 - Sonarr-compatible quality model (profiles, custom formats, TRaSH sync) shared by movies and TV.
-- Import with hardlink or move, fixed Jellyfin naming, availability confirmed by Jellyfin.
+- Import with hardlink or move, fixed Jellyfin naming; a file is available once imported.
 - Subtitles in this order: embedded track, then OpenSubtitles, then Whisper on agents. Auto-sync.
 - Transcoding to HEVC 10-bit or AV1 on Linux GPU agents (NVIDIA, Intel, AMD). Media moves over the agent connection, with no shared mount.
 - In-app and per-user shoutrrr notifications.

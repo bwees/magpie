@@ -723,7 +723,6 @@ export type MediaFileResponse = {
     episodes: EpisodeRefResponse[];
     id: string;
     importedAt: string;
-    jellyfinOverdue: boolean;
     mediaInfo: MediaInfoResponse;
     origin: string;
     path: string;
@@ -796,12 +795,6 @@ export type LibraryScanResponse = {
 };
 export type ScanOptionsRequest = {
     renameMatched: boolean;
-};
-export type LibrarySchedulesResponse = {
-    jellyfinReconcileHours: number;
-};
-export type LibrarySchedulesRequest = {
-    jellyfinReconcileHours: number;
 };
 export type BackupResponse = {
     createdAt: string;
@@ -3838,7 +3831,7 @@ export function updateUser(id: string, updateUserRequest: UpdateUserRequest, { a
     })));
 }
 /**
- * Episodes with a file, episodes Jellyfin confirmed and size per title, in input order (admin)
+ * Episodes with a file, episodes available and size per title, in input order (admin)
  */
 export function getCoverage({ titles, accept }: {
     titles?: string[];
@@ -4185,52 +4178,6 @@ export function setLibraryScanOptions(scanOptionsRequest: ScanOptionsRequest, { 
         ...opts,
         method: "PUT",
         body: scanOptionsRequest,
-        headers: oazapfts.mergeHeaders(opts?.headers, {
-            Accept: accept
-        })
-    })));
-}
-/**
- * How often the Jellyfin full reconcile runs (admin)
- */
-export function getLibrarySchedules({ accept }: {
-    accept?: string;
-} = {}, opts?: Oazapfts.RequestOpts) {
-    return oazapfts.ok(oazapfts.fetchJson<{
-        status: 200;
-        data: LibrarySchedulesResponse;
-    } | {
-        status: 400;
-        data: HttpError;
-    } | {
-        status: 500;
-        data: HttpError;
-    }>("/api/library/schedules", {
-        ...opts,
-        headers: oazapfts.mergeHeaders(opts?.headers, {
-            Accept: accept
-        })
-    }));
-}
-/**
- * Change how often the Jellyfin full reconcile runs (admin)
- */
-export function setLibrarySchedules(librarySchedulesRequest: LibrarySchedulesRequest, { accept }: {
-    accept?: string;
-} = {}, opts?: Oazapfts.RequestOpts) {
-    return oazapfts.ok(oazapfts.fetchJson<{
-        status: 200;
-        data: LibrarySchedulesResponse;
-    } | {
-        status: 400;
-        data: HttpError;
-    } | {
-        status: 500;
-        data: HttpError;
-    }>("/api/library/schedules", oazapfts.json({
-        ...opts,
-        method: "PUT",
-        body: librarySchedulesRequest,
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept
         })

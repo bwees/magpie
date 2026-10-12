@@ -66,11 +66,6 @@ export class TitleFiles {
 	/** The file whose delete dialog is open. */
 	confirmingDelete = $state<MediaFileResponse | undefined>();
 
-	/** Files Jellyfin still hasn't confirmed a day after their import. */
-	get overdue(): MediaFileResponse[] {
-		return this.files.filter((file) => file.jellyfinOverdue);
-	}
-
 	readonly #title: string;
 	readonly #api: FilesApi;
 	readonly #notify: Notifier;

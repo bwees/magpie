@@ -29,11 +29,11 @@ type Reader interface {
 	// itself and writes the uploaded result into StagingDir; it never touches Path.
 	// ErrNotFound if the file is unknown.
 	SourceForProcessing(ctx context.Context, id domain.MediaFileID) (ProcessingSource, error)
-	// AvailableEpisodes returns the title's episodes whose files Jellyfin has confirmed.
-	// A movie or a title without confirmed files returns an empty slice.
+	// AvailableEpisodes returns the title's episodes whose files are available.
+	// A movie or a title without available files returns an empty slice.
 	AvailableEpisodes(ctx context.Context, title domain.TitleID) ([]domain.EpisodeID, error)
 	// Coverage returns per-title file coverage for the TV page, one entry per requested title in input
-	// order: episodes with a file and episodes Jellyfin confirmed. Titles without files return zero
+	// order: episodes with a file and episodes available. Titles without files return zero
 	// counts, not ErrNotFound.
 	Coverage(ctx context.Context, titles []domain.TitleID) ([]TitleCoverage, error)
 }
@@ -65,7 +65,7 @@ type FileFilter struct {
 type TitleCoverage struct {
 	Title             domain.TitleID
 	EpisodesWithFile  int
-	EpisodesAvailable int // confirmed in Jellyfin
+	EpisodesAvailable int
 	SizeBytes         int64
 }
 
