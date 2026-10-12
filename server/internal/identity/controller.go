@@ -16,10 +16,8 @@ import (
 )
 
 const (
-	tagIdentity       = "identity"
-	userAgentHeader   = "User-Agent"
-	contentTypeHeader = "Content-Type"
-	jsonContentType   = "application/json"
+	tagIdentity     = "identity"
+	userAgentHeader = "User-Agent"
 
 	groupRoute            = "/identity"
 	setupAdminRoute       = "/setup/admin"
@@ -283,8 +281,6 @@ func (c *Controller) startQuickConnect(ctx fuego.ContextNoBody) (QuickConnectSta
 func (c *Controller) pollQuickConnect(ctx fuego.ContextNoBody) (QuickConnectPollResponse, error) {
 	user, issued, err := c.service.PollQuickConnect(ctx.Context(), ctx.PathParam(pathHandle), ctx.Header(userAgentHeader))
 	if errors.Is(err, ErrQuickConnectPending) {
-		// The status line is written here, so the JSON content type must be set first.
-		ctx.SetHeader(contentTypeHeader, jsonContentType)
 		ctx.SetStatus(http.StatusAccepted)
 		return QuickConnectPollResponse{Status: QuickConnectPending}, nil
 	}

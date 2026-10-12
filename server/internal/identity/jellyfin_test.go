@@ -224,6 +224,9 @@ func TestQuickConnectPendingApprovedAndExpired(t *testing.T) {
 	if poll.Code != http.StatusAccepted {
 		t.Fatalf("poll before approval = %d, want 202: %s", poll.Code, poll.Body)
 	}
+	if got := poll.Result().Header.Get(contentTypeHeader); got != jsonContentType {
+		t.Errorf("poll content type = %q, want %q", got, jsonContentType)
+	}
 	if got := decode[identity.QuickConnectPollResponse](t, poll).Status; got != identity.QuickConnectPending {
 		t.Errorf("status = %s, want %s", got, identity.QuickConnectPending)
 	}
