@@ -19,6 +19,9 @@ import (
 // -ldflags "-X magpie/internal/adapters/opensubtitles.AppKey=…". Users never enter it.
 var AppKey string
 
+// BaseURL is the OpenSubtitles API. Dev builds point it at a stand-in server the same way as AppKey.
+var BaseURL = defaultBaseURL
+
 const (
 	defaultBaseURL = "https://api.opensubtitles.com"
 	pathLogin      = "/api/v1/login"
@@ -78,7 +81,7 @@ type HealthProbe struct {
 var _ health.Probe = (*HealthProbe)(nil)
 
 func NewHealthProbe(store *settings.Store) *HealthProbe {
-	return &HealthProbe{store: store, client: &http.Client{}, baseURL: defaultBaseURL, appKey: AppKey}
+	return &HealthProbe{store: store, client: &http.Client{}, baseURL: BaseURL, appKey: AppKey}
 }
 
 func (p *HealthProbe) Service() platformapi.Service { return platformapi.ServiceOpenSubtitles }

@@ -140,7 +140,7 @@ func New(store *settings.Store) *Client {
 
 func NewClient(cfg Config) *Client {
 	if cfg.BaseURL == "" {
-		cfg.BaseURL = defaultBaseURL
+		cfg.BaseURL = BaseURL
 	}
 	if cfg.AppKey == "" {
 		cfg.AppKey = AppKey
