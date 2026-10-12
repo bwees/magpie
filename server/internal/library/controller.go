@@ -92,6 +92,8 @@ type MediaFileResponse struct {
 	Available bool `json:"available"`
 	// JellyfinOverdue is true while Jellyfin still hasn't confirmed the file a day after its import.
 	JellyfinOverdue bool `json:"jellyfinOverdue"`
+	// RenameProblem says why the file kept its old name after an episode-group change.
+	RenameProblem string `json:"renameProblem,omitempty"`
 }
 
 // TitleCoverageResponse is one series row's coverage on the TV page.
@@ -257,9 +259,15 @@ func (c *Controller) files(ctx fuego.ContextNoBody) ([]MediaFileResponse, error)
 	if err != nil {
 		return nil, err
 	}
+	problems, err := c.library.RenameProblems(ctx.Context(), title)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]MediaFileResponse, 0, len(files))
 	for _, f := range files {
-		out = append(out, c.fileResponse(f))
+		response := c.fileResponse(f)
+		response.RenameProblem = problems[f.ID]
+		out = append(out, response)
 	}
 	return out, nil
 }

@@ -102,7 +102,10 @@ func (s *Service) RemoveRootFolder(ctx context.Context, id string) error {
 		if result.Error == nil && result.RowsAffected == 0 {
 			return ErrRootFolderNotFound
 		}
-		return result.Error
+		if result.Error != nil {
+			return result.Error
+		}
+		return tx.Where("root_folder_id = ?", id).Delete(&scanFolderRow{}).Error
 	})
 }
 

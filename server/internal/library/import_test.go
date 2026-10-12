@@ -172,7 +172,7 @@ func (f *importFixture) deliver(t *testing.T, c acquisitionapi.DownloadCompleted
 func (f *importFixture) runJobs(t *testing.T) {
 	t.Helper()
 	for _, task := range f.queue.drain() {
-		ran, err := library.RunImportTask(context.Background(), f.service, task, func(next backlite.Task, _ time.Duration) {
+		ran, err := library.RunTask(context.Background(), f.service, task, func(next backlite.Task, _ time.Duration) {
 			f.queue.add(next)
 		})
 		if !ran {

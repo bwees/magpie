@@ -62,10 +62,15 @@ func moviePath(root string, t catalogapi.Title, ext string) string {
 // episodePath is <root>/<Show> (<Year>) [tmdbid-<id>]/Season <NN>/<Show> S<NN>E<NN>[-E<NN>].<ext>, numbered
 // by the title's current episode group. episodes are in (season, number) order.
 func episodePath(root string, t catalogapi.Title, episodes []domain.EpisodeRef, ext string) string {
+	return filepath.Join(titleFolder(root, t), episodeInShow(t, episodes, ext))
+}
+
+// episodeInShow is Season <NN>/<Show> S<NN>E<NN>[-E<NN>].<ext>, the part of an episode's path inside its show's folder.
+func episodeInShow(t catalogapi.Title, episodes []domain.EpisodeRef, ext string) string {
 	first, last := episodes[0], episodes[len(episodes)-1]
 	name := fmt.Sprintf(episodeShape, sanitiseName(t.Name), first.Season, first.Number)
 	if last.Number != first.Number || last.Season != first.Season {
 		name += fmt.Sprintf(lastEpisodeShape, last.Number)
 	}
-	return filepath.Join(titleFolder(root, t), fmt.Sprintf(seasonShape, first.Season), name+ext)
+	return filepath.Join(fmt.Sprintf(seasonShape, first.Season), name+ext)
 }

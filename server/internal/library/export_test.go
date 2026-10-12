@@ -14,8 +14,10 @@ import (
 )
 
 var (
-	NewDownloadCompletedHandler = newDownloadCompletedHandler
-	NewTranscodeVerifiedHandler = newTranscodeVerifiedHandler
+	NewDownloadCompletedHandler   = newDownloadCompletedHandler
+	NewTranscodeVerifiedHandler   = newTranscodeVerifiedHandler
+	NewScanFolderMatchedHandler   = newScanFolderMatchedHandler
+	NewEpisodeGroupChangedHandler = newEpisodeGroupChangedHandler
 )
 
 // RunSwapTask runs a queued swap task. It reports false for a task of another queue.
@@ -27,17 +29,23 @@ func RunSwapTask(ctx context.Context, s *Service, task backlite.Task) (bool, err
 	return true, s.Swap(ctx, t.Verified)
 }
 
-// RunImportTask runs a queued import task; later receives the retries it books. It reports false for
-// a task of another queue.
-func RunImportTask(ctx context.Context, s *Service, task backlite.Task, later func(backlite.Task, time.Duration)) (bool, error) {
-	t, ok := task.(importTask)
-	if !ok {
-		return false, nil
+// RunTask runs a task Library queued; later receives the retries an import books. It reports false for
+// a task of another context.
+func RunTask(ctx context.Context, s *Service, task backlite.Task, later func(backlite.Task, time.Duration)) (bool, error) {
+	switch t := task.(type) {
+	case importTask:
+		return true, s.runImport(ctx, t, func(_ context.Context, next backlite.Task, wait time.Duration) error {
+			later(next, wait)
+			return nil
+		})
+	case scanTask:
+		return true, s.RunScan(ctx)
+	case linkTask:
+		return true, s.LinkFolder(ctx, t.Folder)
+	case renameTask:
+		return true, s.RenameForGroup(ctx, t.Change)
 	}
-	return true, s.runImport(ctx, t, func(_ context.Context, next backlite.Task, wait time.Duration) error {
-		later(next, wait)
-		return nil
-	})
+	return false, nil
 }
 
 func SetClock(s *Service, now func() time.Time) { s.now = now }
