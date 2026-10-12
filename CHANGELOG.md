@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/bwees/magpie/compare/v0.1.0...v0.1.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **transcode:** never drop an agent socket mid-write when the server stops ([3d43638](https://github.com/bwees/magpie/commit/3d436387fe56f6e17c7825d845b1eca7a8032d45))
+
 ## 0.1.0 (2026-10-12)
 
 
