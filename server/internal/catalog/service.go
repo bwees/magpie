@@ -57,6 +57,8 @@ type TitleView struct {
 	Seasons []SeasonView
 	// LanguagesOverride is nil when the Title uses the global wanted languages.
 	LanguagesOverride []api.WantedLanguage
+	// Series is nil for movies.
+	Series *SeriesSummary
 }
 
 type SeasonView struct {
@@ -98,7 +100,35 @@ func (s *Service) Titles(ctx context.Context, q TitleQuery) ([]TitleView, error)
 		}
 		views = append(views, view)
 	}
+	if err := s.summariseSeries(conn, views); err != nil {
+		return nil, err
+	}
 	return views, nil
+}
+
+// summariseSeries fills in each series' seasons, wanted episodes and next airing.
+func (s *Service) summariseSeries(conn *gorm.DB, views []TitleView) error {
+	var series []domain.TitleID
+	for _, v := range views {
+		if v.Kind == domain.MediaKindSeries {
+			series = append(series, v.ID)
+		}
+	}
+	summaries, err := s.repo.seriesSummaries(conn, series)
+	if err != nil {
+		return err
+	}
+	for i := range views {
+		if views[i].Kind != domain.MediaKindSeries {
+			continue
+		}
+		summary := summaries[views[i].ID]
+		if !views[i].Monitored {
+			summary.WantedEpisodes = 0
+		}
+		views[i].Series = &summary
+	}
+	return nil
 }
 
 func (s *Service) summary(conn *gorm.DB, row titleRow) (TitleView, error) {
@@ -147,7 +177,11 @@ func (s *Service) view(conn *gorm.DB, id domain.TitleID) (TitleView, error) {
 		}
 		view.Seasons = append(view.Seasons, sv)
 	}
-	return view, nil
+	views := []TitleView{view}
+	if err := s.summariseSeries(conn, views); err != nil {
+		return TitleView{}, err
+	}
+	return views[0], nil
 }
 
 // MonitorTracked handles a RequestApproved for a Title Catalog already tracks: it monitors it and reports

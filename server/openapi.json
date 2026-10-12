@@ -2914,6 +2914,26 @@
 				],
 				"type": "object"
 			},
+			"NextEpisodeResponse": {
+				"properties": {
+					"airDate": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"number": {
+						"type": "integer"
+					},
+					"season": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"airDate",
+					"number",
+					"season"
+				],
+				"type": "object"
+			},
 			"NotificationCreated": {
 				"description": "NotificationCreated schema",
 				"properties": {
@@ -5284,6 +5304,9 @@
 					"name": {
 						"type": "string"
 					},
+					"nextEpisode": {
+						"$ref": "#/components/schemas/NextEpisodeResponse"
+					},
 					"origin": {
 						"type": "string"
 					},
@@ -5317,6 +5340,9 @@
 					"runtimeMinutes": {
 						"type": "integer"
 					},
+					"seasonCount": {
+						"type": "integer"
+					},
 					"seasons": {
 						"items": {
 							"$ref": "#/components/schemas/SeasonResponse"
@@ -5333,6 +5359,9 @@
 					"tvdbId": {
 						"nullable": true,
 						"type": "string"
+					},
+					"wantedEpisodeCount": {
+						"type": "integer"
 					},
 					"year": {
 						"type": "integer"
@@ -5359,10 +5388,12 @@
 					"releasedAt",
 					"requestedBy",
 					"runtimeMinutes",
+					"seasonCount",
 					"seasons",
 					"seriesStatus",
 					"tmdbId",
 					"tvdbId",
+					"wantedEpisodeCount",
 					"year"
 				],
 				"type": "object"
@@ -10060,7 +10091,18 @@
 						}
 					},
 					{
-						"description": "NAME (default) or ADDED, newest first",
+						"description": "Only these Titles, at most 500",
+						"in": "query",
+						"name": "ids",
+						"schema": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						}
+					},
+					{
+						"description": "NAME (default), ADDED (newest first) or YEAR (newest first)",
 						"in": "query",
 						"name": "sort",
 						"schema": {

@@ -499,6 +499,11 @@ export type TitleImagesResponse = {
     logo: string | null;
     poster: string | null;
 };
+export type NextEpisodeResponse = {
+    airDate: string;
+    "number": number;
+    season: number;
+};
 export type ReleaseDatesResponse = {
     digital: string | null;
     physical: string | null;
@@ -532,6 +537,7 @@ export type TitleResponse = {
     monitorFutureSeasons: boolean;
     monitored: boolean;
     name: string;
+    nextEpisode?: NextEpisodeResponse;
     origin: string;
     originalLanguage: string;
     originalName: string;
@@ -542,10 +548,12 @@ export type TitleResponse = {
     releasedAt: string | null;
     requestedBy: string | null;
     runtimeMinutes: number;
+    seasonCount: number;
     seasons: SeasonResponse[];
     seriesStatus: string;
     tmdbId: number;
     tvdbId: string | null;
+    wantedEpisodeCount: number;
     year: number;
 };
 export type RemoveTitleResponse = {
@@ -2757,11 +2765,12 @@ export function updateCatalogSettings(updateCatalogSettingsRequest: UpdateCatalo
 /**
  * List Titles in the library
  */
-export function listTitles({ q, kind, monitored, released, sort, accept }: {
+export function listTitles({ q, kind, monitored, released, ids, sort, accept }: {
     q?: string;
     kind?: string;
     monitored?: boolean;
     released?: boolean;
+    ids?: string[];
     sort?: string;
     accept?: string;
 } = {}, opts?: Oazapfts.RequestOpts) {
@@ -2779,6 +2788,7 @@ export function listTitles({ q, kind, monitored, released, sort, accept }: {
         kind,
         monitored,
         released,
+        ids,
         sort
     }))}`, {
         ...opts,

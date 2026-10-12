@@ -22,6 +22,7 @@ const (
 
 	orderByName    = "name COLLATE NOCASE, year, id"
 	orderByAdded   = "added_at DESC, id"
+	orderByYear    = "year DESC, name COLLATE NOCASE, id"
 	orderEpisodes  = "season_number, episode_number"
 	likeWildcard   = "%"
 	likeEscape     = `\`
@@ -255,7 +256,57 @@ type TitleSort string
 const (
 	TitleSortName  TitleSort = "NAME"
 	TitleSortAdded TitleSort = "ADDED"
+	TitleSortYear  TitleSort = "YEAR"
 )
+
+// SeriesSummary is what a series row on the TV page shows besides the Title itself.
+type SeriesSummary struct {
+	// Seasons counts the numbered seasons, without specials.
+	Seasons int
+	// WantedEpisodes counts the monitored, released episodes of a monitored series.
+	WantedEpisodes int
+	// Next is the first announced episode not yet released, nil when none is.
+	Next *api.Episode
+}
+
+// seriesSummaries summarises the listed series. Titles without episodes are absent.
+func (r *Repository) seriesSummaries(conn *gorm.DB, titles []domain.TitleID) (map[domain.TitleID]SeriesSummary, error) {
+	summaries := map[domain.TitleID]SeriesSummary{}
+	if len(titles) == 0 {
+		return summaries, nil
+	}
+	var counts []struct {
+		TitleID domain.TitleID
+		Seasons int
+		Wanted  int
+	}
+	err := conn.Model(&episodeRow{}).
+		Select("title_id, COUNT(DISTINCT CASE WHEN season_number <> ? THEN season_number END) AS seasons, "+
+			"SUM(CASE WHEN monitored AND released THEN 1 ELSE 0 END) AS wanted", specialsSeason).
+		Where("title_id IN ?", titles).Group("title_id").Scan(&counts).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range counts {
+		summaries[c.TitleID] = SeriesSummary{Seasons: c.Seasons, WantedEpisodes: c.Wanted}
+	}
+	var upcoming []episodeRow
+	err = conn.Where("title_id IN ? AND NOT released AND air_date IS NOT NULL", titles).
+		Order("title_id, air_date, " + orderEpisodes).Find(&upcoming).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range upcoming {
+		title := domain.TitleID(row.TitleID)
+		summary := summaries[title]
+		if summary.Next == nil {
+			next := row.toAPI()
+			summary.Next = &next
+			summaries[title] = summary
+		}
+	}
+	return summaries, nil
+}
 
 // TitleQuery is the HTTP list's filter: the Reader filter plus a name search and an order.
 type TitleQuery struct {
@@ -304,8 +355,11 @@ func (r *Repository) titleRows(conn *gorm.DB, q TitleQuery) ([]titleRow, error) 
 		)
 	}
 	order := orderByName
-	if q.Sort == TitleSortAdded {
+	switch q.Sort {
+	case TitleSortAdded:
 		order = orderByAdded
+	case TitleSortYear:
+		order = orderByYear
 	}
 	var rows []titleRow
 	err := query.Order(order).Find(&rows).Error

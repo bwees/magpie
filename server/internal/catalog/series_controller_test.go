@@ -142,6 +142,36 @@ func TestSeriesRoutesRefuseRequesters(t *testing.T) {
 	}
 }
 
+func TestListedSeriesCarryTheirSeasonsWantedEpisodesAndNextAiring(t *testing.T) {
+	h := newHarness(t)
+	upcoming := tmdbSeason(3, episodesPerSeas, startOfTest.Add(week))
+	title := addSeries(t, h, seriesRequest(profileP, requestsapi.ScopeAllSeasons), append(airedSeasons(), upcoming)...)
+	movie := addMovie(t, h, conclave())
+
+	got := decodeJSON[[]catalog.TitleResponse](t, h.request(http.MethodGet, titlesPath+"?kind=SERIES", nil, requester))
+	if len(got) != 1 || got[0].ID != title.ID {
+		t.Fatalf("series = %+v, want the one series", got)
+	}
+	wanted := len(episodeIDs(h.episodes(title.ID), func(e api.Episode) bool { return e.Monitored && e.Released }))
+	series := got[0]
+	if series.SeasonCount != 3 || series.WantedEpisodeCount != wanted || wanted == 0 {
+		t.Errorf("seasons %d, wanted %d; want 3 and %d", series.SeasonCount, series.WantedEpisodeCount, wanted)
+	}
+	next := series.NextEpisode
+	if next == nil || next.Season != 3 || next.Number != 1 || !next.AirDate.Equal(startOfTest.Add(week)) {
+		t.Errorf("next episode = %+v, want S03E01 a week out", next)
+	}
+
+	byID := decodeJSON[[]catalog.TitleResponse](t, h.request(http.MethodGet, titlesPath+"?ids="+string(movie.ID), nil, requester))
+	if len(byID) != 1 || byID[0].ID != movie.ID || byID[0].NextEpisode != nil || byID[0].SeasonCount != 0 {
+		t.Errorf("by ID = %+v, want only the movie without a series summary", byID)
+	}
+	byYear := decodeJSON[[]catalog.TitleResponse](t, h.request(http.MethodGet, titlesPath+"?sort=YEAR", nil, requester))
+	if len(byYear) != 2 || byYear[0].Year < byYear[1].Year {
+		t.Errorf("by year = %+v, want newest first", byYear)
+	}
+}
+
 func TestRefreshingASeriesIsQueued(t *testing.T) {
 	h := newHarness(t)
 	title := addSeries(t, h, seriesRequest(profileP, requestsapi.ScopeAllSeasons), airedSeasons()...)

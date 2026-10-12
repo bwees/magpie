@@ -269,7 +269,9 @@ var (
 
 Routes under `/api/catalog`. Schemas come from fuego's OpenAPI.
 
-- `GET /titles` list Titles (filters: `q` on name, original name and aliases, `kind`, `monitored`, `released`; `sort`: `NAME` (default) or `ADDED`). Sorting by activity needs Activity's projection and is left to the Home slice.
+- `GET /titles` list Titles (filters: `q` on name, original name and aliases, `kind`, `monitored`, `released`, `ids` (repeated, at most 500); `sort`: `NAME` (default), `ADDED` or `YEAR`, both newest first).
+  - Each series also carries `seasonCount` (numbered seasons, no specials), `wantedEpisodeCount` (monitored, released episodes; 0 when the series is unmonitored) and `nextEpisode` (`season`, `number`, `airDate` of the first announced, unreleased episode; left out when there is none). Movies have 0, 0 and no `nextEpisode`. The TV page reads them.
+  - Catalog can't read Activity, so there is no activity sort: Home's "Recently active" order comes from `GET /api/activity/pipeline?recent=true`, and its names and posters from `GET /titles?ids=`.
 - `GET /titles/{id}` one Title with seasons and episodes.
 - `PATCH /titles/{id}` set `profileId`, `monitored`, `monitorFutureSeasons` (admin).
 - `PATCH /titles/{id}/seasons/{n}` set season monitoring (admin).

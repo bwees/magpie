@@ -4,7 +4,9 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -26,11 +28,14 @@ const (
 	pathImageID   = "titleId"
 	pathImageKind = "kind"
 
-	queryQ           = "q"
-	queryKind        = "kind"
-	queryMonitored   = "monitored"
-	queryReleased    = "released"
-	querySort        = "sort"
+	queryQ         = "q"
+	queryKind      = "kind"
+	queryMonitored = "monitored"
+	queryReleased  = "released"
+	querySort      = "sort"
+	queryIDs       = "ids"
+	// maxTitleIDs bounds one lookup by ID.
+	maxTitleIDs      = 500
 	queryDeleteFiles = "deleteFiles"
 	queryWidth       = "w"
 
@@ -89,7 +94,7 @@ var tmdbLogo []byte
 
 var (
 	mediaKinds = []domain.MediaKind{domain.MediaKindMovie, domain.MediaKindSeries}
-	titleSorts = []TitleSort{TitleSortName, TitleSortAdded}
+	titleSorts = []TitleSort{TitleSortName, TitleSortAdded, TitleSortYear}
 )
 
 type ReleaseDatesResponse struct {
@@ -153,6 +158,18 @@ type TitleResponse struct {
 	LanguagesOverride []WantedLanguageEntry `json:"languagesOverride"`
 	// Seasons is empty for movies and in lists.
 	Seasons []SeasonResponse `json:"seasons" validate:"required"`
+	// SeasonCount counts a series' numbered seasons, without specials; 0 for movies.
+	SeasonCount int `json:"seasonCount" validate:"required"`
+	// WantedEpisodeCount counts a monitored series' monitored, released episodes; 0 for movies.
+	WantedEpisodeCount int `json:"wantedEpisodeCount" validate:"required"`
+	// NextEpisode is a series' first announced episode not yet released; left out when none is, and for movies.
+	NextEpisode *NextEpisodeResponse `json:"nextEpisode,omitempty"`
+}
+
+type NextEpisodeResponse struct {
+	Season  int       `json:"season" validate:"required"`
+	Number  int       `json:"number" validate:"required"`
+	AirDate time.Time `json:"airDate" validate:"required"`
 }
 
 type WantedLanguageEntry struct {
@@ -284,7 +301,8 @@ func (c *Controller) Register(server *fuego.Server) {
 		fuego.OptionQuery(queryKind, "MOVIE or SERIES"),
 		fuego.OptionQueryBool(queryMonitored, "Only monitored (true) or unmonitored (false) Titles"),
 		fuego.OptionQueryBool(queryReleased, "Only released (true) or unreleased (false) Titles"),
-		fuego.OptionQuery(querySort, "NAME (default) or ADDED, newest first"),
+		fuego.OptionQueryArray(queryIDs, "Only these Titles, at most 500", reflect.String),
+		fuego.OptionQuery(querySort, "NAME (default), ADDED (newest first) or YEAR (newest first)"),
 	)
 	fuego.Get(api, "/titles/{id}", c.getTitle,
 		fuego.OptionOperationID("getTitle"),
@@ -431,8 +449,15 @@ func titleQuery(ctx fuego.ContextNoBody) (TitleQuery, error) {
 	if raw := ctx.QueryParam(querySort); raw != "" {
 		q.Sort = TitleSort(raw)
 		if !slices.Contains(titleSorts, q.Sort) {
-			return q, badRequest("sort must be NAME or ADDED")
+			return q, badRequest("sort must be NAME, ADDED or YEAR")
 		}
+	}
+	ids := ctx.QueryParamArr(queryIDs)
+	if len(ids) > maxTitleIDs {
+		return q, badRequest(fmt.Sprintf("ask for at most %d titles at once", maxTitleIDs))
+	}
+	for _, id := range ids {
+		q.Filter.IDs = append(q.Filter.IDs, domain.TitleID(id))
 	}
 	return q, nil
 }
@@ -772,6 +797,12 @@ func titleResponse(v TitleView) TitleResponse {
 			r.Images.Backdrop = &url
 		case api.ImageKindLogo:
 			r.Images.Logo = &url
+		}
+	}
+	if v.Series != nil {
+		r.SeasonCount, r.WantedEpisodeCount = v.Series.Seasons, v.Series.WantedEpisodes
+		if next := v.Series.Next; next != nil && next.AirDate != nil {
+			r.NextEpisode = &NextEpisodeResponse{Season: next.Season, Number: next.Number, AirDate: *next.AirDate}
 		}
 	}
 	for _, s := range v.Seasons {
