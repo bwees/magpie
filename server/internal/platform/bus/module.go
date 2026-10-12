@@ -27,7 +27,7 @@ var Module = fx.Module("bus",
 		jobs.AsPeriodic(newPrunePeriodic),
 	),
 	fx.Invoke(func(lc fx.Lifecycle, d *Dispatcher) {
-		lc.Append(fx.Hook{OnStart: d.Start, OnStop: func(context.Context) error { d.Stop(); return nil }})
+		lc.Append(fx.Hook{OnStart: d.Start, OnStop: d.Stop})
 	}),
 )
 

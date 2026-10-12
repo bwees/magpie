@@ -466,7 +466,11 @@ func TestStartedDispatcherDeliversOnCommit(t *testing.T) {
 	if err := h.disp.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(h.disp.Stop)
+	t.Cleanup(func() {
+		if err := h.disp.Stop(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
 
 	h.publish(aggregateA, "live")
 

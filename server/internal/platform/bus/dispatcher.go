@@ -134,11 +134,22 @@ func (d *Dispatcher) Start(ctx context.Context) error {
 	return nil
 }
 
-func (d *Dispatcher) Stop() {
+// Stop cancels the delivery loops and waits for them until ctx ends.
+func (d *Dispatcher) Stop(ctx context.Context) error {
 	if d.cancel != nil {
 		d.cancel()
 	}
-	d.wg.Wait()
+	stopped := make(chan struct{})
+	go func() {
+		d.wg.Wait()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("bus: handlers still running at shutdown: %w", ctx.Err())
+	}
 }
 
 // Notify wakes every handler loop to look for new events.
