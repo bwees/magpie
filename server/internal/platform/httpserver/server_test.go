@@ -5,11 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/problem"
 
+	"github.com/coder/websocket"
 	"github.com/go-fuego/fuego"
 )
 
@@ -19,6 +21,30 @@ func (c failingController) Register(api *fuego.Server) {
 	fuego.Get(api, "/fail", func(fuego.ContextNoBody) (HealthResponse, error) {
 		return HealthResponse{}, c.err
 	}, fuego.OptionOperationID("fail"))
+}
+
+type statusController struct {
+	status int
+	body   any
+	err    error
+}
+
+func (c statusController) Register(api *fuego.Server) {
+	fuego.Get(api, "/status", func(fuego.ContextNoBody) (any, error) {
+		return c.body, c.err
+	}, fuego.OptionOperationID("status"), fuego.OptionDefaultStatusCode(c.status))
+}
+
+type socketController struct{}
+
+func (socketController) Register(api *fuego.Server) {
+	fuego.Handle(api, "/socket", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}), fuego.OptionHide())
 }
 
 func newTestServer(t *testing.T, extra ...Controller) http.Handler {
@@ -58,6 +84,67 @@ func TestHealth(t *testing.T) {
 	}
 	if body.Status != HealthStatusOK {
 		t.Errorf("status = %q, want %q", body.Status, HealthStatusOK)
+	}
+}
+
+func TestNonOKDefaultStatusSendsJSON(t *testing.T) {
+	for _, status := range []int{http.StatusCreated, http.StatusAccepted} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			controller := statusController{status: status, body: HealthResponse{Status: HealthStatusOK}}
+
+			rec := get(t, newTestServer(t, controller), "/api/status")
+
+			if rec.Code != status {
+				t.Fatalf("status = %d, want %d", rec.Code, status)
+			}
+			if got := rec.Result().Header.Get("Content-Type"); got != jsonContent {
+				t.Fatalf("content type = %q, want %q", got, jsonContent)
+			}
+			var body HealthResponse
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if body.Status != HealthStatusOK {
+				t.Errorf("status = %q, want %q", body.Status, HealthStatusOK)
+			}
+		})
+	}
+}
+
+func TestNoContentDefaultStatusIsSent(t *testing.T) {
+	controller := statusController{status: http.StatusNoContent}
+
+	rec := get(t, newTestServer(t, controller), "/api/status")
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if rec.Body.Len() != 0 {
+		t.Errorf("body = %q, want empty", rec.Body)
+	}
+}
+
+func TestWebSocketUpgradeGoesThrough(t *testing.T) {
+	server := httptest.NewServer(newTestServer(t, socketController{}))
+	t.Cleanup(server.Close)
+
+	conn, _, err := websocket.Dial(t.Context(), "ws"+strings.TrimPrefix(server.URL, "http")+"/api/socket", nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	_ = conn.CloseNow()
+}
+
+func TestErrorOnCreatedRouteIsProblemJSON(t *testing.T) {
+	controller := statusController{status: http.StatusCreated, err: fuego.NotFoundError{Detail: "missing"}}
+
+	rec := get(t, newTestServer(t, controller), "/api/status")
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	if body := decodeProblem(t, rec); body.Type != string(problem.TypeNotFound) {
+		t.Errorf("type = %q, want %q", body.Type, problem.TypeNotFound)
 	}
 }
 

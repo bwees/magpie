@@ -116,6 +116,7 @@ func Build(env config.Env, mode Mode, all []Controller, middlewares ...Middlewar
 		return nil
 	})
 
+	fuego.Use(server, holdStatus)
 	for _, middleware := range middlewares {
 		fuego.Use(server, middleware)
 	}

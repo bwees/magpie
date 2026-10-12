@@ -4835,7 +4835,7 @@
 	"paths": {
 		"/api/acquisition/custom-formats": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).listFormats`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).listFormats`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listCustomFormats",
 				"parameters": [
 					{
@@ -4898,7 +4898,7 @@
 				]
 			},
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createFormat`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createFormat`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "createCustomFormat",
 				"parameters": [
 					{
@@ -4971,7 +4971,7 @@
 		},
 		"/api/acquisition/custom-formats/block-term": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).blockTerm`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).blockTerm`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "blockTerm",
 				"parameters": [
 					{
@@ -5044,7 +5044,7 @@
 		},
 		"/api/acquisition/custom-formats/{id}": {
 			"delete": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).deleteFormat`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).deleteFormat`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "deleteCustomFormat",
 				"parameters": [
 					{
@@ -5113,7 +5113,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateFormat`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateFormat`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateCustomFormat",
 				"parameters": [
 					{
@@ -5195,7 +5195,7 @@
 		},
 		"/api/acquisition/indexer-options": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).indexerOptions`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).indexerOptions`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getIndexerOptions",
 				"parameters": [
 					{
@@ -5255,7 +5255,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).setIndexerOptions`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).setIndexerOptions`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "setIndexerOptions",
 				"parameters": [
 					{
@@ -5328,7 +5328,7 @@
 		},
 		"/api/acquisition/indexers": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).listIndexers`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).listIndexers`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listIndexers",
 				"parameters": [
 					{
@@ -5390,7 +5390,7 @@
 		},
 		"/api/acquisition/indexers/sync": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).syncIndexers`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).syncIndexers`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "syncIndexers",
 				"parameters": [
 					{
@@ -5452,7 +5452,7 @@
 		},
 		"/api/acquisition/indexers/{id}": {
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).updateIndexer`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*Controller).updateIndexer`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateIndexer",
 				"parameters": [
 					{
@@ -5534,7 +5534,7 @@
 		},
 		"/api/acquisition/profiles": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).listProfiles`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).listProfiles`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listProfiles",
 				"parameters": [
 					{
@@ -5597,7 +5597,7 @@
 				]
 			},
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createProfile`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createProfile`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "createProfile",
 				"parameters": [
 					{
@@ -5670,7 +5670,7 @@
 		},
 		"/api/acquisition/profiles/from-preset": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createFromPreset`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).createFromPreset`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "createProfileFromPreset",
 				"parameters": [
 					{
@@ -5743,7 +5743,7 @@
 		},
 		"/api/acquisition/profiles/{id}": {
 			"delete": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).deleteProfile`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).deleteProfile`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "deleteProfile",
 				"parameters": [
 					{
@@ -5812,7 +5812,7 @@
 				]
 			},
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).getProfile`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).getProfile`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getProfile",
 				"parameters": [
 					{
@@ -5881,7 +5881,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateProfile`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateProfile`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateProfile",
 				"parameters": [
 					{
@@ -5963,7 +5963,7 @@
 		},
 		"/api/acquisition/qualities": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).qualities`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).qualities`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listQualities",
 				"parameters": [
 					{
@@ -6028,7 +6028,7 @@
 		},
 		"/api/acquisition/searches": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).start`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).start`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "startSearch",
 				"parameters": [
 					{
@@ -6101,7 +6101,7 @@
 		},
 		"/api/acquisition/searches/{id}": {
 			"delete": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).cancel`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).cancel`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "cancelSearch",
 				"parameters": [
 					{
@@ -6170,7 +6170,7 @@
 				]
 			},
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).get`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).get`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getSearch",
 				"parameters": [
 					{
@@ -6241,7 +6241,7 @@
 		},
 		"/api/acquisition/searches/{id}/grab": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).grab`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).grab`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "grabRelease",
 				"parameters": [
 					{
@@ -6323,7 +6323,7 @@
 		},
 		"/api/acquisition/settings": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).settings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).settings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getAcquisitionSettings",
 				"parameters": [
 					{
@@ -6383,7 +6383,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateAcquisitionSettings",
 				"parameters": [
 					{
@@ -6456,7 +6456,7 @@
 		},
 		"/api/acquisition/trash/profiles": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).trashProfiles`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).trashProfiles`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listTrashProfiles",
 				"parameters": [
 					{
@@ -6521,7 +6521,7 @@
 		},
 		"/api/acquisition/trash/status": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).trashStatus`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).trashStatus`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getTrashStatus",
 				"parameters": [
 					{
@@ -6583,7 +6583,7 @@
 		},
 		"/api/acquisition/trash/sync": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).syncTrash`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*QualityController).syncTrash`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "syncTrash",
 				"parameters": [
 					{
@@ -6645,7 +6645,7 @@
 		},
 		"/api/activity/attention": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).attention`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).attention`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getAttention",
 				"parameters": [
 					{
@@ -6710,7 +6710,7 @@
 		},
 		"/api/activity/history": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).history`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).history`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getHistory",
 				"parameters": [
 					{
@@ -6799,7 +6799,7 @@
 		},
 		"/api/activity/notification-kinds": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notificationKinds`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notificationKinds`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listNotificationKinds",
 				"parameters": [
 					{
@@ -6864,7 +6864,7 @@
 		},
 		"/api/activity/notification-urls": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notificationURLs`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notificationURLs`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listNotificationUrls",
 				"parameters": [
 					{
@@ -6927,7 +6927,7 @@
 				]
 			},
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).addNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).addNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "addNotificationUrl",
 				"parameters": [
 					{
@@ -7000,7 +7000,7 @@
 		},
 		"/api/activity/notification-urls/{id}": {
 			"delete": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).deleteNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).deleteNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "deleteNotificationUrl",
 				"parameters": [
 					{
@@ -7069,7 +7069,7 @@
 				]
 			},
 			"patch": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).updateNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).updateNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateNotificationUrl",
 				"parameters": [
 					{
@@ -7151,7 +7151,7 @@
 		},
 		"/api/activity/notification-urls/{id}/test": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).testNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).testNotificationURL`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "testNotificationUrl",
 				"parameters": [
 					{
@@ -7222,7 +7222,7 @@
 		},
 		"/api/activity/notifications": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notifications`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).notifications`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listNotifications",
 				"parameters": [
 					{
@@ -7308,7 +7308,7 @@
 		},
 		"/api/activity/notifications/read-all": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).markAllRead`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).markAllRead`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "markAllNotificationsRead",
 				"parameters": [
 					{
@@ -7370,7 +7370,7 @@
 		},
 		"/api/activity/notifications/{id}/read": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).markRead`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).markRead`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "markNotificationRead",
 				"parameters": [
 					{
@@ -7441,7 +7441,7 @@
 		},
 		"/api/activity/pipeline": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).pipeline`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).pipeline`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getPipeline",
 				"parameters": [
 					{
@@ -7533,7 +7533,7 @@
 		},
 		"/api/activity/timeline": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).timeline`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/activity.(*Controller).timeline`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getTimeline",
 				"parameters": [
 					{
@@ -7623,7 +7623,7 @@
 		},
 		"/api/catalog/attribution": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).attribution`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).attribution`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getAttribution",
 				"parameters": [
 					{
@@ -7685,7 +7685,7 @@
 		},
 		"/api/catalog/discover": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).discover`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).discover`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "discoverTitles",
 				"parameters": [
 					{
@@ -7755,7 +7755,7 @@
 		},
 		"/api/catalog/discover/{kind}/{tmdbId}": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).discoverDetail`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).discoverDetail`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getDiscoverDetail",
 				"parameters": [
 					{
@@ -7835,7 +7835,7 @@
 		},
 		"/api/catalog/images/{titleId}/{kind}": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).serveImage`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).serveImage`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getTitleImage",
 				"parameters": [
 					{
@@ -7921,7 +7921,7 @@
 		},
 		"/api/catalog/languages": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getWantedLanguages",
 				"parameters": [
 					{
@@ -7981,7 +7981,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateWantedLanguages",
 				"parameters": [
 					{
@@ -8054,7 +8054,7 @@
 		},
 		"/api/catalog/settings": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getSettings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getCatalogSettings",
 				"parameters": [
 					{
@@ -8114,7 +8114,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateCatalogSettings",
 				"parameters": [
 					{
@@ -8187,7 +8187,7 @@
 		},
 		"/api/catalog/titles": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).listTitles`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).listTitles`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listTitles",
 				"parameters": [
 					{
@@ -8292,7 +8292,7 @@
 		},
 		"/api/catalog/titles/{id}": {
 			"delete": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).removeTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).removeTitle`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "removeTitle",
 				"parameters": [
 					{
@@ -8369,7 +8369,7 @@
 				]
 			},
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).getTitle`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getTitle",
 				"parameters": [
 					{
@@ -8438,7 +8438,7 @@
 				]
 			},
 			"patch": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateTitle`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateTitle",
 				"parameters": [
 					{
@@ -8520,7 +8520,7 @@
 		},
 		"/api/catalog/titles/{id}/episode-group": {
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).selectEpisodeGroup`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).selectEpisodeGroup`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "selectEpisodeGroup",
 				"parameters": [
 					{
@@ -8602,7 +8602,7 @@
 		},
 		"/api/catalog/titles/{id}/episode-groups": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).listEpisodeGroups`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).listEpisodeGroups`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listEpisodeGroups",
 				"parameters": [
 					{
@@ -8676,7 +8676,7 @@
 		},
 		"/api/catalog/titles/{id}/episodes/{episodeId}": {
 			"patch": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateEpisode`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateEpisode`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateEpisode",
 				"parameters": [
 					{
@@ -8767,7 +8767,7 @@
 		},
 		"/api/catalog/titles/{id}/languages": {
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateTitleLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateTitleLanguages`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateTitleLanguages",
 				"parameters": [
 					{
@@ -8849,7 +8849,7 @@
 		},
 		"/api/catalog/titles/{id}/refresh": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).refreshTitle`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).refreshTitle`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "refreshTitle",
 				"parameters": [
 					{
@@ -8920,7 +8920,7 @@
 		},
 		"/api/catalog/titles/{id}/seasons/{n}": {
 			"patch": {
-				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateSeason`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/catalog.(*Controller).updateSeason`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateSeason",
 				"parameters": [
 					{
@@ -9011,7 +9011,7 @@
 		},
 		"/api/health": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/httpserver.(*HealthController).Register.func1`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/httpserver.(*HealthController).Register.func1`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getHealth",
 				"parameters": [
 					{
@@ -9073,7 +9073,7 @@
 		},
 		"/api/identity/defaults": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).defaults`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).defaults`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getUserDefaults",
 				"parameters": [
 					{
@@ -9133,7 +9133,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setDefaults`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setDefaults`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "setUserDefaults",
 				"parameters": [
 					{
@@ -9206,7 +9206,7 @@
 		},
 		"/api/identity/local-admin/password": {
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).changeLocalPassword`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).changeLocalPassword`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "changeLocalAdminPassword",
 				"parameters": [
 					{
@@ -9279,7 +9279,7 @@
 		},
 		"/api/identity/login/jellyfin": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInJellyfin`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInJellyfin`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "signInJellyfin",
 				"parameters": [
 					{
@@ -9352,7 +9352,7 @@
 		},
 		"/api/identity/login/local": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInLocal`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInLocal`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "signInLocal",
 				"parameters": [
 					{
@@ -9425,7 +9425,7 @@
 		},
 		"/api/identity/login/methods": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInMethods`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInMethods`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getSignInMethods",
 				"parameters": [
 					{
@@ -9487,7 +9487,7 @@
 		},
 		"/api/identity/login/quick-connect": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).startQuickConnect`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).startQuickConnect`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "startQuickConnect",
 				"parameters": [
 					{
@@ -9549,7 +9549,7 @@
 		},
 		"/api/identity/login/quick-connect/{handle}": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).pollQuickConnect`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).pollQuickConnect`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "pollQuickConnect",
 				"parameters": [
 					{
@@ -9635,7 +9635,7 @@
 		},
 		"/api/identity/logout": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signOut`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signOut`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "signOut",
 				"parameters": [
 					{
@@ -9697,7 +9697,7 @@
 		},
 		"/api/identity/me": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).me`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).me`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getMe",
 				"parameters": [
 					{
@@ -9759,7 +9759,7 @@
 		},
 		"/api/identity/setup/admin": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setupAdmin`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setupAdmin`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "setupAdmin",
 				"parameters": [
 					{
@@ -9832,7 +9832,7 @@
 		},
 		"/api/identity/sign-in-settings": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).signInSettings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getSignInSettings",
 				"parameters": [
 					{
@@ -9892,7 +9892,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setSignInSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).setSignInSettings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "setSignInSettings",
 				"parameters": [
 					{
@@ -9965,7 +9965,7 @@
 		},
 		"/api/identity/users": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).listUsers`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).listUsers`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listUsers",
 				"parameters": [
 					{
@@ -10030,7 +10030,7 @@
 		},
 		"/api/identity/users/{id}": {
 			"patch": {
-				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).updateUser`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/identity.(*Controller).updateUser`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateUser",
 				"parameters": [
 					{
@@ -10112,7 +10112,7 @@
 		},
 		"/api/platform/backups": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).list`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).list`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listBackups",
 				"parameters": [
 					{
@@ -10175,7 +10175,7 @@
 				]
 			},
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).create`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).create`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "createBackup",
 				"parameters": [
 					{
@@ -10237,7 +10237,7 @@
 		},
 		"/api/platform/backups/{name}/restore": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).restore`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/backup.(*Controller).restore`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "restoreBackup",
 				"parameters": [
 					{
@@ -10308,7 +10308,7 @@
 		},
 		"/api/platform/connections": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).get`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).get`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getConnections",
 				"parameters": [
 					{
@@ -10368,7 +10368,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).save`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).save`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateConnections",
 				"parameters": [
 					{
@@ -10441,7 +10441,7 @@
 		},
 		"/api/platform/connections/{service}/test": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).test`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/connections.(*Controller).test`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "testConnection",
 				"parameters": [
 					{
@@ -10512,7 +10512,7 @@
 		},
 		"/api/platform/parked-events": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).listParked`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).listParked`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listParkedEvents",
 				"parameters": [
 					{
@@ -10577,7 +10577,7 @@
 		},
 		"/api/platform/parked-events/retry": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).retryParked`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).retryParked`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "retryParkedEvent",
 				"parameters": [
 					{
@@ -10653,7 +10653,7 @@
 		},
 		"/api/requests": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).list`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).list`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listRequests",
 				"parameters": [
 					{
@@ -10748,7 +10748,7 @@
 				]
 			},
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).create`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).create`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "createRequest",
 				"parameters": [
 					{
@@ -10821,7 +10821,7 @@
 		},
 		"/api/requests/{id}": {
 			"delete": {
-				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).cancel`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).cancel`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "cancelRequest",
 				"parameters": [
 					{
@@ -10890,7 +10890,7 @@
 				]
 			},
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).get`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).get`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getRequest",
 				"parameters": [
 					{
@@ -10961,7 +10961,7 @@
 		},
 		"/api/requests/{id}/approve": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).approve`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).approve`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "approveRequest",
 				"parameters": [
 					{
@@ -11043,7 +11043,7 @@
 		},
 		"/api/requests/{id}/decline": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).decline`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).decline`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "declineRequest",
 				"parameters": [
 					{
@@ -11125,7 +11125,7 @@
 		},
 		"/api/requests/{id}/retry": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).retry`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).retry`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "retryRequest",
 				"parameters": [
 					{
@@ -11196,7 +11196,7 @@
 		},
 		"/api/transcode/agents": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).listAgents`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).listAgents`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "listAgents",
 				"parameters": [
 					{
@@ -11261,7 +11261,7 @@
 		},
 		"/api/transcode/agents/{id}": {
 			"patch": {
-				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).updateAgent`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).updateAgent`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateAgent",
 				"parameters": [
 					{
@@ -11343,7 +11343,7 @@
 		},
 		"/api/transcode/agents/{id}/retest": {
 			"post": {
-				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).retestAgent`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).retestAgent`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "retestAgent",
 				"parameters": [
 					{
@@ -11414,7 +11414,7 @@
 		},
 		"/api/transcode/secret": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).getSecret`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).getSecret`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getAgentSecret",
 				"parameters": [
 					{
@@ -11476,7 +11476,7 @@
 		},
 		"/api/transcode/settings": {
 			"get": {
-				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).getSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).getSettings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "getTranscodeSettings",
 				"parameters": [
 					{
@@ -11536,7 +11536,7 @@
 				]
 			},
 			"put": {
-				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).updateSettings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
 				"operationId": "updateTranscodeSettings",
 				"parameters": [
 					{
