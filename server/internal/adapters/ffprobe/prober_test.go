@@ -31,7 +31,7 @@ func TestMediaInfoFromARecordedProbe(t *testing.T) {
 	}
 	want := []api.Stream{
 		{Index: 0, Kind: api.StreamVideo, Codec: "hevc", Language: "en", Default: true, BitDepth: 10, BitrateKbps: 24000},
-		{Index: 1, Kind: api.StreamAudio, Codec: "eac3", Language: "de", Default: true, Channels: 6, BitrateKbps: 640},
+		{Index: 1, Kind: api.StreamAudio, Codec: "eac3", Language: "de", Default: true, Channels: 6, BitrateKbps: 640, StartTime: 4 * time.Second},
 		{Index: 2, Kind: api.StreamSubtitle, Codec: "subrip", Language: "en", Forced: true},
 		{Index: 3, Kind: api.StreamSubtitle, Codec: "hdmv_pgs_subtitle", Language: "und", Image: true},
 	}

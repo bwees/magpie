@@ -117,4 +117,6 @@ type Stream struct {
 	Channels    int             `json:"channels"`
 	BitDepth    int             `json:"bitDepth"`
 	BitrateKbps int             `json:"bitrateKbps"`
+	// StartTime is ffprobe's start_time. Audio that starts after the video shifts Whisper's cues.
+	StartTime time.Duration `json:"startTime"`
 }

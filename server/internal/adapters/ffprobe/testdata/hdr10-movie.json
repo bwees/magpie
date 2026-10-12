@@ -8,6 +8,7 @@
             "height": 2160,
             "pix_fmt": "yuv420p10le",
             "color_transfer": "smpte2084",
+            "start_time": "0.000000",
             "disposition": { "default": 1, "forced": 0 },
             "tags": { "language": "eng", "BPS": "24000000" }
         },
@@ -17,6 +18,7 @@
             "codec_type": "audio",
             "channels": 6,
             "bit_rate": "640000",
+            "start_time": "4.000000",
             "disposition": { "default": 1, "forced": 0 },
             "tags": { "language": "ger" }
         },

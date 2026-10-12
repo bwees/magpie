@@ -1158,6 +1158,7 @@ export type Stream = {
     index: number;
     kind: string;
     language: string;
+    startTime: number;
 };
 export type MediaInfo = {
     bitrateKbps: number;

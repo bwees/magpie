@@ -129,6 +129,7 @@ type probeStream struct {
 	Channels         int               `json:"channels"`
 	BitRate          string            `json:"bit_rate"`
 	ColorTransfer    string            `json:"color_transfer"`
+	StartTime        string            `json:"start_time"`
 	Disposition      map[string]int    `json:"disposition"`
 	Tags             map[string]string `json:"tags"`
 	SideData         []struct {
@@ -154,6 +155,7 @@ func (o probeOutput) mediaInfo() api.MediaInfo {
 			Forced: s.Disposition["forced"] > 0, Default: s.Disposition["default"] > 0,
 			Image:    kind == api.StreamSubtitle && slices.Contains(imageSubtitleCodecs, s.CodecName),
 			Channels: s.Channels, BitDepth: s.bitDepth(), BitrateKbps: kilobits(cmp.Or(s.BitRate, s.Tags[bitrateTag])),
+			StartTime: seconds(s.StartTime),
 		}
 		info.Streams = append(info.Streams, stream)
 		if kind == api.StreamVideo && info.Width == 0 {

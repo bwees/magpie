@@ -470,7 +470,10 @@ func episodeRefs(list []domain.EpisodeRef) []EpisodeRefResponse {
 func mediaFileResponse(f api.MediaFile) MediaFileResponse {
 	streams := make([]StreamResponse, 0, len(f.MediaInfo.Streams))
 	for _, st := range f.MediaInfo.Streams {
-		streams = append(streams, StreamResponse(st))
+		streams = append(streams, StreamResponse{
+			Index: st.Index, Kind: st.Kind, Codec: st.Codec, Language: st.Language, Forced: st.Forced,
+			Default: st.Default, Image: st.Image, Channels: st.Channels, BitDepth: st.BitDepth, BitrateKbps: st.BitrateKbps,
+		})
 	}
 	return MediaFileResponse{
 		ID: f.ID, Title: f.Title, Episodes: episodeRefs(f.Episodes), RootFolder: f.RootFolder, Path: f.Path,

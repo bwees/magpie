@@ -70,7 +70,7 @@ type MediaFile struct {
 	Quality     domain.Quality
 	ReleaseName string    // original grabbed release; empty for scanned files with no name
 	OSHash      string    // OpenSubtitles hash of the original file
-	MediaInfo   MediaInfo // streams (codec, language, forced, default, image/text), duration, HDR format, bitrate
+	MediaInfo   MediaInfo // streams (codec, language, forced, default, image/text, start time), duration, HDR format, bitrate
 	Origin      domain.Origin      // DOWNLOAD | LIBRARY_SCAN | MIGRATION
 	Download    *domain.DownloadID // source download, nil for scanned files
 	InfoHash    string             // source torrent hash; "" if unknown (scan, some migrations)

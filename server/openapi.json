@@ -5093,6 +5093,10 @@
 					},
 					"language": {
 						"type": "string"
+					},
+					"startTime": {
+						"format": "int64",
+						"type": "integer"
 					}
 				},
 				"required": [
@@ -5105,7 +5109,8 @@
 					"image",
 					"index",
 					"kind",
-					"language"
+					"language",
+					"startTime"
 				],
 				"type": "object"
 			},
