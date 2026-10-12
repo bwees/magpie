@@ -6,7 +6,7 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import type { EpisodeResponse } from '$lib/sdk';
+	import type { EpisodeResponse, TitleResponse } from '$lib/sdk';
 	import { AutomaticSearch, type SearchTarget } from '$lib/search/automatic-search.svelte';
 	import { getSession } from '$lib/session/session.svelte';
 	import { airDateLabel, AVAILABLE_UNKNOWN, episodeCode, seasonLabel } from './episodes';
@@ -19,8 +19,16 @@
 	const session = getSession();
 	const automatic = new AutomaticSearch();
 
-	function episodeTarget(titleId: string, episode: EpisodeResponse, season: number): SearchTarget {
-		return { titleId, episodeIds: [episode.id], label: episodeCode(season, episode.number) };
+	function episodeTarget(
+		title: TitleResponse,
+		episode: EpisodeResponse,
+		season: number
+	): SearchTarget {
+		return {
+			titleId: title.id,
+			episodeIds: [episode.id],
+			label: `${title.name} ${episodeCode(season, episode.number)}`
+		};
 	}
 </script>
 
@@ -79,7 +87,7 @@
 											/>
 										</Table.Cell>
 										{#if session.isAdmin}
-											{@const target = episodeTarget(page.title.id, episode, season.number)}
+											{@const target = episodeTarget(page.title, episode, season.number)}
 											<Table.Cell class="pr-4">
 												<Tooltip.Root>
 													<Tooltip.Trigger>
