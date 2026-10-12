@@ -26,21 +26,23 @@ const (
 type tokenValue string
 
 // OpenSubtitles serves scripted search results and subtitle files, and counts down a daily quota.
+// Its configured login is accepted until RejectLogin; Download needs a Login first.
 type OpenSubtitles struct {
 	scripted.Script
 
-	mu         sync.Mutex
-	now        func() time.Time
-	user, pass string
-	candidates map[subtitles.SearchQuery][]subtitles.Candidate
-	content    map[int64][]byte
-	remaining  int
-	resetAt    time.Time
+	mu          sync.Mutex
+	now         func() time.Time
+	rejectLogin bool
+	loggedIn    bool
+	candidates  map[subtitles.SearchQuery][]subtitles.Candidate
+	content     map[int64][]byte
+	remaining   int
+	resetAt     time.Time
 }
 
 var _ subtitles.OpenSubtitles = (*OpenSubtitles)(nil)
 
-// NewOpenSubtitles starts with no account, no results and a full free quota.
+// NewOpenSubtitles starts logged out with a valid login, no results and a full free quota.
 func NewOpenSubtitles() *OpenSubtitles {
 	f := &OpenSubtitles{
 		now:        time.Now,
@@ -52,11 +54,11 @@ func NewOpenSubtitles() *OpenSubtitles {
 	return f
 }
 
-// SetCredentials sets the only login Login accepts.
-func (f *OpenSubtitles) SetCredentials(user, pass string) {
+// RejectLogin makes Login fail with ErrAuth, as a wrong configured password would.
+func (f *OpenSubtitles) RejectLogin() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.user, f.pass = user, pass
+	f.rejectLogin, f.loggedIn = true, false
 }
 
 // AddCandidates makes Search return cands for exactly q.
@@ -80,16 +82,21 @@ func (f *OpenSubtitles) SetQuota(remaining int, resetAt time.Time) {
 	f.remaining, f.resetAt = remaining, resetAt
 }
 
-func (f *OpenSubtitles) Login(ctx context.Context, user, pass string) (subtitles.Token, error) {
+func (f *OpenSubtitles) Login(ctx context.Context) (subtitles.Token, error) {
 	if err := f.Enter(ctx, OpenSubtitlesLogin); err != nil {
 		return subtitles.Token{}, err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if user == "" || user != f.user || pass != f.pass {
+	if f.rejectLogin {
 		return subtitles.Token{}, subtitles.ErrAuth
 	}
-	return subtitles.Token{Value: string(domain.NewID[tokenValue]()), ExpiresAt: f.now().Add(tokenLifetime)}, nil
+	f.loggedIn = true
+	return subtitles.Token{
+		Value:            string(domain.NewID[tokenValue]()),
+		ExpiresAt:        f.now().Add(tokenLifetime),
+		AllowedDownloads: FreeDailyDownloads,
+	}, nil
 }
 
 func (f *OpenSubtitles) Search(ctx context.Context, q subtitles.SearchQuery) ([]subtitles.Candidate, error) {
@@ -107,6 +114,9 @@ func (f *OpenSubtitles) Download(ctx context.Context, fileID int64) ([]byte, int
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if !f.loggedIn {
+		return nil, 0, time.Time{}, subtitles.ErrAuth
+	}
 	if f.remaining <= 0 {
 		return nil, 0, f.resetAt, subtitles.ErrQuotaExceeded
 	}

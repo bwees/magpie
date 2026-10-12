@@ -22,11 +22,16 @@ Decisions: [07](../../../.scratch/v1-spec/issues/07-subtitles.md), [16](../../..
 
 | Table | Key columns |
 |---|---|
-| `subtitles` | id, media_file_id, language, forced, sdh, source (EMBEDDED/RELEASE/PROVIDER/WHISPER), provider_file_id?, score?, max_score?, sync_offset_ms?, path?, added_at, upgrade_until? |
-| `wanted` | media_file_id, language, forced, status (PENDING/SEARCHING/WAITING_WHISPER/MISSING/SATISFIED), attempts, next_attempt_at |
-| `opensubtitles_session` | token, token_expires_at, downloads_remaining, reset_at, vip (login credentials live in `platform.connections.opensubtitles`) |
-| `settings` | whisper_enabled, whisper_model (default `large-v3-turbo`), auto_sync, min_score_episode (90), min_score_movie (70) |
+| `files` | media_file_id, title_id, settled (false while a wanted track is in progress), imported_at |
+| `subtitles` | id, media_file_id, language, forced, sdh, source (EMBEDDED/RELEASE/PROVIDER/WHISPER), stream_index? (EMBEDDED), provider_file_id?, release_name, score?, max_score?, synced, sync_offset_ms?, path?, added_at, upgrade_until? |
+| `wanted` | media_file_id, language, forced, hearing_impaired (HI ok), position (wanted order), status (PENDING/SEARCHING/WAITING_WHISPER/MISSING/SATISFIED), source? (when SATISFIED), reason? (when MISSING), priority (IMPORT/MANUAL/UPGRADE/BACKLOG), next_attempt_at?, candidate? (an accepted subtitle waiting for quota) |
+| `blocklist` | media_file_id, provider_file_id (filled by RERUN_SUBTITLES and by deleting a provider subtitle) |
+| `opensubtitles_session` | downloads_remaining, reset_at, vip, token_expires_at, paused_until, problem (the token itself stays in the adapter's memory; login credentials live in `platform.connections.opensubtitles`) |
+| `settings` | one settings key: whisper_enabled, whisper_model (default `large-v3-turbo`), auto_sync, min_score_episode (90), min_score_movie (70), upgrade_window_days (7), upgrade_check_interval (6 h) |
 
+- Tables are prefixed `subtitles_`.
+- Every wanted track has a `wanted` row, satisfied ones included, so `Coverage` reads one table in wanted order. A wanted language with Forced on has two rows: the regular track and the forced one.
+- SEARCHING isn't stored: a per-file lock in memory keeps two searches of one file apart, and the row stays PENDING until the search records its outcome.
 - EMBEDDED rows have no path: they record that the track exists in the video, so Magpie doesn't search for it. Image tracks (PGS/VobSub) count as present.
 
 ## Query port
@@ -111,15 +116,16 @@ type CoverageSettled struct {
 
 ```go
 type OpenSubtitles interface {
-	// Login exchanges the user's credentials for a token (app API key is built in).
-	Login(ctx context.Context, user, pass string) (Token, error)
+	// Login exchanges the login in platform connection config for a fresh token, which later calls use
+	// (app API key is built in). ErrAuth on bad or missing credentials.
+	Login(ctx context.Context) (Token, error)
 	// Search queries by moviehash plus tmdb/imdb id, season, episode and language. Max 5 req/s.
 	Search(ctx context.Context, q SearchQuery) ([]Candidate, error)
-	// Download returns the subtitle content and the remaining daily quota.
+	// Download returns the subtitle content and the remaining daily quota. ErrAuth without a valid token.
 	Download(ctx context.Context, fileID int64) (content []byte, remaining int, resetAt time.Time, err error)
 }
 // Errors: ErrAuth (re-login once, then pause and notify), ErrQuotaExceeded (pause until resetAt),
-// ErrRateLimited (back off with Retry-After), ErrUnavailable (retry with backoff).
+// ErrRateLimited (back off with Retry-After; returned as *RetryAfterError{Wait}), ErrUnavailable (retry with backoff).
 
 type Syncer interface {
 	// Sync aligns subtitle timing to the video's speech (Go port of ffsubsync: VAD + FFT offset search).
@@ -128,21 +134,31 @@ type Syncer interface {
 }
 
 var ErrNoSpeech error // declared in subtitles/ports.go; internal/adapters/subsync returns it
+
+type SidecarFiles interface {
+	// Write replaces the file at path with content.
+	Write(path string, content []byte) error
+	// Remove deletes path. A missing file is not an error.
+	Remove(path string) error
+}
 ```
 
-- `Token`, `SearchQuery` (comparable: moviehash, TMDB/IMDb ID, season, episode, one language) and `Candidate` (file ID, release name, hash match, HI, forced, machine/AI translated, identity fields for scoring) are in `ports.go`.
+- `Token` (value, expiry, VIP, daily allowed downloads), `SearchQuery` (comparable: moviehash, TMDB/IMDb ID, season, episode, one language; for an episode the IDs are the series') and `Candidate` (file ID, release name, hash match, HI, forced, machine/AI translated, identity fields for scoring) are in `ports.go`.
+- Adapters: `internal/adapters/opensubtitles` (login from `platform.connections.opensubtitles`, the token kept in memory, one 5 req/s limiter for every call), `internal/adapters/subsync` (`Syncer`) and `internal/adapters/disk` (`SidecarFiles`, written through a temporary file and a rename).
 
 ## HTTP surface
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/subtitles/files/{mediaFileId}` | Subtitles plus coverage for the title page |
-| POST | `/api/subtitles/files/{mediaFileId}/search` | Manual search now (skips the backoff) |
-| GET | `/api/subtitles/files/{mediaFileId}/candidates?language=` | Interactive list of scored candidates |
-| POST | `/api/subtitles/files/{mediaFileId}/download` | Body: candidate file ID; downloads, syncs and stores it |
-| DELETE | `/api/subtitles/{subtitleId}` | Remove a sidecar |
-| GET/PUT | `/api/subtitles/settings` | Whisper toggle/model, auto-sync, score thresholds (the OpenSubtitles login is platform connection config; wanted languages are `/api/catalog/languages`) |
-| GET | `/api/subtitles/quota` | Downloads left today |
+| POST | `/api/subtitles/files/{mediaFileId}/search` | Manual search now (skips the backoff and a login pause) |
+| GET | `/api/subtitles/files/{mediaFileId}/candidates?language=&forced=` | Interactive list of scored candidates, best first, each flagged when it reaches the minimum score |
+| POST | `/api/subtitles/files/{mediaFileId}/download` | Body: candidate file ID, language, forced; downloads, syncs and stores it. `429` when no quota is left |
+| DELETE | `/api/subtitles/{subtitleId}` | Remove a sidecar (`409` for an embedded track). A provider file is blocklisted for the media file and the language is searched again |
+| GET/PUT | `/api/subtitles/settings` | Whisper toggle/model, auto-sync, score thresholds, upgrade window and check interval (the OpenSubtitles login is platform connection config; wanted languages are `/api/catalog/languages`) |
+| GET | `/api/subtitles/quota` | Downloads left today, the reset time, VIP, and a login problem while calls are paused |
+
+All routes are admin only.
 
 ## Behaviour
 
@@ -154,7 +170,8 @@ var ErrNoSpeech error // declared in subtitles/ports.go; internal/adapters/subsy
    - Score each candidate Bazarr-style:
      - Episodes: hash 359, series 160, year 90, season 30, episode 30, source 25, release group 20, 1 each for audio/video codec, resolution, HI and streaming service.
      - Movies: hash 179, title 60, year 40, source 30, edition 30, release group 15, the same 1-point extras.
-     - A hash only counts when the other identity fields also match.
+     - A hash only counts when the other identity fields also match: the movie, or the series, season and episode (TMDB aired numbering). A counted hash stands in for every other attribute but HI.
+     - A matching TMDB or IMDb ID implies the year, as in Bazarr. Max is the sum of the non-hash weights (episodes 360, movies 180).
      - Release attributes come from parsing the stored `release_name`, not the file name.
    - Accept the best candidate scoring ≥ 90% (episodes) or 70% (movies) of max. Prefer non-HI unless the wanted entry allows HI.
    - Skip machine-translated results.
@@ -165,6 +182,10 @@ var ErrNoSpeech error // declared in subtitles/ports.go; internal/adapters/subsy
 **Quota:**
 - Downloads are ordered: new imports first, then manual requests, then upgrades, then the missing backlog.
 - When `downloads_remaining` hits 0 the queue pauses until `reset_at`. Searches still run (unlimited).
+  - An accepted candidate found without quota stays on its `wanted` row (`candidate`, PENDING, `next_attempt_at = reset_at`). A downloads job at `reset_at`, and every sweep, downloads the waiting candidates in priority order.
+  - The sweep's order is: waiting downloads, then upgrades, then searches for the due MISSING backlog.
+- `ErrAuth` twice in a row (after one re-login) pauses every OpenSubtitles call for 6 h. The quota badge shows the problem; **Search now** on a file lifts the pause.
+- `ErrRateLimited` and `ErrUnavailable` keep the row's status and book another search after Retry-After, or after 15 min.
 
 **Upgrades:** a PROVIDER subtitle with score < max − 3 gets `upgrade_until = added_at + 7 days`. The 6-hourly sweep re-searches it and replaces it only with a candidate scoring ≥ old + 1 point. The replacement publishes `SubtitleAdded{Replaces: true}`.
 
