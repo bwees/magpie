@@ -1,0 +1,8 @@
+[
+  { "id": 1, "name": "G_Freeleech", "nameLower": "g_freeleech" },
+  { "id": 2, "name": "G_Halfleech", "nameLower": "g_halfleech" },
+  { "id": 4, "name": "G_DoubleUpload", "nameLower": "g_doubleupload" },
+  { "id": 8, "name": "Internal", "nameLower": "internal" },
+  { "id": 16, "name": "Scene", "nameLower": "scene" },
+  { "id": 256, "name": "Subtitles", "nameLower": "subtitles" }
+]

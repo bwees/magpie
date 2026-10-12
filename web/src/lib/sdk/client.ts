@@ -857,6 +857,193 @@ export type UpdateConnectionsRequest = {
     qbittorrent?: QBittorrentConnection;
     tmdb?: TmdbConnection;
 };
+export type MigrationOptions = {
+    importAliases: boolean;
+    renameFolders: boolean;
+};
+export type MigrationPath = {
+    access: string;
+    app: string;
+    "from": string;
+    to: string;
+};
+export type MigrationProgress = {
+    done: number;
+    step: string;
+    total: number;
+};
+export type MigrationAppReport = {
+    app: string;
+    matched: number;
+    review: number;
+    skipped: number;
+};
+export type MigrationReport = {
+    apps: MigrationAppReport[];
+    blocklistWithHash: number;
+    blocklistWithoutHash: number;
+    files: number;
+    formatClashes: number;
+    formats: number;
+    history: number;
+    missingFiles: number;
+    numberingMismatches: number;
+    profileClashes: number;
+    profiles: number;
+    releaseProfileFormats: number;
+    unmappedEpisodes: number;
+    untranslatedSpecs: number;
+    warnings: string[];
+};
+export type MigrationClash = {
+    choice: string;
+    id: string;
+    kind: string;
+    name: string;
+    radarr: string[];
+    sonarr: string[];
+};
+export type MigrationGroupOption = {
+    id: string;
+    name: string;
+    score: number;
+    "type": number;
+};
+export type MigrationSeasonCount = {
+    episodes: number;
+    season: number;
+};
+export type MigrationNumberingReview = {
+    decision: string;
+    group: string;
+    groups: MigrationGroupOption[];
+    id: string;
+    name: string;
+    sonarrSeasons: MigrationSeasonCount[];
+    suggested: string;
+    tmdbSeasons: MigrationSeasonCount[];
+};
+export type MigrationQueueCount = {
+    pending: number;
+    queue: string;
+    total: number;
+};
+export type MigrationSeriesTypeReview = {
+    decision: string;
+    id: string;
+    name: string;
+    "type": string;
+};
+export type MigrationSpecReview = {
+    app: string;
+    decision: string;
+    formatName: string;
+    id: string;
+    kind: string;
+    options: string[];
+    rawValue: string;
+    reason: string;
+    specName: string;
+    value: string;
+};
+export type MigrationCandidate = {
+    kind: string;
+    name: string;
+    tmdb: number;
+    year: number;
+};
+export type MigrationTitleReview = {
+    app: string;
+    candidates: MigrationCandidate[];
+    decision: string;
+    id: string;
+    kind: string;
+    name: string;
+    tmdb: number[];
+    year: number;
+};
+export type MigrationReviews = {
+    clashes: MigrationClash[];
+    numbering: MigrationNumberingReview[];
+    queues: MigrationQueueCount[];
+    seriesTypes: MigrationSeriesTypeReview[];
+    specs: MigrationSpecReview[];
+    titles: MigrationTitleReview[];
+};
+export type MigrationSource = {
+    app: string;
+    rootFolders: string[];
+    skipped: boolean;
+    url: string;
+    version: string;
+};
+export type MigrationSummaryStep = {
+    imported: number;
+    step: string;
+};
+export type MigrationSummary = {
+    missingFiles: string[];
+    skippedTitles: string[];
+    steps: MigrationSummaryStep[];
+    unmappedFiles: string[];
+};
+export type MigrationResponse = {
+    canCommit: boolean;
+    cutoverConfirmed: boolean;
+    error: string;
+    failedStep: string;
+    options: MigrationOptions;
+    paths: MigrationPath[];
+    phase: string;
+    progress: MigrationProgress;
+    report?: MigrationReport;
+    reviews?: MigrationReviews;
+    sources: MigrationSource[];
+    summary?: MigrationSummary;
+};
+export type MigrationConnectRequest = {
+    apiKey: string;
+    app: string;
+    skip: boolean;
+    url: string;
+};
+export type MigrationCutoverRequest = {
+    confirmed: boolean;
+};
+export type MigrationOptionsRequest = {
+    importAliases: boolean;
+    renameFolders: boolean;
+};
+export type MigrationPathRequest = {
+    app: string;
+    "from": string;
+    to: string;
+};
+export type MigrationPathsRequest = {
+    paths: MigrationPathRequest[];
+};
+export type MigrationPathCheckRequest = {
+    path: string;
+};
+export type MigrationPathCheck = {
+    access: string;
+    path: string;
+};
+export type MigrationDecisionRequest = {
+    clash?: string;
+    group?: string;
+    id: string;
+    numbering?: string;
+    queue: string;
+    seriesType?: string;
+    spec?: string;
+    title?: string;
+    tmdb?: number[] | null;
+    value?: string;
+};
+export type MigrationSkipQueueRequest = {
+    queue: string;
+};
 export type ParkedEventResponse = {
     aggregateId: string;
     attempts: number;
@@ -1396,6 +1583,12 @@ export type WantedLanguage = {
 export type LanguagesChanged = {
     languages: WantedLanguage[] | null;
     title: string | null;
+};
+export type MigrationProgressed = {
+    done: number;
+    phase: string;
+    step: string;
+    total: number;
 };
 export type MonitoringChanged = {
     added: string[] | null;
@@ -4175,6 +4368,290 @@ export function testConnection(service: string, { accept }: {
     }>(`/api/platform/connections/${encodeURIComponent(service)}/test`, {
         ...opts,
         method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Forget the import to start over; anything committed stays (admin)
+ */
+export function resetMigration({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration", {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * The Sonarr/Radarr import: connections, paths, dry-run report, review queues and summary (admin)
+ */
+export function getMigration({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Import the plan, or resume a failed commit; runs in the background (admin)
+ */
+export function startMigrationCommit({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/commit", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Connect or skip Sonarr or Radarr; checks the version (Sonarr ≥ 4.0) and reads its root folders (admin)
+ */
+export function connectMigrationSource(migrationConnectRequest: MigrationConnectRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/connections", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: migrationConnectRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Confirm the manual cutover checklist; Commit needs it (admin)
+ */
+export function setMigrationCutover(migrationCutoverRequest: MigrationCutoverRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/cutover", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: migrationCutoverRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Read both apps and plan the import without writing anything; runs in the background (admin)
+ */
+export function startMigrationDryRun({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/dry-run", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Choose folder renames and alias import (admin)
+ */
+export function setMigrationOptions(migrationOptionsRequest: MigrationOptionsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/options", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: migrationOptionsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Set where each app's root folder is as the server sees it (admin)
+ */
+export function setMigrationPaths(migrationPathsRequest: MigrationPathsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/paths", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: migrationPathsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Check that the server can read and write a folder (admin)
+ */
+export function checkMigrationPath(migrationPathCheckRequest: MigrationPathCheckRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationPathCheck;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/paths/check", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: migrationPathCheckRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Settle one review item (admin)
+ */
+export function decideMigrationReview(migrationDecisionRequest: MigrationDecisionRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/reviews", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: migrationDecisionRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Settle every open item of a queue with its default (admin)
+ */
+export function skipMigrationReviewQueue(migrationSkipQueueRequest: MigrationSkipQueueRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/platform/migration/reviews/skip", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: migrationSkipQueueRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Search TMDB for a title to match an unmatched one to (admin)
+ */
+export function searchMigrationTitle(kind: string, q: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MigrationCandidate[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/platform/migration/search${QS.query(QS.explode({
+        kind,
+        q
+    }))}`, {
+        ...opts,
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept
         })

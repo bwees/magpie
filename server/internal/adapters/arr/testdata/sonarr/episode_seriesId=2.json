@@ -1,0 +1,10 @@
+[
+  { "id": 201, "seriesId": 2, "tvdbId": 297989, "episodeFileId": 21, "seasonNumber": 1, "episodeNumber": 1, "title": "Serenity", "airDate": "2002-12-20", "hasFile": true, "monitored": true },
+  { "id": 202, "seriesId": 2, "tvdbId": 297990, "episodeFileId": 0, "seasonNumber": 1, "episodeNumber": 2, "title": "The Train Job", "airDate": "2002-09-20", "hasFile": false, "monitored": true },
+  { "id": 203, "seriesId": 2, "tvdbId": 297991, "episodeFileId": 0, "seasonNumber": 1, "episodeNumber": 3, "title": "Bushwhacked", "airDate": "2002-09-27", "hasFile": false, "monitored": true },
+  { "id": 204, "seriesId": 2, "tvdbId": 297992, "episodeFileId": 0, "seasonNumber": 1, "episodeNumber": 4, "title": "Shindig", "airDate": "2002-11-01", "hasFile": false, "monitored": true },
+  { "id": 205, "seriesId": 2, "tvdbId": 297993, "episodeFileId": 22, "seasonNumber": 2, "episodeNumber": 1, "title": "Safe", "airDate": "2002-11-08", "hasFile": true, "monitored": true },
+  { "id": 206, "seriesId": 2, "tvdbId": 297994, "episodeFileId": 0, "seasonNumber": 2, "episodeNumber": 2, "title": "Our Mrs. Reynolds", "airDate": "2002-10-04", "hasFile": false, "monitored": true },
+  { "id": 207, "seriesId": 2, "tvdbId": 297995, "episodeFileId": 0, "seasonNumber": 2, "episodeNumber": 3, "title": "Jaynestown", "airDate": "2002-10-18", "hasFile": false, "monitored": false },
+  { "id": 208, "seriesId": 2, "tvdbId": 297996, "episodeFileId": 0, "seasonNumber": 2, "episodeNumber": 4, "title": "Out of Gas", "airDate": "2002-10-25", "hasFile": false, "monitored": false }
+]

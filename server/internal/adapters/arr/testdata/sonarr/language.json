@@ -1,0 +1,10 @@
+[
+  { "id": 0, "name": "Unknown", "nameLower": "unknown" },
+  { "id": 1, "name": "English", "nameLower": "english" },
+  { "id": 2, "name": "French", "nameLower": "french" },
+  { "id": 3, "name": "Spanish", "nameLower": "spanish" },
+  { "id": 8, "name": "Japanese", "nameLower": "japanese" },
+  { "id": 26, "name": "Arabic", "nameLower": "arabic" },
+  { "id": 33, "name": "Portuguese (Brazil)", "nameLower": "portuguese (brazil)" },
+  { "id": -2, "name": "Original", "nameLower": "original" }
+]

@@ -1,0 +1,4 @@
+[
+  { "id": 1, "enableUsenet": true, "enableTorrent": true, "preferredProtocol": "usenet", "usenetDelay": 0, "torrentDelay": 60, "bypassIfHighestQuality": true, "bypassIfAboveCustomFormatScore": false, "minimumCustomFormatScore": 0, "order": 2147483647, "tags": [] },
+  { "id": 2, "enableUsenet": false, "enableTorrent": true, "preferredProtocol": "torrent", "usenetDelay": 0, "torrentDelay": 0, "bypassIfHighestQuality": false, "bypassIfAboveCustomFormatScore": true, "minimumCustomFormatScore": 500, "order": 1, "tags": [1] }
+]

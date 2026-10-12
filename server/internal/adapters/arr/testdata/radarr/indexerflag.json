@@ -1,0 +1,10 @@
+[
+  { "id": 1, "name": "G_Freeleech", "nameLower": "g_freeleech" },
+  { "id": 2, "name": "G_Halfleech", "nameLower": "g_halfleech" },
+  { "id": 4, "name": "G_DoubleUpload", "nameLower": "g_doubleupload" },
+  { "id": 8, "name": "PTP_Golden", "nameLower": "ptp_golden" },
+  { "id": 16, "name": "PTP_Approved", "nameLower": "ptp_approved" },
+  { "id": 32, "name": "G_Internal", "nameLower": "g_internal" },
+  { "id": 128, "name": "G_Scene", "nameLower": "g_scene" },
+  { "id": 2048, "name": "Nuked", "nameLower": "nuked" }
+]

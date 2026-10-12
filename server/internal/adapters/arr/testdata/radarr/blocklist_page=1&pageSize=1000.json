@@ -1,0 +1,18 @@
+{
+  "page": 1,
+  "pageSize": 1000,
+  "totalRecords": 1,
+  "records": [
+    {
+      "id": 3,
+      "movieId": 40,
+      "sourceTitle": "Conclave.2024.1080p.WEB-DL.DDP5.1.H.264-FAKE",
+      "languages": [{ "id": 1, "name": "English" }],
+      "quality": { "quality": { "id": 3, "name": "WEBDL-1080p" }, "revision": { "version": 1 } },
+      "date": "2025-01-10T21:00:00Z",
+      "protocol": "torrent",
+      "indexer": "IPTorrents (Prowlarr)",
+      "message": "Sample only"
+    }
+  ]
+}

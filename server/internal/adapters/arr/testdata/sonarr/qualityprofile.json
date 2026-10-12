@@ -1,0 +1,45 @@
+[
+  {
+    "id": 4,
+    "name": "HD-1080p",
+    "upgradeAllowed": true,
+    "cutoff": 1001,
+    "items": [
+      { "quality": { "id": 0, "name": "Unknown", "source": "unknown", "resolution": 0 }, "items": [], "allowed": false },
+      { "quality": { "id": 9, "name": "HDTV-1080p", "source": "television", "resolution": 1080 }, "items": [], "allowed": true },
+      {
+        "id": 1001,
+        "name": "WEB 1080p",
+        "items": [
+          { "quality": { "id": 15, "name": "WEBRip-1080p", "source": "webRip", "resolution": 1080 }, "items": [], "allowed": true },
+          { "quality": { "id": 3, "name": "WEBDL-1080p", "source": "web", "resolution": 1080 }, "items": [], "allowed": true }
+        ],
+        "allowed": true
+      },
+      { "quality": { "id": 7, "name": "Bluray-1080p", "source": "bluray", "resolution": 1080 }, "items": [], "allowed": true },
+      { "quality": { "id": 20, "name": "Bluray-1080p Remux", "source": "blurayRaw", "resolution": 1080 }, "items": [], "allowed": false }
+    ],
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "minUpgradeFormatScore": 1,
+    "formatItems": [
+      { "format": 1, "name": "Remux", "score": 0 },
+      { "format": 2, "name": "x265 (HD)", "score": -10000 },
+      { "format": 3, "name": "Not English", "score": -10000 }
+    ]
+  },
+  {
+    "id": 6,
+    "name": "Remux-1080p",
+    "upgradeAllowed": true,
+    "cutoff": 20,
+    "items": [
+      { "quality": { "id": 7, "name": "Bluray-1080p", "source": "bluray", "resolution": 1080 }, "items": [], "allowed": true },
+      { "quality": { "id": 20, "name": "Bluray-1080p Remux", "source": "blurayRaw", "resolution": 1080 }, "items": [], "allowed": true }
+    ],
+    "minFormatScore": 0,
+    "cutoffFormatScore": 100,
+    "minUpgradeFormatScore": 1,
+    "formatItems": [{ "format": 1, "name": "Remux", "score": 100 }]
+  }
+]

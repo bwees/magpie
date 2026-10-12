@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1,
+    "name": "x265 (HD)",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      { "name": "x265", "implementation": "ReleaseTitleSpecification", "negate": false, "required": true, "fields": [{ "order": 0, "name": "value", "value": "[xh][ ._-]?265|\\bHEVC(\\b|\\d)" }] }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Remux Tier 01",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      { "name": "FGT", "implementation": "ReleaseGroupSpecification", "negate": false, "required": false, "fields": [{ "order": 0, "name": "value", "value": "^(FGT|FraMeSToR)$" }] },
+      { "name": "Remux", "implementation": "QualityModifierSpecification", "negate": false, "required": true, "fields": [{ "order": 0, "name": "value", "value": 5 }] },
+      { "name": "Bluray", "implementation": "SourceSpecification", "negate": false, "required": true, "fields": [{ "order": 0, "name": "value", "value": 9 }] }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "PTP Golden",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      { "name": "Golden", "implementation": "IndexerFlagSpecification", "negate": false, "required": true, "fields": [{ "order": 0, "name": "value", "value": 8 }] },
+      { "name": "Freeleech", "implementation": "IndexerFlagSpecification", "negate": false, "required": false, "fields": [{ "order": 0, "name": "value", "value": 1 }] }
+    ]
+  }
+]

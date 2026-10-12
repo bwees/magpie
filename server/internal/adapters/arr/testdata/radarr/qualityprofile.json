@@ -1,0 +1,46 @@
+[
+  {
+    "id": 4,
+    "name": "HD-1080p",
+    "upgradeAllowed": true,
+    "cutoff": 7,
+    "items": [
+      { "quality": { "id": 24, "name": "WORKPRINT" }, "items": [], "allowed": false },
+      { "quality": { "id": 25, "name": "CAM" }, "items": [], "allowed": false },
+      { "quality": { "id": 3, "name": "WEBDL-1080p" }, "items": [], "allowed": true },
+      { "quality": { "id": 7, "name": "Bluray-1080p" }, "items": [], "allowed": true },
+      { "quality": { "id": 30, "name": "Remux-1080p" }, "items": [], "allowed": false }
+    ],
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "minUpgradeFormatScore": 1,
+    "formatItems": [
+      { "format": 1, "name": "x265 (HD)", "score": -10000 },
+      { "format": 2, "name": "Remux Tier 01", "score": 0 }
+    ],
+    "language": { "id": 1, "name": "English" }
+  },
+  {
+    "id": 7,
+    "name": "Remux + WEB 2160p",
+    "upgradeAllowed": true,
+    "cutoff": 31,
+    "items": [
+      {
+        "id": 1001,
+        "name": "WEB 2160p",
+        "items": [
+          { "quality": { "id": 17, "name": "WEBRip-2160p" }, "items": [], "allowed": true },
+          { "quality": { "id": 18, "name": "WEBDL-2160p" }, "items": [], "allowed": true }
+        ],
+        "allowed": true
+      },
+      { "quality": { "id": 31, "name": "Remux-2160p" }, "items": [], "allowed": true }
+    ],
+    "minFormatScore": 0,
+    "cutoffFormatScore": 1700,
+    "minUpgradeFormatScore": 1,
+    "formatItems": [{ "format": 2, "name": "Remux Tier 01", "score": 1700 }],
+    "language": { "id": -1, "name": "Any" }
+  }
+]

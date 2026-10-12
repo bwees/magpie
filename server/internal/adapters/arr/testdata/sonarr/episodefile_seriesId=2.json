@@ -1,0 +1,26 @@
+[
+  {
+    "id": 21,
+    "seriesId": 2,
+    "seasonNumber": 1,
+    "path": "/tv/Firefly/Season 01/Firefly - S01E01 - Serenity WEBDL-1080p.mkv",
+    "size": 2147483648,
+    "dateAdded": "2022-06-12T08:00:00Z",
+    "sceneName": "Firefly.S01E01.Serenity.1080p.WEB-DL.DD5.1.H.264-NTb",
+    "releaseGroup": "NTb",
+    "languages": [{ "id": 1, "name": "English" }],
+    "quality": { "quality": { "id": 3, "name": "WEBDL-1080p", "source": "web", "resolution": 1080 }, "revision": { "version": 1, "real": 0, "isRepack": false } }
+  },
+  {
+    "id": 22,
+    "seriesId": 2,
+    "seasonNumber": 2,
+    "path": "/tv/Firefly/Season 02/Firefly - S02E01 - Safe Bluray-1080p.mkv",
+    "size": 4294967296,
+    "dateAdded": "2022-06-12T08:05:00Z",
+    "sceneName": "",
+    "releaseGroup": "",
+    "languages": [{ "id": 1, "name": "English" }],
+    "quality": { "quality": { "id": 7, "name": "Bluray-1080p", "source": "bluray", "resolution": 1080 }, "revision": { "version": 2, "real": 0, "isRepack": true } }
+  }
+]

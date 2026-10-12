@@ -1,0 +1,4 @@
+[
+  { "id": 301, "seriesId": 3, "tvdbId": 9900101, "episodeFileId": 0, "seasonNumber": 2024, "episodeNumber": 1, "title": "Jon Stewart", "airDate": "2024-02-12", "hasFile": false, "monitored": false },
+  { "id": 302, "seriesId": 3, "tvdbId": 9900102, "episodeFileId": 0, "seasonNumber": 2024, "episodeNumber": 2, "title": "Jordan Klepper", "airDate": "2024-02-13", "hasFile": false, "monitored": false }
+]

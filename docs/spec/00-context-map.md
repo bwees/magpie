@@ -185,6 +185,7 @@ type Event struct {
 | `activity.AttentionChanged` | Activity | item, kind, ref, open, count | live gateway (admins) |
 | `activity.ProjectionUpdated` *(ephemeral)* | Activity | projection `TIMELINE` \| `HISTORY` \| `PIPELINE`, title? | live gateway → views refetch the timeline, history or stage bar |
 | `platform.ServiceHealthChanged` | Platform | service, healthy, error | Activity → notify + attention; Catalog → resume TMDB refresh paused by a `401` |
+| `platform.MigrationProgressed` *(ephemeral)* | Platform (migration job) | phase, step, done, total | live gateway (admins) → the import wizard's progress bar |
 
 | Command | Sender | Owner → behaviour |
 |---|---|---|

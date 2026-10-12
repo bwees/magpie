@@ -1,0 +1,8 @@
+[
+  { "id": 1, "quality": { "id": 0, "name": "Unknown" }, "title": "Unknown", "weight": 1, "minSize": 1, "maxSize": 199.9, "preferredSize": 194.9 },
+  { "id": 9, "quality": { "id": 9, "name": "HDTV-1080p" }, "title": "HDTV-1080p", "weight": 9, "minSize": 4, "maxSize": 125, "preferredSize": 95 },
+  { "id": 3, "quality": { "id": 3, "name": "WEBDL-1080p" }, "title": "WEBDL-1080p", "weight": 13, "minSize": 4, "maxSize": 137.3, "preferredSize": 117 },
+  { "id": 15, "quality": { "id": 15, "name": "WEBRip-1080p" }, "title": "WEBRip-1080p", "weight": 13, "minSize": 4, "maxSize": 137.3, "preferredSize": 117 },
+  { "id": 7, "quality": { "id": 7, "name": "Bluray-1080p" }, "title": "Bluray-1080p", "weight": 14, "minSize": 4, "maxSize": 155.7, "preferredSize": 140 },
+  { "id": 20, "quality": { "id": 20, "name": "Bluray-1080p Remux" }, "title": "Bluray-1080p Remux", "weight": 15, "minSize": 0, "maxSize": null, "preferredSize": null }
+]

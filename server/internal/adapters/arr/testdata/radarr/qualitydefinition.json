@@ -1,0 +1,5 @@
+[
+  { "id": 3, "quality": { "id": 3, "name": "WEBDL-1080p" }, "title": "WEBDL-1080p", "minSize": 12.5, "maxSize": 2000, "preferredSize": 1999 },
+  { "id": 7, "quality": { "id": 7, "name": "Bluray-1080p" }, "title": "Bluray-1080p", "minSize": 17.1, "maxSize": 2000, "preferredSize": 1999 },
+  { "id": 31, "quality": { "id": 31, "name": "Remux-2160p" }, "title": "Remux-2160p", "minSize": 187.4, "maxSize": null, "preferredSize": null }
+]

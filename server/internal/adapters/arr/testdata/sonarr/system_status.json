@@ -1,0 +1,19 @@
+{
+  "appName": "Sonarr",
+  "instanceName": "Sonarr",
+  "version": "4.0.20.3014",
+  "buildTime": "2026-09-16T00:00:00Z",
+  "isDebug": false,
+  "isProduction": true,
+  "isAdmin": false,
+  "isUserInteractive": false,
+  "startupPath": "/app/sonarr/bin",
+  "appData": "/config",
+  "osName": "ubuntu",
+  "isDocker": true,
+  "branch": "main",
+  "authentication": "forms",
+  "urlBase": "",
+  "runtimeVersion": "6.0.35",
+  "databaseType": "sqLite"
+}

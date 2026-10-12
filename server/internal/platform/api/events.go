@@ -28,7 +28,25 @@ func (ServiceHealthChanged) Type() string          { return TypeServiceHealthCha
 func (e ServiceHealthChanged) AggregateID() string { return string(e.Service) }
 func (ServiceHealthChanged) Durable() bool         { return true }
 
+const TypeMigrationProgressed = "platform.MigrationProgressed"
+
+// MigrationProgressed is ephemeral: the Sonarr/Radarr import's dry run or commit moved on. Phase and Step
+// are the migration's own values; the wizard refetches its state when Phase changes.
+type MigrationProgressed struct {
+	Phase string `json:"phase"`
+	Step  string `json:"step"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
+}
+
+// migrationAggregate orders the one migration's progress events.
+const migrationAggregate = "MIGRATION"
+
+func (MigrationProgressed) Type() string        { return TypeMigrationProgressed }
+func (MigrationProgressed) AggregateID() string { return migrationAggregate }
+func (MigrationProgressed) Durable() bool       { return false }
+
 // Messages lists every event this package declares, for the bus registry and the live schemas.
 func Messages() []domain.Message {
-	return []domain.Message{ServiceHealthChanged{}}
+	return []domain.Message{ServiceHealthChanged{}, MigrationProgressed{}}
 }

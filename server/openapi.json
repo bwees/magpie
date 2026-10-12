@@ -3284,6 +3284,830 @@
 				],
 				"type": "object"
 			},
+			"MigrationAppReport": {
+				"properties": {
+					"app": {
+						"type": "string"
+					},
+					"matched": {
+						"type": "integer"
+					},
+					"review": {
+						"type": "integer"
+					},
+					"skipped": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"app",
+					"matched",
+					"review",
+					"skipped"
+				],
+				"type": "object"
+			},
+			"MigrationCandidate": {
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"tmdb": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"year": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"kind",
+					"name",
+					"tmdb",
+					"year"
+				],
+				"type": "object"
+			},
+			"MigrationClash": {
+				"properties": {
+					"choice": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"radarr": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"sonarr": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"choice",
+					"id",
+					"kind",
+					"name",
+					"radarr",
+					"sonarr"
+				],
+				"type": "object"
+			},
+			"MigrationConnectRequest": {
+				"description": "MigrationConnectRequest schema",
+				"properties": {
+					"apiKey": {
+						"type": "string"
+					},
+					"app": {
+						"type": "string"
+					},
+					"skip": {
+						"type": "boolean"
+					},
+					"url": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"apiKey",
+					"app",
+					"skip",
+					"url"
+				],
+				"type": "object"
+			},
+			"MigrationCutoverRequest": {
+				"description": "MigrationCutoverRequest schema",
+				"properties": {
+					"confirmed": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"confirmed"
+				],
+				"type": "object"
+			},
+			"MigrationDecisionRequest": {
+				"description": "MigrationDecisionRequest schema",
+				"properties": {
+					"clash": {
+						"type": "string"
+					},
+					"group": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"numbering": {
+						"type": "string"
+					},
+					"queue": {
+						"type": "string"
+					},
+					"seriesType": {
+						"type": "string"
+					},
+					"spec": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"tmdb": {
+						"items": {
+							"format": "int64",
+							"type": "integer"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"value": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"queue"
+				],
+				"type": "object"
+			},
+			"MigrationGroupOption": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"score": {
+						"format": "double",
+						"type": "number"
+					},
+					"type": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"score",
+					"type"
+				],
+				"type": "object"
+			},
+			"MigrationNumberingReview": {
+				"properties": {
+					"decision": {
+						"type": "string"
+					},
+					"group": {
+						"type": "string"
+					},
+					"groups": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationGroupOption"
+						},
+						"type": "array"
+					},
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"sonarrSeasons": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationSeasonCount"
+						},
+						"type": "array"
+					},
+					"suggested": {
+						"type": "string"
+					},
+					"tmdbSeasons": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationSeasonCount"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"decision",
+					"group",
+					"groups",
+					"id",
+					"name",
+					"sonarrSeasons",
+					"suggested",
+					"tmdbSeasons"
+				],
+				"type": "object"
+			},
+			"MigrationOptions": {
+				"properties": {
+					"importAliases": {
+						"type": "boolean"
+					},
+					"renameFolders": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"importAliases",
+					"renameFolders"
+				],
+				"type": "object"
+			},
+			"MigrationOptionsRequest": {
+				"description": "MigrationOptionsRequest schema",
+				"properties": {
+					"importAliases": {
+						"type": "boolean"
+					},
+					"renameFolders": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"importAliases",
+					"renameFolders"
+				],
+				"type": "object"
+			},
+			"MigrationPath": {
+				"properties": {
+					"access": {
+						"type": "string"
+					},
+					"app": {
+						"type": "string"
+					},
+					"from": {
+						"type": "string"
+					},
+					"to": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"access",
+					"app",
+					"from",
+					"to"
+				],
+				"type": "object"
+			},
+			"MigrationPathCheck": {
+				"description": "MigrationPathCheck schema",
+				"properties": {
+					"access": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"access",
+					"path"
+				],
+				"type": "object"
+			},
+			"MigrationPathCheckRequest": {
+				"description": "MigrationPathCheckRequest schema",
+				"properties": {
+					"path": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"path"
+				],
+				"type": "object"
+			},
+			"MigrationPathRequest": {
+				"properties": {
+					"app": {
+						"type": "string"
+					},
+					"from": {
+						"type": "string"
+					},
+					"to": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"app",
+					"from",
+					"to"
+				],
+				"type": "object"
+			},
+			"MigrationPathsRequest": {
+				"description": "MigrationPathsRequest schema",
+				"properties": {
+					"paths": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationPathRequest"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"paths"
+				],
+				"type": "object"
+			},
+			"MigrationProgress": {
+				"properties": {
+					"done": {
+						"type": "integer"
+					},
+					"step": {
+						"type": "string"
+					},
+					"total": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"done",
+					"step",
+					"total"
+				],
+				"type": "object"
+			},
+			"MigrationProgressed": {
+				"description": "MigrationProgressed schema",
+				"properties": {
+					"done": {
+						"type": "integer"
+					},
+					"phase": {
+						"type": "string"
+					},
+					"step": {
+						"type": "string"
+					},
+					"total": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"done",
+					"phase",
+					"step",
+					"total"
+				],
+				"type": "object"
+			},
+			"MigrationQueueCount": {
+				"properties": {
+					"pending": {
+						"type": "integer"
+					},
+					"queue": {
+						"type": "string"
+					},
+					"total": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"pending",
+					"queue",
+					"total"
+				],
+				"type": "object"
+			},
+			"MigrationReport": {
+				"properties": {
+					"apps": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationAppReport"
+						},
+						"type": "array"
+					},
+					"blocklistWithHash": {
+						"type": "integer"
+					},
+					"blocklistWithoutHash": {
+						"type": "integer"
+					},
+					"files": {
+						"type": "integer"
+					},
+					"formatClashes": {
+						"type": "integer"
+					},
+					"formats": {
+						"type": "integer"
+					},
+					"history": {
+						"type": "integer"
+					},
+					"missingFiles": {
+						"type": "integer"
+					},
+					"numberingMismatches": {
+						"type": "integer"
+					},
+					"profileClashes": {
+						"type": "integer"
+					},
+					"profiles": {
+						"type": "integer"
+					},
+					"releaseProfileFormats": {
+						"type": "integer"
+					},
+					"unmappedEpisodes": {
+						"type": "integer"
+					},
+					"untranslatedSpecs": {
+						"type": "integer"
+					},
+					"warnings": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"apps",
+					"blocklistWithHash",
+					"blocklistWithoutHash",
+					"files",
+					"formatClashes",
+					"formats",
+					"history",
+					"missingFiles",
+					"numberingMismatches",
+					"profileClashes",
+					"profiles",
+					"releaseProfileFormats",
+					"unmappedEpisodes",
+					"untranslatedSpecs",
+					"warnings"
+				],
+				"type": "object"
+			},
+			"MigrationResponse": {
+				"description": "MigrationResponse schema",
+				"properties": {
+					"canCommit": {
+						"type": "boolean"
+					},
+					"cutoverConfirmed": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"failedStep": {
+						"type": "string"
+					},
+					"options": {
+						"$ref": "#/components/schemas/MigrationOptions"
+					},
+					"paths": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationPath"
+						},
+						"type": "array"
+					},
+					"phase": {
+						"type": "string"
+					},
+					"progress": {
+						"$ref": "#/components/schemas/MigrationProgress"
+					},
+					"report": {
+						"$ref": "#/components/schemas/MigrationReport"
+					},
+					"reviews": {
+						"$ref": "#/components/schemas/MigrationReviews"
+					},
+					"sources": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationSource"
+						},
+						"type": "array"
+					},
+					"summary": {
+						"$ref": "#/components/schemas/MigrationSummary"
+					}
+				},
+				"required": [
+					"canCommit",
+					"cutoverConfirmed",
+					"error",
+					"failedStep",
+					"options",
+					"paths",
+					"phase",
+					"progress",
+					"sources"
+				],
+				"type": "object"
+			},
+			"MigrationReviews": {
+				"properties": {
+					"clashes": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationClash"
+						},
+						"type": "array"
+					},
+					"numbering": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationNumberingReview"
+						},
+						"type": "array"
+					},
+					"queues": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationQueueCount"
+						},
+						"type": "array"
+					},
+					"seriesTypes": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationSeriesTypeReview"
+						},
+						"type": "array"
+					},
+					"specs": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationSpecReview"
+						},
+						"type": "array"
+					},
+					"titles": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationTitleReview"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"clashes",
+					"numbering",
+					"queues",
+					"seriesTypes",
+					"specs",
+					"titles"
+				],
+				"type": "object"
+			},
+			"MigrationSeasonCount": {
+				"properties": {
+					"episodes": {
+						"type": "integer"
+					},
+					"season": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"episodes",
+					"season"
+				],
+				"type": "object"
+			},
+			"MigrationSeriesTypeReview": {
+				"properties": {
+					"decision": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"decision",
+					"id",
+					"name",
+					"type"
+				],
+				"type": "object"
+			},
+			"MigrationSkipQueueRequest": {
+				"description": "MigrationSkipQueueRequest schema",
+				"properties": {
+					"queue": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"queue"
+				],
+				"type": "object"
+			},
+			"MigrationSource": {
+				"properties": {
+					"app": {
+						"type": "string"
+					},
+					"rootFolders": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"skipped": {
+						"type": "boolean"
+					},
+					"url": {
+						"type": "string"
+					},
+					"version": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"app",
+					"rootFolders",
+					"skipped",
+					"url",
+					"version"
+				],
+				"type": "object"
+			},
+			"MigrationSpecReview": {
+				"properties": {
+					"app": {
+						"type": "string"
+					},
+					"decision": {
+						"type": "string"
+					},
+					"formatName": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"options": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"rawValue": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"specName": {
+						"type": "string"
+					},
+					"value": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"app",
+					"decision",
+					"formatName",
+					"id",
+					"kind",
+					"options",
+					"rawValue",
+					"reason",
+					"specName",
+					"value"
+				],
+				"type": "object"
+			},
+			"MigrationSummary": {
+				"properties": {
+					"missingFiles": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"skippedTitles": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"steps": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationSummaryStep"
+						},
+						"type": "array"
+					},
+					"unmappedFiles": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"missingFiles",
+					"skippedTitles",
+					"steps",
+					"unmappedFiles"
+				],
+				"type": "object"
+			},
+			"MigrationSummaryStep": {
+				"properties": {
+					"imported": {
+						"type": "integer"
+					},
+					"step": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"imported",
+					"step"
+				],
+				"type": "object"
+			},
+			"MigrationTitleReview": {
+				"properties": {
+					"app": {
+						"type": "string"
+					},
+					"candidates": {
+						"items": {
+							"$ref": "#/components/schemas/MigrationCandidate"
+						},
+						"type": "array"
+					},
+					"decision": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"tmdb": {
+						"items": {
+							"format": "int64",
+							"type": "integer"
+						},
+						"type": "array"
+					},
+					"year": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"app",
+					"candidates",
+					"decision",
+					"id",
+					"kind",
+					"name",
+					"tmdb",
+					"year"
+				],
+				"type": "object"
+			},
 			"MonitoringChanged": {
 				"description": "MonitoringChanged schema",
 				"properties": {
@@ -14569,6 +15393,846 @@
 				]
 			}
 		},
+		"/api/platform/migration": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).reset`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "resetMigration",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Forget the import to start over; anything committed stays (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			},
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).get`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getMigration",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "The Sonarr/Radarr import: connections, paths, dry-run report, review queues and summary (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/commit": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).commit`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "startMigrationCommit",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Import the plan, or resume a failed commit; runs in the background (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/connections": {
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).connect`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "connectMigrationSource",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MigrationConnectRequest"
+							}
+						}
+					},
+					"description": "Request body for migrate.MigrationConnectRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Connect or skip Sonarr or Radarr; checks the version (Sonarr ≥ 4.0) and reads its root folders (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/cutover": {
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).setCutover`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setMigrationCutover",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MigrationCutoverRequest"
+							}
+						}
+					},
+					"description": "Request body for migrate.MigrationCutoverRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Confirm the manual cutover checklist; Commit needs it (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/dry-run": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).dryRun`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "startMigrationDryRun",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Read both apps and plan the import without writing anything; runs in the background (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/options": {
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).setOptions`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setMigrationOptions",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MigrationOptionsRequest"
+							}
+						}
+					},
+					"description": "Request body for migrate.MigrationOptionsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Choose folder renames and alias import (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/paths": {
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).setPaths`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setMigrationPaths",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MigrationPathsRequest"
+							}
+						}
+					},
+					"description": "Request body for migrate.MigrationPathsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Set where each app's root folder is as the server sees it (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/paths/check": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).checkPath`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "checkMigrationPath",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MigrationPathCheckRequest"
+							}
+						}
+					},
+					"description": "Request body for migrate.MigrationPathCheckRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationPathCheck"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Check that the server can read and write a folder (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/reviews": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).decide`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "decideMigrationReview",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MigrationDecisionRequest"
+							}
+						}
+					},
+					"description": "Request body for migrate.MigrationDecisionRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Settle one review item (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/reviews/skip": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).skip`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "skipMigrationReviewQueue",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MigrationSkipQueueRequest"
+							}
+						}
+					},
+					"description": "Request body for migrate.MigrationSkipQueueRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MigrationResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Settle every open item of a queue with its default (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
+		"/api/platform/migration/search": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/migrate.(*Controller).search`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "searchMigrationTitle",
+				"parameters": [
+					{
+						"description": "MOVIE or SERIES",
+						"in": "query",
+						"name": "kind",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Search text",
+						"in": "query",
+						"name": "q",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/MigrationCandidate"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Search TMDB for a title to match an unmatched one to (admin)",
+				"tags": [
+					"api",
+					"migration"
+				]
+			}
+		},
 		"/api/platform/parked-events": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/platform/bus.(*Controller).listParked`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -17321,6 +18985,9 @@
 		},
 		{
 			"name": "library"
+		},
+		{
+			"name": "migration"
 		},
 		{
 			"name": "platform"

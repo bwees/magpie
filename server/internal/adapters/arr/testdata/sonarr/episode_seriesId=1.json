@@ -1,0 +1,4 @@
+[
+  { "id": 101, "seriesId": 1, "tvdbId": 6789001, "episodeFileId": 11, "seasonNumber": 1, "episodeNumber": 1, "title": "Magic Xylophone", "airDate": "2018-10-01", "airDateUtc": "2018-09-30T22:00:00Z", "hasFile": true, "monitored": true, "absoluteEpisodeNumber": 1, "unverifiedSceneNumbering": false },
+  { "id": 102, "seriesId": 1, "tvdbId": 6789002, "episodeFileId": 0, "seasonNumber": 1, "episodeNumber": 2, "title": "Hospital", "airDate": "2018-10-02", "airDateUtc": "2018-10-01T22:00:00Z", "hasFile": false, "monitored": true, "absoluteEpisodeNumber": 2, "unverifiedSceneNumbering": false }
+]

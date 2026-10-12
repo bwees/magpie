@@ -1,0 +1,4 @@
+[
+  { "id": 1, "name": "Bad groups", "enabled": true, "required": [], "ignored": ["YIFY", "/\\bRARBG\\b/i"], "indexerId": 0, "tags": [1] },
+  { "id": 2, "name": "Disabled", "enabled": false, "required": ["PROPER"], "ignored": [], "indexerId": 0, "tags": [] }
+]

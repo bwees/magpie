@@ -44,7 +44,8 @@ type ImportTitle struct {
     MonitorNewSeasons bool
     EpisodeGroup  *string            // TMDB episode group id, when the user confirmed one
     Episodes      []ImportEpisode    // series only, already translated to Magpie numbering
-    Tags          []string
+    Tags          []string           // not stored: Magpie titles have no tags
+    Aliases       []string           // Sonarr alternate titles, when the user opted in; kept across refreshes
     AddedAt       time.Time
 }
 type ImportEpisode struct { Source SourceKey; Season, Number int; Monitored bool }
@@ -76,6 +77,7 @@ type ImportMediaFile struct {
     ReleaseGroup string
     Languages   []domain.Language
     AddedAt     time.Time
+    Rename      bool              // move to the fixed naming with its sidecars (the "rename folders" option)
 }
 
 // internal/activity/api
@@ -96,12 +98,12 @@ type ImportTimelineEvent struct {
 
 | Context | Entrypoint | Receives | Behaviour and guarantees |
 |---|---|---|---|
-| Acquisition | `ImportCustomFormats` | CFs from both apps, specs translated | Same name and same specs → one CF. Same name and different specs → the user picked one in the wizard diff. Optional TRaSH link by name. Runs first (profiles reference CFs). |
-| Acquisition | `ImportQualityProfiles` | Profiles with quality IDs remapped, CF IDs remapped, sizes copied in | One shared pool for movies and TV. Same name → merged per the user's diff choice. |
-| Acquisition | `ImportDelayProfiles` | Torrent delay, bypass rules, tags | Usenet fields dropped. |
+| Acquisition | `ImportCustomFormats` | CFs from both apps, specs translated | Same name and same specs → one CF. Same name and different specs → the user picked one in the wizard diff. A name already stored (e.g. a TRaSH-synced CF) is reused as it is, so TRaSH sync keeps owning it; other TRaSH names are linked by the next sync. Runs first (profiles reference CFs). |
+| Acquisition | `ImportQualityProfiles` | Profiles with quality IDs remapped, CF IDs remapped, sizes copied in | One shared pool for movies and TV. Same name → merged per the user's diff choice; a name already stored is reused. Propers mode `PREFER_AND_UPGRADE`. |
+| Acquisition | `ImportDelayProfiles` | Torrent delay, bypass rules, tags | Usenet fields dropped. The shortest untagged torrent delay becomes the default delay; tagged profiles change nothing (Magpie has one delay). |
 | Catalog | `ImportTitles` | Matched titles with Magpie numbering | Doesn't emit `TitleAdded` for search purposes (see below). External IDs stored. |
 | Library | `ImportRootFolders` | Rewritten paths, media type | Checks access and runs the hardlink test; inaccessible roots fail the step. |
-| Library | `ImportMediaFiles` | File records linked to Magpie titles/episodes | Doesn't move or rename files. Probes media info lazily. Publishes `library.FileImported{Origin: MIGRATION}` per file. |
+| Library | `ImportMediaFiles` | File records linked to Magpie titles/episodes | Doesn't move or rename files unless `Rename` is set. Probes media info, hashes and lists sidecars before its transaction. A file gone from disk or outside every root folder is left out of the result. Publishes `library.FileImported{Origin: MIGRATION}` per file. |
 | Acquisition | `ImportBlocklist` | Blocklist rows with recovered hashes | Rows without a hash match by title + indexer. Usenet rows skipped. |
 | Activity | `ImportTimeline` | All grab/import/fail/delete history rows | Written with their original timestamps. Doesn't create notifications or attention items. |
 
@@ -137,6 +139,34 @@ Identity, Requests, Subtitles and Transcode have no import entrypoint:
    - Rename existing folders to `Title (Year) [tmdbid-N]` (opt-in).
    - Import Sonarr alternate titles as aliases.
 7. **Commit**, then a summary with links to the review leftovers and the library scan for unmapped files.
+
+The wizard is the optional last first-run step and a card in Settings → General.
+
+### Job and HTTP
+
+- One migration per install, stored as one document (`platform_migration`). Phases: `SETUP` → `DRY_RUN_RUNNING` → `REVIEW` (or `DRY_RUN_FAILED`) → `COMMIT_RUNNING` → `DONE` (or `COMMIT_FAILED`). The dry run may run again until the commit starts; it replaces the plan and its decisions.
+- Both runs are backlite jobs (`platform.migration`, one attempt). They honour cancellation: a shutdown marks the run failed with "start it again"; a crash is marked the same at the next boot.
+- A resumed commit runs every step again. Each Importer is idempotent on source keys, so finished steps change nothing and return the IDs later steps need.
+- Source keys: titles `sonarr:{id}` / `radarr:{id}`, a split series' parts `sonarr:{id}/tmdb:{tmdbId}`, other records `{app}:{record}:{id}` (`episode`, `episodefile`, `moviefile`, `customformat`, `qualityprofile`, `delayprofile`, `rootfolder`, `blocklist`, `history`), and derived formats `…:releaseprofile:{id}:ignored|required`, `…:qualityprofile:{id}:language`.
+- Root folders are imported only when an imported title lies under them, so an unused, unmounted *arr root doesn't fail the commit.
+- Skipping a queue settles its open items: unmatched titles and daily/anime series are skipped, numbering keeps the preselected group (or aired order), clashing items are kept under both names with ` (TV)` / ` (Movies)` suffixes, untranslated specs are dropped.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/platform/migration` | Phase, connections (no API keys), paths with access, options, progress, report, review queues, summary |
+| DELETE | `/api/platform/migration` | Forget the migration (204); committed records stay. 409 `migration-busy` while a run is going |
+| PUT | `/api/platform/migration/connections` | `{app, url, apiKey, skip}`: checks the version (400 `unsupported-version` for Sonarr < 4.0; 502 `arr-unreachable`) and reads the root folders |
+| PUT | `/api/platform/migration/paths` | `{paths: [{app, from, to}]}` |
+| POST | `/api/platform/migration/paths/check` | `{path}` → `{path, access}`: `OK` \| `MISSING` \| `NOT_A_FOLDER` \| `NOT_WRITABLE` \| `NOT_ABSOLUTE` |
+| PUT | `/api/platform/migration/cutover` | `{confirmed}` |
+| PUT | `/api/platform/migration/options` | `{renameFolders, importAliases}` |
+| POST | `/api/platform/migration/dry-run` | 202; 409 `migration-not-ready` with no app connected or after the commit started |
+| POST | `/api/platform/migration/reviews` | `{queue, id, …decision}` settles one item; 400 `invalid-decision`, 404 for an unknown item |
+| POST | `/api/platform/migration/reviews/skip` | `{queue}` settles the rest of a queue with its default |
+| GET | `/api/platform/migration/search?kind=&q=` | TMDB candidates for an unmatched title |
+| POST | `/api/platform/migration/commit` | 202; starts or resumes the commit. 409 `migration-not-ready` until the queues are settled and the cutover is confirmed |
+
+Progress goes to admins as the ephemeral `platform.MigrationProgressed{phase, step, done, total}`; the wizard refetches when the phase changes.
 
 ## Mapping rules
 

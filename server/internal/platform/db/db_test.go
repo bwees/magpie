@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	latestPlatformMigration = 3
+	latestPlatformMigration = 4
 	parallelWriters         = 50
 )
 
@@ -74,7 +74,7 @@ func TestOpenMigratesEmptyDatabase(t *testing.T) {
 	if version != latestPlatformMigration {
 		t.Errorf("schema version = %d, want %d", version, latestPlatformMigration)
 	}
-	for _, table := range []string{"platform_settings", "platform_outbox", "platform_subscriptions", "platform_handler_queue", "platform_processed_events", "platform_schedules"} {
+	for _, table := range []string{"platform_settings", "platform_outbox", "platform_subscriptions", "platform_handler_queue", "platform_processed_events", "platform_schedules", "platform_migration"} {
 		if !d.Read(context.Background()).Migrator().HasTable(table) {
 			t.Errorf("%s missing after migration", table)
 		}

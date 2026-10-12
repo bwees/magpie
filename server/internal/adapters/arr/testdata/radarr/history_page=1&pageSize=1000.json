@@ -1,0 +1,33 @@
+{
+  "page": 1,
+  "pageSize": 1000,
+  "totalRecords": 3,
+  "records": [
+    {
+      "id": 51,
+      "movieId": 40,
+      "sourceTitle": "Conclave.2024.1080p.WEB-DL.DDP5.1.H.264-FAKE",
+      "date": "2025-01-10T20:00:00Z",
+      "downloadId": "1111222233334444555566667777888899990000",
+      "eventType": "grabbed",
+      "data": { "indexer": "IPTorrents (Prowlarr)", "torrentInfoHash": "1111222233334444555566667777888899990000", "protocol": "2", "tmdbId": "974576" }
+    },
+    {
+      "id": 52,
+      "movieId": 40,
+      "sourceTitle": "Conclave.2024.1080p.BluRay.x264-SPARKS",
+      "date": "2025-01-11T02:00:00Z",
+      "downloadId": "AAAA222233334444555566667777888899990000",
+      "eventType": "downloadFolderImported",
+      "data": { "importedPath": "/movies/Conclave (2024)/Conclave (2024) Bluray-1080p.mkv" }
+    },
+    {
+      "id": 53,
+      "movieId": 41,
+      "sourceTitle": "Dune.Part.Two.2024.1080p.WEB-DL-GRP",
+      "date": "2024-05-20T00:00:00Z",
+      "eventType": "movieFileDeleted",
+      "data": { "reason": "Upgrade" }
+    }
+  ]
+}

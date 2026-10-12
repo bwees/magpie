@@ -1,0 +1,21 @@
+[
+  {
+    "id": 11,
+    "seriesId": 1,
+    "seasonNumber": 1,
+    "relativePath": "Season 01/Bluey - S01E01 - Magic Xylophone Bluray-1080p Remux.mkv",
+    "path": "/tv/Bluey/Season 01/Bluey - S01E01 - Magic Xylophone Bluray-1080p Remux.mkv",
+    "size": 734003200,
+    "dateAdded": "2023-02-04T12:00:00Z",
+    "sceneName": "Bluey.2018.S01E01.1080p.BluRay.REMUX.AVC.DD5.1-GRP",
+    "releaseGroup": "GRP",
+    "languages": [{ "id": 1, "name": "English" }],
+    "quality": { "quality": { "id": 20, "name": "Bluray-1080p Remux", "source": "blurayRaw", "resolution": 1080 }, "revision": { "version": 1, "real": 0, "isRepack": false } },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": { "videoCodec": "AVC" },
+    "qualityCutoffNotMet": false
+  }
+]
