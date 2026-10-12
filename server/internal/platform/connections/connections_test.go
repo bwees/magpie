@@ -164,6 +164,7 @@ func TestInvalidConnectionsAreRejected(t *testing.T) {
 		"ftp URL":          {Jellyfin: &settings.JellyfinConnection{URL: "ftp://jellyfin"}},
 		"category casing":  {QBittorrent: &settings.QBittorrentConnection{URL: qbURL, Category: "Magpie"}},
 		"category symbols": {QBittorrent: &settings.QBittorrentConnection{URL: qbURL, Category: "tv_shows"}},
+		"half a mapping":   {QBittorrent: &settings.QBittorrentConnection{URL: qbURL, RemotePath: "/data/torrents"}},
 	} {
 		if rec := f.do(t, http.MethodPut, pathConnections, update); rec.Code != http.StatusBadRequest {
 			t.Errorf("%s = %d, want 400", name, rec.Code)
