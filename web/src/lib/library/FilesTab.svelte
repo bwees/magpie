@@ -1,6 +1,8 @@
 <script lang="ts">
 	import FileVideo from '@lucide/svelte/icons/file-video';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -11,11 +13,20 @@
 	import { formatSize } from '$lib/search/format';
 	import FileSubtitles from '$lib/subtitles/FileSubtitles.svelte';
 	import { audioTracks, episodeLabel, formatDuration, videoSummary } from './library';
-	import { TitleFiles } from './title-files.svelte';
+	import { CutoffState, TitleFiles } from './title-files.svelte';
 
 	let { titleId }: { titleId: string } = $props();
 
 	const SKELETON_CARDS = 2;
+	const CUTOFF_BADGES: Record<CutoffState, { label: string; class: string } | undefined> = {
+		[CutoffState.MET]: { label: 'Meets cutoff', class: 'border-primary/50 text-primary' },
+		[CutoffState.UPGRADING]: {
+			label: 'Below cutoff · upgrading',
+			class: 'border-amber-500/50 text-amber-400'
+		},
+		[CutoffState.KEPT]: { label: 'Below cutoff · not upgrading', class: 'text-muted-foreground' },
+		[CutoffState.UNKNOWN]: undefined
+	};
 	const live = getLive();
 	const files = $derived(new TitleFiles(titleId));
 
@@ -74,8 +85,22 @@
 			</div>
 		{/if}
 		{#each files.files as file (file.id)}
+			{@const cutoff = files.cutoff.get(file.id)}
+			{@const cutoffBadge = CUTOFF_BADGES[files.cutoffOf(file)]}
 			<Card.Root class="gap-3 py-4">
 				<Card.Header class="gap-1 px-4">
+					<Card.Action>
+						<Button
+							variant="ghost"
+							size="icon"
+							class="size-8 text-muted-foreground hover:text-destructive"
+							aria-label="Delete file"
+							disabled={files.deleting.has(file.id)}
+							onclick={() => files.askDelete(file)}
+						>
+							<Trash2 class="size-4" />
+						</Button>
+					</Card.Action>
 					<div class="flex flex-wrap items-center gap-2">
 						{#if file.episodes.length > 0}
 							<Badge variant="secondary">{episodeLabel(file.episodes)}</Badge>
@@ -83,6 +108,12 @@
 						<Badge variant="outline" class="border-primary/50 text-primary"
 							>{file.quality.name}</Badge
 						>
+						{#if cutoffBadge}
+							<Badge variant="outline" class={cutoffBadge.class}>{cutoffBadge.label}</Badge>
+						{/if}
+						{#if cutoff}
+							<span class="text-xs text-muted-foreground">CF {cutoff.cfScore}</span>
+						{/if}
 						{#if file.available}
 							<Badge variant="secondary">In Jellyfin</Badge>
 						{:else if file.jellyfinOverdue}
@@ -124,3 +155,30 @@
 		{/each}
 	</div>
 {/if}
+
+<AlertDialog.Root
+	open={files.confirmingDelete !== undefined}
+	onOpenChange={(open) => {
+		if (!open) files.cancelDelete();
+	}}
+>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete this file?</AlertDialog.Title>
+			<AlertDialog.Description>
+				Magpie deletes the video from disk along with its subtitles. A monitored title is searched
+				for again in the next missing sweep.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<p class="font-mono text-xs break-all">{files.confirmingDelete?.path}</p>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action
+				class="bg-destructive text-white hover:bg-destructive/90"
+				onclick={() => files.confirmDelete()}
+			>
+				Delete file
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

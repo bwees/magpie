@@ -1,5 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
-import type { ImportResponse, ManualImportRequest, MediaFileResponse } from '$lib/sdk';
+import { describe, expect, it, vi, type Mock } from 'vitest';
+import type {
+	CutoffStatusResponse,
+	ImportResponse,
+	ManualImportRequest,
+	MediaFileResponse
+} from '$lib/sdk';
 import {
 	audioTracks,
 	episodeLabel,
@@ -11,7 +16,14 @@ import {
 	videoSummary
 } from './library';
 import { ImportsManager, type ImportsApi, type ImportsLive } from './imports-manager.svelte';
-import { EPISODE_GROUP_CHANGED_EVENT, RENAME_SETTLE_MS, TitleFiles } from './title-files.svelte';
+import {
+	CUTOFF_MET_EVENT,
+	CutoffState,
+	EPISODE_GROUP_CHANGED_EVENT,
+	RENAME_SETTLE_MS,
+	TitleFiles,
+	type FilesApi
+} from './title-files.svelte';
 
 const E1 = { id: 'e1', season: 1, number: 1, name: 'Pilot' };
 const E2 = { id: 'e2', season: 1, number: 2, name: 'Two' };
@@ -214,9 +226,23 @@ describe('ImportsManager', () => {
 });
 
 describe('TitleFiles', () => {
-	it('reloads when a file of its title is imported', async () => {
-		const api = vi.fn(async () => []);
-		const files = new TitleFiles('t1', api);
+	const mediaFile = (id: string, jellyfinOverdue = false) =>
+		({ id, jellyfinOverdue, path: `/tv/${id}.mkv` }) as MediaFileResponse;
+	const status = (file: string, cutoffMet: boolean, upgradesAllowed: boolean) =>
+		({ file, cutoffMet, upgradesAllowed }) as CutoffStatusResponse;
+
+	function filesApi(
+		files: MediaFileResponse[] = [],
+		statuses: CutoffStatusResponse[] = []
+	): FilesApi & { list: Mock; remove: Mock } {
+		return {
+			list: vi.fn(async () => files),
+			cutoff: vi.fn(async () => statuses),
+			remove: vi.fn(async () => undefined)
+		};
+	}
+
+	function watched(files: TitleFiles) {
 		const handlers = new Map<string, (m: { data: unknown }) => void>();
 		const stop = files.watch({
 			on: (type, handler) => {
@@ -225,49 +251,120 @@ describe('TitleFiles', () => {
 			},
 			onReset: () => () => undefined
 		});
+		const emit = (type: string, data: unknown) => handlers.get(type)?.({ data });
+		return { emit, stop };
+	}
 
-		handlers.get(LibraryEvent.FILE_IMPORTED)?.({ data: { title: 'other' } });
-		handlers.get(LibraryEvent.FILE_IMPORTED)?.({ data: { title: 't1' } });
-		handlers.get(LibraryEvent.ITEM_AVAILABLE)?.({ data: { title: 'other' } });
-		handlers.get(LibraryEvent.ITEM_AVAILABLE)?.({ data: { title: 't1' } });
+	it('reloads when a file of its title is imported, deleted, confirmed or meets the cutoff', async () => {
+		const api = filesApi();
+		const { emit, stop } = watched(new TitleFiles('t1', api, notifier()));
 
-		expect(api).toHaveBeenCalledTimes(2);
+		for (const type of [
+			LibraryEvent.FILE_IMPORTED,
+			LibraryEvent.ITEM_AVAILABLE,
+			LibraryEvent.FILE_DELETED,
+			CUTOFF_MET_EVENT
+		]) {
+			emit(type, { title: 'other' });
+			emit(type, { title: 't1' });
+		}
+
+		expect(api.list).toHaveBeenCalledTimes(4);
+		stop();
+	});
+
+	it('reloads when one of its files is transcoded', async () => {
+		const api = filesApi([mediaFile('f1')]);
+		const files = new TitleFiles('t1', api, notifier());
+		await files.load();
+		const { emit, stop } = watched(files);
+
+		emit(LibraryEvent.FILE_TRANSCODED, { mediaFile: 'elsewhere' });
+		emit(LibraryEvent.FILE_TRANSCODED, { mediaFile: 'f1' });
+
+		expect(api.list).toHaveBeenCalledTimes(2);
 		stop();
 	});
 
 	it('reloads a moment after its series is renumbered, once Library has renamed the files', async () => {
 		vi.useFakeTimers();
-		const api = vi.fn(async () => []);
-		const files = new TitleFiles('t1', api);
-		const handlers = new Map<string, (m: { data: unknown }) => void>();
-		const stop = files.watch({
-			on: (type, handler) => {
-				handlers.set(type, handler as (m: { data: unknown }) => void);
-				return () => handlers.delete(type);
-			},
-			onReset: () => () => undefined
-		});
+		const api = filesApi();
+		const { emit, stop } = watched(new TitleFiles('t1', api, notifier()));
 
-		handlers.get(EPISODE_GROUP_CHANGED_EVENT)?.({ data: { title: 'other' } });
-		handlers.get(EPISODE_GROUP_CHANGED_EVENT)?.({ data: { title: 't1' } });
-		expect(api).not.toHaveBeenCalled();
+		emit(EPISODE_GROUP_CHANGED_EVENT, { title: 'other' });
+		emit(EPISODE_GROUP_CHANGED_EVENT, { title: 't1' });
+		expect(api.list).not.toHaveBeenCalled();
 		await vi.advanceTimersByTimeAsync(RENAME_SETTLE_MS);
 
-		expect(api).toHaveBeenCalledTimes(1);
+		expect(api.list).toHaveBeenCalledTimes(1);
 		stop();
 		vi.useRealTimers();
 	});
 
 	it('lists the files Jellyfin is overdue on', async () => {
-		const file = (id: string, jellyfinOverdue: boolean) =>
-			({ id, jellyfinOverdue }) as MediaFileResponse;
 		const files = new TitleFiles(
 			't1',
-			vi.fn(async () => [file('late', true), file('fine', false)])
+			filesApi([mediaFile('late', true), mediaFile('fine')]),
+			notifier()
 		);
 
 		await files.load();
 
 		expect(files.overdue.map((f) => f.id)).toEqual(['late']);
+	});
+
+	it('tells met, upgrading, kept and unscored files apart', async () => {
+		const list = [mediaFile('met'), mediaFile('below'), mediaFile('kept'), mediaFile('new')];
+		const files = new TitleFiles(
+			't1',
+			filesApi(list, [
+				status('met', true, true),
+				status('below', false, true),
+				status('kept', false, false)
+			]),
+			notifier()
+		);
+
+		await files.load();
+
+		expect(list.map((f) => files.cutoffOf(f))).toEqual([
+			CutoffState.MET,
+			CutoffState.UPGRADING,
+			CutoffState.KEPT,
+			CutoffState.UNKNOWN
+		]);
+	});
+
+	it('deletes a file only once the delete is confirmed', async () => {
+		const api = filesApi([mediaFile('f1'), mediaFile('f2')]);
+		const notify = notifier();
+		const files = new TitleFiles('t1', api, notify);
+		await files.load();
+
+		files.askDelete(files.files[0]);
+		files.cancelDelete();
+		expect(api.remove).not.toHaveBeenCalled();
+
+		files.askDelete(files.files[0]);
+		await files.confirmDelete();
+
+		expect(api.remove).toHaveBeenCalledWith('f1');
+		expect(files.files.map((f) => f.id)).toEqual(['f2']);
+		expect(notify.success).toHaveBeenCalled();
+	});
+
+	it('keeps a file whose delete failed and says why', async () => {
+		const api = filesApi([mediaFile('f1')]);
+		api.remove.mockRejectedValue(new Error('disk is read-only'));
+		const notify = notifier();
+		const files = new TitleFiles('t1', api, notify);
+		await files.load();
+
+		files.askDelete(files.files[0]);
+		await files.confirmDelete();
+
+		expect(files.files).toHaveLength(1);
+		expect(notify.error).toHaveBeenCalled();
+		expect(files.deleting.size).toBe(0);
 	});
 });
