@@ -232,6 +232,23 @@ export type ProfileResponse = {
 export type FromPresetRequest = {
     preset: string;
 };
+export type SchedulesResponse = {
+    cutoffSweepDays: number;
+    missingSweepDays: number;
+    pendingCheckMinutes: number;
+    rssIntervalMinutes: number;
+};
+export type SchedulesRequest = {
+    cutoffSweepDays: number;
+    missingSweepDays: number;
+    rssIntervalMinutes: number;
+};
+export type SearchOptionsResponse = {
+    searchOnAdd: boolean;
+};
+export type SearchOptionsRequest = {
+    searchOnAdd: boolean;
+};
 export type StartSearchRequest = {
     episodes?: string[] | null;
     interactive: boolean;
@@ -1730,7 +1747,99 @@ export function listQualities({ accept }: {
     }));
 }
 /**
- * Start an interactive search; results stream on the live topic search:<id> (admin)
+ * RSS sync, backlog sweep and pending check intervals (admin)
+ */
+export function getAcquisitionSchedules({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SchedulesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/schedules", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Change the RSS sync and backlog sweep intervals (admin)
+ */
+export function setAcquisitionSchedules(schedulesRequest: SchedulesRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SchedulesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/schedules", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: schedulesRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Whether a requested or added title is searched at once (admin)
+ */
+export function getSearchOptions({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SearchOptionsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/search-options", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Turn searching on title add on or off (admin)
+ */
+export function setSearchOptions(searchOptionsRequest: SearchOptionsRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SearchOptionsResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/acquisition/search-options", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: searchOptionsRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Start a search; results stream on the live topic search:<id>, and a non-interactive one grabs on its own (admin)
  */
 export function startSearch(startSearchRequest: StartSearchRequest, { accept }: {
     accept?: string;

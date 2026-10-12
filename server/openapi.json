@@ -3592,6 +3592,50 @@
 				],
 				"type": "object"
 			},
+			"SchedulesRequest": {
+				"description": "SchedulesRequest schema",
+				"properties": {
+					"cutoffSweepDays": {
+						"type": "integer"
+					},
+					"missingSweepDays": {
+						"type": "integer"
+					},
+					"rssIntervalMinutes": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"cutoffSweepDays",
+					"missingSweepDays",
+					"rssIntervalMinutes"
+				],
+				"type": "object"
+			},
+			"SchedulesResponse": {
+				"description": "SchedulesResponse schema",
+				"properties": {
+					"cutoffSweepDays": {
+						"type": "integer"
+					},
+					"missingSweepDays": {
+						"type": "integer"
+					},
+					"pendingCheckMinutes": {
+						"type": "integer"
+					},
+					"rssIntervalMinutes": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"cutoffSweepDays",
+					"missingSweepDays",
+					"pendingCheckMinutes",
+					"rssIntervalMinutes"
+				],
+				"type": "object"
+			},
 			"SearchCompleted": {
 				"description": "SearchCompleted schema",
 				"properties": {
@@ -3651,6 +3695,30 @@
 					"message",
 					"name",
 					"status"
+				],
+				"type": "object"
+			},
+			"SearchOptionsRequest": {
+				"description": "SearchOptionsRequest schema",
+				"properties": {
+					"searchOnAdd": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"searchOnAdd"
+				],
+				"type": "object"
+			},
+			"SearchOptionsResponse": {
+				"description": "SearchOptionsResponse schema",
+				"properties": {
+					"searchOnAdd": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"searchOnAdd"
 				],
 				"type": "object"
 			},
@@ -6665,6 +6733,272 @@
 				]
 			}
 		},
+		"/api/acquisition/schedules": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*AutomaticSearchController).schedules`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getAcquisitionSchedules",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SchedulesResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "RSS sync, backlog sweep and pending check intervals (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*AutomaticSearchController).setSchedules`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setAcquisitionSchedules",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SchedulesRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.SchedulesRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SchedulesResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Change the RSS sync and backlog sweep intervals (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
+		"/api/acquisition/search-options": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*AutomaticSearchController).searchOptions`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getSearchOptions",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SearchOptionsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Whether a requested or added title is searched at once (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*AutomaticSearchController).setSearchOptions`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setSearchOptions",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SearchOptionsRequest"
+							}
+						}
+					},
+					"description": "Request body for acquisition.SearchOptionsRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SearchOptionsResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Turn searching on title add on or off (admin)",
+				"tags": [
+					"api",
+					"acquisition"
+				]
+			}
+		},
 		"/api/acquisition/searches": {
 			"post": {
 				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*SearchController).start`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -6731,7 +7065,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Start an interactive search; results stream on the live topic search:\u003cid\u003e (admin)",
+				"summary": "Start a search; results stream on the live topic search:\u003cid\u003e, and a non-interactive one grabs on its own (admin)",
 				"tags": [
 					"api",
 					"acquisition"
