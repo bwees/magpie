@@ -257,7 +257,7 @@ All agent HTTP endpoints return `409 Conflict` unless the job is currently lease
 
 - Every request and the WebSocket upgrade send `Authorization: Bearer <shared secret>` and `X-Magpie-Agent: <agent id>`.
 - Agent endpoints bypass Identity's session and setup gate (`httpserver.AsSelfAuthenticated`); the secret is their only check.
-- A wrong secret returns `401`, and so does every agent while `MAGPIE_AGENT_SECRET` is unset. An `X-Magpie-Agent` that isn't a ULID returns `400`. An unknown agent ID is registered on its first `Hello`.
+- A wrong secret returns `401`. The server doesn't start without `MAGPIE_AGENT_SECRET`; a test that builds the service with an empty secret gets `401` for every agent. An `X-Magpie-Agent` that isn't a ULID returns `400`. An unknown agent ID is registered on its first `Hello`.
 - The first frame must be a `Hello` naming the same agent ID, within 10 s; otherwise the socket closes with a policy-violation status and nothing is stored.
 - Agents are LAN/tailnet only; TLS is up to the operator's reverse proxy.
 

@@ -35,6 +35,7 @@ var (
 	ErrDataDirNotWritable = errors.New("data dir is not a writable directory")
 	ErrInvalidBaseURL     = errors.New("base URL must be an absolute http(s) URL")
 	ErrNetworkFilesystem  = errors.New("data dir is on a network filesystem; SQLite needs local disk")
+	ErrAgentSecretMissing = errors.New("agent secret is required")
 	ErrAgentSecretShort   = fmt.Errorf("agent secret must be at least %d characters", MinAgentSecretLength)
 )
 
@@ -48,7 +49,8 @@ type Env struct {
 	BaseURL *url.URL
 	// WebDir is the built SPA to serve. Empty in development, where Vite serves it.
 	WebDir string
-	// AgentSecret is the shared secret transcode agents present. Empty refuses every agent.
+	// AgentSecret is the shared secret transcode agents present. Load requires it; an Env built in a test
+	// may leave it empty, which refuses every agent.
 	AgentSecret string
 }
 
@@ -80,7 +82,10 @@ func Parse(getenv func(string) string) (Env, error) {
 }
 
 func parseAgentSecret(raw string) (string, error) {
-	if raw != "" && len(raw) < MinAgentSecretLength {
+	if raw == "" {
+		return "", fmt.Errorf("%s: %w", EnvAgentSecret, ErrAgentSecretMissing)
+	}
+	if len(raw) < MinAgentSecretLength {
 		return "", fmt.Errorf("%s: %w", EnvAgentSecret, ErrAgentSecretShort)
 	}
 	return raw, nil

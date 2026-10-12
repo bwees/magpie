@@ -8,6 +8,7 @@ goreleaser = "2.18.3"
 
 [env]
 MAGPIE_DATA_DIR = "{{config_root}}/server/tmp/data"
+MAGPIE_AGENT_SECRET = "magpie-dev-agent-secret-not-for-production"
 
 [tasks."install:web"]
 description = "Install web dependencies"

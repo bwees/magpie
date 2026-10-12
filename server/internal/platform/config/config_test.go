@@ -8,8 +8,19 @@ import (
 	"testing"
 )
 
+var validAgentSecret = strings.Repeat("s", MinAgentSecretLength)
+
+// envOf answers from vars, with a valid agent secret unless vars sets one.
 func envOf(vars map[string]string) func(string) string {
-	return func(key string) string { return vars[key] }
+	return func(key string) string {
+		if value, ok := vars[key]; ok {
+			return value
+		}
+		if key == EnvAgentSecret {
+			return validAgentSecret
+		}
+		return ""
+	}
 }
 
 func TestParseAppliesDefaults(t *testing.T) {
@@ -60,15 +71,19 @@ func TestParseCreatesMissingDataDir(t *testing.T) {
 }
 
 func TestParseAgentSecret(t *testing.T) {
-	long := strings.Repeat("s", MinAgentSecretLength)
-	env, err := Parse(envOf(map[string]string{EnvAgentSecret: long, EnvDataDir: t.TempDir()}))
-	if err != nil || env.AgentSecret != long {
+	env, err := Parse(envOf(map[string]string{EnvAgentSecret: validAgentSecret, EnvDataDir: t.TempDir()}))
+	if err != nil || env.AgentSecret != validAgentSecret {
 		t.Fatalf("env = %+v, err = %v; want the secret", env, err)
 	}
 
-	_, err = Parse(envOf(map[string]string{EnvAgentSecret: long[1:], EnvDataDir: t.TempDir()}))
+	_, err = Parse(envOf(map[string]string{EnvAgentSecret: validAgentSecret[1:], EnvDataDir: t.TempDir()}))
 	if !errors.Is(err, ErrAgentSecretShort) {
 		t.Fatalf("err = %v, want ErrAgentSecretShort", err)
+	}
+
+	_, err = Parse(envOf(map[string]string{EnvAgentSecret: "", EnvDataDir: t.TempDir()}))
+	if !errors.Is(err, ErrAgentSecretMissing) {
+		t.Fatalf("err = %v, want ErrAgentSecretMissing", err)
 	}
 }
 
