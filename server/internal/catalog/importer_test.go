@@ -136,6 +136,27 @@ func TestImportedSeriesKeepsEpisodeMonitoringAndIsNotOfferedForSearch(t *testing
 	}
 }
 
+func TestImportedAliasesOutliveARefresh(t *testing.T) {
+	h := newHarness(t)
+	seasons := airedSeasons()
+	series := severanceSeries(seasons...)
+	series.AlternativeTitles = []string{"Severed"}
+	putSeries(h, series, seasons...)
+	in := api.ImportTitle{Source: sonarrSource, Kind: domain.MediaKindSeries, Tmdb: severanceTmdb, Aliases: []string{"Severance (US)", "severed"}}
+
+	id := importSeries(h, in).Titles[sonarrSource]
+	if err := h.service.RefreshTitle(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	title, err := h.repo.Title(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"Severed", "Severance (US)"}; !slices.Equal(title.Aliases, want) {
+		t.Fatalf("aliases = %v, want %v", title.Aliases, want)
+	}
+}
+
 func TestImportedSeriesUsesTheConfirmedEpisodeGroup(t *testing.T) {
 	h := newHarness(t)
 	seasons := airedSeasons()

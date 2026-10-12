@@ -6,5 +6,9 @@ CREATE TABLE catalog_import_sources (
     target_id  TEXT NOT NULL
 );
 
+-- Sonarr's alternate titles, kept beside TMDB's aliases so a metadata refresh doesn't drop them.
+ALTER TABLE catalog_titles ADD COLUMN imported_aliases TEXT NOT NULL DEFAULT '';
+
 -- +goose Down
+ALTER TABLE catalog_titles DROP COLUMN imported_aliases;
 DROP TABLE catalog_import_sources;

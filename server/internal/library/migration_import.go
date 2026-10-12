@@ -169,6 +169,13 @@ func (s *Service) inspectMigrated(ctx context.Context, file api.ImportMediaFile,
 		slog.WarnContext(ctx, "library: a migrated file lies outside every root folder", "path", path)
 		return migratedVideo{}, false, nil
 	}
+	episodes, err := s.episodeRefs(ctx, file.Episodes)
+	if err != nil {
+		return migratedVideo{}, false, err
+	}
+	if file.Rename {
+		path = s.renameMigrated(ctx, file.Title, path, roots[i], episodes)
+	}
 	info, err := s.deps.Files.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		slog.WarnContext(ctx, "library: a migrated file is gone from disk", "path", path)
@@ -183,10 +190,6 @@ func (s *Service) inspectMigrated(ctx context.Context, file api.ImportMediaFile,
 	}
 	media, err := s.deps.Prober.Probe(ctx, path)
 	if err != nil && !errors.Is(err, ErrProbeFailed) {
-		return migratedVideo{}, false, err
-	}
-	episodes, err := s.episodeRefs(ctx, file.Episodes)
-	if err != nil {
 		return migratedVideo{}, false, err
 	}
 	dir := filepath.Dir(path)
@@ -207,7 +210,31 @@ func (s *Service) inspectMigrated(ctx context.Context, file api.ImportMediaFile,
 	}, true, nil
 }
 
-// episodeRefs adds each episode's current numbering. An episode Catalog doesn't know is left out.
+// renameMigrated moves a file and its sidecars to the fixed naming and returns where it now is. A file that
+// can't move, or whose title or episodes Catalog doesn't know, stays where it was.
+func (s *Service) renameMigrated(ctx context.Context, titleID domain.TitleID, path string, root RootFolder, episodes []domain.EpisodeRef) string {
+	title, err := s.deps.Catalog.Title(ctx, titleID)
+	if err != nil {
+		slog.WarnContext(ctx, "library: a migrated file keeps its name; its title isn't known", "path", path, "error", err)
+		return path
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	target := moviePath(root.Path, title, ext)
+	if title.Kind == domain.MediaKindSeries {
+		if len(episodes) == 0 {
+			return path
+		}
+		target = episodePath(root.Path, title, episodes, ext)
+	}
+	if result := s.moveFiles([]fileMove{{from: path, to: target}})[0]; result.err != nil {
+		slog.WarnContext(ctx, "library: a migrated file keeps its name", "path", path, "want", target, "error", result.err)
+		return path
+	}
+	s.removeEmptyDirs(filepath.Dir(path), root.Path)
+	return target
+}
+
+// episodeRefs adds each episode's current numbering, in order. An episode Catalog doesn't know is left out.
 func (s *Service) episodeRefs(ctx context.Context, ids []domain.EpisodeID) ([]domain.EpisodeRef, error) {
 	refs := make([]domain.EpisodeRef, 0, len(ids))
 	for _, id := range ids {
@@ -220,6 +247,12 @@ func (s *Service) episodeRefs(ctx context.Context, ids []domain.EpisodeID) ([]do
 		}
 		refs = append(refs, domain.EpisodeRef{Episode: e.ID, Season: e.Season, Number: e.Number})
 	}
+	slices.SortFunc(refs, func(a, b domain.EpisodeRef) int {
+		if a.Season != b.Season {
+			return a.Season - b.Season
+		}
+		return a.Number - b.Number
+	})
 	return refs, nil
 }
 

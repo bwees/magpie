@@ -35,4 +35,6 @@ type ImportMediaFile struct {
 	ReleaseGroup string
 	Languages    []domain.Language
 	AddedAt      time.Time
+	// Rename moves the file and its sidecars to the fixed naming under its root folder, when the user opted in.
+	Rename bool
 }

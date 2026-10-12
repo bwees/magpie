@@ -89,6 +89,30 @@ func TestMigratedEpisodeFileCarriesTheEpisodesNumbering(t *testing.T) {
 	}
 }
 
+func TestAMigratedFileIsRenamedWithItsSidecarsWhenAsked(t *testing.T) {
+	f := newImportFixture(t, twoDevices)
+	dir := filepath.Join(f.layout.movies, "dune")
+	video := f.libraryFile(t, filepath.Join(dir, "dune.mkv"), movieRuntime)
+	f.libraryFile(t, filepath.Join(dir, "dune.en.srt"), 0)
+
+	_, err := f.service.ImportMediaFiles(context.Background(), []api.ImportMediaFile{{
+		Source: "radarr:moviefile:8", Title: f.movie.ID, Path: video, Quality: remux2160p, Rename: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(f.layout.movies, "Dune (2021) [tmdbid-438631]", "Dune (2021).mkv")
+	f.stat(t, target)
+	imported := f.imported(t)
+	want := []api.Sidecar{{Path: filepath.Join(f.layout.movies, "Dune (2021) [tmdbid-438631]", "Dune (2021).en.srt"), Language: "en"}}
+	if len(imported) != 1 || imported[0].Path != target || !slices.Equal(imported[0].Sidecars, want) {
+		t.Fatalf("FileImported = %+v, want the renamed file at %s with its subtitle", imported, target)
+	}
+	if _, err := f.files.Stat(dir); err == nil {
+		t.Errorf("the emptied folder %s is still there", dir)
+	}
+}
+
 func TestImportedRootFolderMustBeReachable(t *testing.T) {
 	f := newImportFixture(t, twoDevices)
 	err := f.service.ImportRootFolders(context.Background(), []api.ImportRootFolder{{Source: "sonarr:rootfolder:2", Kind: domain.MediaKindSeries, Path: "/media/anime"}})

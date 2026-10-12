@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,15 +31,17 @@ const (
 )
 
 type titleRow struct {
-	ID                   string `gorm:"primaryKey"`
-	Kind                 string
-	TmdbID               int64
-	TvdbID               *string
-	ImdbID               *string
-	ExternalIDSource     string
-	Name                 string
-	OriginalName         string
-	Aliases              string
+	ID               string `gorm:"primaryKey"`
+	Kind             string
+	TmdbID           int64
+	TvdbID           *string
+	ImdbID           *string
+	ExternalIDSource string
+	Name             string
+	OriginalName     string
+	Aliases          string
+	// ImportedAliases are a migration's extra names as JSON; "" when there are none.
+	ImportedAliases      string
 	Year                 int
 	Overview             string
 	OriginalLanguage     string
@@ -496,6 +499,17 @@ func (row titleRow) toAPI() (api.Title, error) {
 	var aliases []string
 	if err := json.Unmarshal([]byte(row.Aliases), &aliases); err != nil {
 		return api.Title{}, fmt.Errorf("title %s aliases: %w", row.ID, err)
+	}
+	if row.ImportedAliases != "" {
+		var imported []string
+		if err := json.Unmarshal([]byte(row.ImportedAliases), &imported); err != nil {
+			return api.Title{}, fmt.Errorf("title %s imported aliases: %w", row.ID, err)
+		}
+		for _, alias := range imported {
+			if !slices.ContainsFunc(aliases, func(a string) bool { return strings.EqualFold(a, alias) }) {
+				aliases = append(aliases, alias)
+			}
+		}
 	}
 	t := api.Title{
 		ID:                   domain.TitleID(row.ID),

@@ -181,7 +181,14 @@ func (s *Service) importTitle(tx *gorm.DB, in api.ImportTitle, meta importMetada
 }
 
 // applyImport sets what the source app said about a title. External IDs are kept only when TMDB has none.
-func applyImport(row *titleRow, in api.ImportTitle) {
+func applyImport(row *titleRow, in api.ImportTitle) error {
+	if len(in.Aliases) > 0 {
+		aliases, err := encodeAliases(in.Aliases)
+		if err != nil {
+			return err
+		}
+		row.ImportedAliases = aliases
+	}
 	row.ProfileID = string(in.Profile)
 	row.Monitored = in.Monitored
 	row.Origin = string(domain.OriginMigration)
@@ -192,6 +199,7 @@ func applyImport(row *titleRow, in api.ImportTitle) {
 	if tmdbHasNone && (in.External.Tvdb != nil || in.External.Imdb != nil) {
 		row.TvdbID, row.ImdbID, row.ExternalIDSource = in.External.Tvdb, in.External.Imdb, ExternalIDSourceImport
 	}
+	return nil
 }
 
 func (s *Service) createImportedMovie(tx *gorm.DB, in api.ImportTitle, movie TmdbMovie, region string) (titleRow, error) {
@@ -199,7 +207,9 @@ func (s *Service) createImportedMovie(tx *gorm.DB, in api.ImportTitle, movie Tmd
 	if err != nil {
 		return titleRow{}, err
 	}
-	applyImport(&row, in)
+	if err := applyImport(&row, in); err != nil {
+		return titleRow{}, err
+	}
 	return row, s.repo.createTitle(tx, row)
 }
 
@@ -213,7 +223,9 @@ func (s *Service) createImportedSeries(tx *gorm.DB, in api.ImportTitle, snap ser
 	if err != nil {
 		return titleRow{}, nil, err
 	}
-	applyImport(&row, in)
+	if err := applyImport(&row, in); err != nil {
+		return titleRow{}, nil, err
+	}
 	if err := s.repo.saveTitle(tx, row); err != nil {
 		return titleRow{}, nil, err
 	}

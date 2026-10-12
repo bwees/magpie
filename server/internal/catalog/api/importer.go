@@ -29,7 +29,9 @@ type ImportTitle struct {
 	// Episodes is set for series only, already translated to Magpie numbering.
 	Episodes []ImportEpisode
 	Tags     []string
-	AddedAt  time.Time
+	// Aliases are extra names (Sonarr's alternate titles) added to TMDB's, when the user opted in.
+	Aliases []string
+	AddedAt time.Time
 }
 
 type ImportEpisode struct {
