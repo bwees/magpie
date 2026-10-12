@@ -202,7 +202,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/library/files?title={id}` | Files for the title page Files tab |
+| GET | `/api/library/files?title={id}` | Files for the title page Files tab; each has `available` and `jellyfinOverdue` (not confirmed 24 h after import) |
 | GET | `/api/library/files?titles={id,…}&transcoded={bool}` | Batch file summaries (video, size, transcoded) for the Movies table view; `transcoded` filter optional |
 | GET | `/api/library/files/{id}` | One file with media info |
 | GET | `/api/library/coverage?titles=` | Episodes with a file / confirmed in Jellyfin, size (TV page) |
@@ -214,6 +214,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 | DELETE | `/api/library/imports/{downloadId}` | Remove & blocklist: marks a FAILED or MANUAL import `REMOVED` and publishes `ImportRemoved` in the same transaction; Acquisition then blocklists the release, deletes the torrent with its data and grabs the next one (a FAILED import's release is already blocklisted). 204; 409 `import-not-stopped` otherwise |
 | POST | `/api/library/scan` | Start a library scan (backlite job) |
 | GET | `/api/library/hardlink-check` | Whether the qBittorrent download path (from `DownloadLocation`) and each root folder share a device; `problem` says why the result is `UNKNOWN` |
+| GET · PUT | `/api/library/schedules` | `{jellyfinReconcileHours}`: the Jellyfin full reconcile interval, 6–168 (400 outside); Settings → General → Schedules (admin) |
 
 ## Behaviour
 
@@ -235,8 +236,10 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 9. Commit and publish `FileImported`. Then refresh Jellyfin for the parent folder.
 
 **Availability:**
-- After each import, transcode swap or rename, call `RefreshPath`.
-- On a `LibraryChanged` item, or on the daily reconcile (`ItemsSince` the last run), resolve the item path. If it matches a media file, set `jellyfin_item_id`/`available_at` and publish `ItemAvailable` once per (file, Jellyfin item).
+- After each import, transcode swap or rename, call `RefreshPath` once per parent folder. A refresh error is logged and never fails the import.
+- Library keeps one WebSocket open while the server runs, reconnecting with backoff (1 s doubling to 1 min). For each `LibraryChanged`, the added and updated IDs are resolved with `Items`.
+- The reconcile (daily by default, setting 6 h–weekly) runs `ItemsSince` from one hour before the last run (zero on the first run, so everything), then calls `RefreshPath` again for the folder of every file Jellyfin hasn't confirmed.
+- Any item whose path equals a media file's path sets `jellyfin_item_id`/`available_at` (kept from the first confirmation) and publishes `ItemAvailable` once per (file, Jellyfin item). Paths must match exactly: Magpie and Jellyfin must see the root folders at the same paths.
 - A file that Jellyfin still hasn't confirmed after 24 h shows a warning on the title (no event).
 
 **Transcode swap** (on `TranscodeVerified`):

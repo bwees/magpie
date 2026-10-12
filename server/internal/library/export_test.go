@@ -30,6 +30,11 @@ func RunImportTask(ctx context.Context, s *Service, task backlite.Task, later fu
 
 func SetClock(s *Service, now func() time.Time) { s.now = now }
 
+// SetWatchBackoff shortens the waits between reconnects to Jellyfin's WebSocket.
+func SetWatchBackoff(s *Service, initial, most time.Duration) {
+	s.watch = backoff{initial: initial, most: most}
+}
+
 // SeedFiles stores contract-suite files, with a root folder per distinct root path.
 func SeedFiles(ctx context.Context, d *db.DB, files []contracttest.StoredFile) error {
 	return d.Write(ctx, func(tx *gorm.DB) error {

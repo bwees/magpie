@@ -20,6 +20,7 @@ import (
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/db/dbtest"
+	"magpie/internal/platform/settings"
 
 	"github.com/mikestefanello/backlite"
 	"gorm.io/gorm"
@@ -56,18 +57,19 @@ var (
 )
 
 type importFixture struct {
-	db      *db.DB
-	files   *fakes.FileSystem
-	prober  *fakes.MediaProber
-	hasher  *fakes.Hasher
-	catalog *catalogtest.Fake
-	service *library.Service
-	repo    *library.Repository
-	queue   *queue
-	events  *recorder
-	layout  layout
-	movie   catalogapi.Title
-	show    catalogapi.Title
+	db       *db.DB
+	files    *fakes.FileSystem
+	prober   *fakes.MediaProber
+	hasher   *fakes.Hasher
+	jellyfin *fakes.JellyfinLibrary
+	catalog  *catalogtest.Fake
+	service  *library.Service
+	repo     *library.Repository
+	queue    *queue
+	events   *recorder
+	layout   layout
+	movie    catalogapi.Title
+	show     catalogapi.Title
 	// episodes are the show's season 1, in order.
 	episodes []catalogapi.Episode
 }
@@ -107,7 +109,7 @@ func newImportFixture(t *testing.T, l layout) *importFixture {
 	d := dbtest.Open(t, library.Migrations())
 	b := bus.New()
 	f := &importFixture{
-		db: d, files: files, prober: fakes.NewMediaProber(), hasher: fakes.NewHasher(files),
+		db: d, files: files, prober: fakes.NewMediaProber(), hasher: fakes.NewHasher(files), jellyfin: fakes.NewJellyfinLibrary(),
 		catalog: catalogtest.NewFake(catalogtest.Fixture{Titles: []catalogapi.Title{movie, show}, Episodes: episodes}),
 		repo:    library.NewRepository(d), queue: &queue{}, events: newRecorder(b), layout: l,
 		movie: movie, show: show, episodes: episodes,
@@ -115,6 +117,7 @@ func newImportFixture(t *testing.T, l layout) *importFixture {
 	f.service = library.NewService(library.Deps{
 		DB: d, Repo: f.repo, Catalog: f.catalog, Files: files, Prober: f.prober, Hasher: f.hasher,
 		Downloads: fakes.NewDownloadLocation(), Bus: b, Jobs: f.queue,
+		Jellyfin: f.jellyfin, Store: settings.NewStore(d),
 	})
 	for kind, path := range map[domain.MediaKind]string{domain.MediaKindMovie: l.movies, domain.MediaKindSeries: l.tv} {
 		if _, err := f.service.AddRootFolder(ctx, kind, path); err != nil {

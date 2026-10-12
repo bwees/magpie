@@ -95,7 +95,15 @@ func (s *Service) importDownload(ctx context.Context, id domain.DownloadID) erro
 		return err
 	}
 	// The files are in the library by now, so their records must be written even during shutdown.
-	return s.commitImport(context.WithoutCancel(ctx), plan, placed)
+	if err := s.commitImport(context.WithoutCancel(ctx), plan, placed); err != nil {
+		return err
+	}
+	targets := make([]string, 0, len(placed))
+	for _, v := range placed {
+		targets = append(targets, v.target)
+	}
+	s.refreshFolders(ctx, targets)
+	return nil
 }
 
 func (s *Service) plan(ctx context.Context, imp Import) (importPlan, error) {

@@ -10,6 +10,7 @@ import (
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/jobs"
+	"magpie/internal/platform/settings"
 
 	"go.uber.org/fx"
 )
@@ -24,18 +25,22 @@ type Deps struct {
 	Prober    MediaProber
 	Hasher    Hasher
 	Downloads DownloadLocation
+	Jellyfin  JellyfinLibrary
 	Bus       *bus.Bus
 	Jobs      jobs.Enqueuer
+	Store     *settings.Store
 }
 
-// Service imports downloads into the library, keeps the root folders and serves the files of a title.
+// Service imports downloads into the library, keeps the root folders, serves the files of a title and
+// follows what Jellyfin has.
 type Service struct {
-	deps Deps
-	now  func() time.Time
+	deps  Deps
+	now   func() time.Time
+	watch backoff
 }
 
 func NewService(deps Deps) *Service {
-	return &Service{deps: deps, now: time.Now}
+	return &Service{deps: deps, now: time.Now, watch: watchBackoff}
 }
 
 // FilesForTitle lists a title's media files, newest first.

@@ -28,7 +28,11 @@ var Module = fx.Module(string(owner.Library),
 		httpserver.AsController(NewController),
 		bus.AsHandler(newDownloadCompletedHandler),
 		jobs.AsQueue(newImportQueue),
+		httpserver.AsController(NewAvailabilityController),
+		jobs.AsQueue(newReconcileQueue),
+		jobs.AsPeriodic(newReconcilePeriodic),
 	),
+	fx.Invoke(startJellyfinWatch),
 )
 
 // Migrations is Library's goose directory, for tests that open a database without the app.

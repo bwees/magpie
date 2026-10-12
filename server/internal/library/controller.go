@@ -80,7 +80,10 @@ type MediaFileResponse struct {
 	Download    *domain.DownloadID   `json:"download,omitempty"`
 	Transcoded  bool                 `json:"transcoded"`
 	ImportedAt  time.Time            `json:"importedAt"`
-	Available   bool                 `json:"available"`
+	// Available is true once Jellyfin has confirmed the file.
+	Available bool `json:"available"`
+	// JellyfinOverdue is true while Jellyfin still hasn't confirmed the file a day after its import.
+	JellyfinOverdue bool `json:"jellyfinOverdue"`
 }
 
 // RootFolderResponse is a root folder with its hardlink check result.
@@ -215,9 +218,15 @@ func (c *Controller) files(ctx fuego.ContextNoBody) ([]MediaFileResponse, error)
 	}
 	out := make([]MediaFileResponse, 0, len(files))
 	for _, f := range files {
-		out = append(out, mediaFileResponse(f))
+		out = append(out, c.fileResponse(f))
 	}
 	return out, nil
+}
+
+func (c *Controller) fileResponse(f api.MediaFile) MediaFileResponse {
+	response := mediaFileResponse(f)
+	response.JellyfinOverdue = c.library.JellyfinOverdue(f)
+	return response
 }
 
 func (c *Controller) file(ctx fuego.ContextNoBody) (MediaFileResponse, error) {
@@ -228,7 +237,7 @@ func (c *Controller) file(ctx fuego.ContextNoBody) (MediaFileResponse, error) {
 	if err != nil {
 		return MediaFileResponse{}, libraryProblem(err)
 	}
-	return mediaFileResponse(f), nil
+	return c.fileResponse(f), nil
 }
 
 func (c *Controller) rootFolders(ctx fuego.ContextNoBody) ([]RootFolderResponse, error) {
