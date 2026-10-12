@@ -8,7 +8,7 @@ Runs GPU work (transcodes and Whisper subtitle generation) on remote Agents and 
   - `JobQueued`, `JobStarted`, `TranscodeVerified`, `TranscodeSkipped`, `JobFailed`, `WhisperCompleted`.
   - `AgentOnline`, `AgentOffline`.
 - **Consumes:**
-  - Events: `acquisition.CutoffMet`, `library.FileTranscoded`, `library.FileDeleted`, `library.TranscodeSwapRejected`, `catalog.TitleRemoved`, `catalog.LanguagesChanged`.
+  - Events: `acquisition.CutoffMet`, `library.FileTranscoded`, `library.FileDeleted`, `library.TranscodeSwapRejected`, `catalog.TitleRemoved`.
   - Command: `transcode.RunAgentJob`.
 
 Decisions:
@@ -42,18 +42,18 @@ Decisions:
 | `eligible_files` | `media_file_id`, `title_id`, `origin` (`DOWNLOAD` \| `LIBRARY_SCAN` \| `MIGRATION`, from `CutoffMet.Origin`), `cutoff_met_at` |
 | `jobs` | `id`, `kind` (`TRANSCODE` \| `WHISPER`), `media_file_id`, `title_id`, `origin`, `state`, `priority`, `attempt`, `not_before`, `target_codec`, `max_rate_kbps`, `hdr10`, `language` and `whisper_model` (`WHISPER` only), `agent_id`, `device_id`, `offered_at`, `lease_expires_at`, `prefetch`, `last_agent_id`, `avoid_agent_id`, `avoid_until`, `source_etag`, `transfer_etag`, `source_size`, `staging_path`, `spec` (JSON `JobSpec`), `result` (JSON `JobResult`), `output_sha256`, `output_size`, `progress`, `error`, `excluded_agents` |
 | `job_attempts` | `job_id`, `attempt`, `agent_id`, `outcome`, `error`, `started_at`, `ended_at` |
-| `exclusions` | `scope` (`TITLE` \| `ROOT_FOLDER`), `ref` |
-| `skips` | `media_file_id`, `reason`, `policy_hash`. A file isn't re-evaluated until the policy changes. |
-| `transcode_settings` | singleton (see [Behaviour › Policy](#policy)) |
+| `exclusions` | `scope` (`TITLE` \| `ROOT_FOLDER`), `ref` (title ID, or the root folder path as `library.MediaFile.RootFolder` gives it, cleaned) |
+| `skips` | `media_file_id`, `reason`, `detail`, `policy_hash`. One row per file: its latest skip. |
+| `passed_capabilities` | `capability`, `agent_id`, `passed_at`: every capability any agent has ever passed (rule 6). Rows are never removed. |
 
 - Tables carry the `transcode_` prefix like every context's (`transcode_agents`, `transcode_agent_devices`, `transcode_device_capabilities`, …).
-- The agent settings (`transfer_cap`, `default_slots_per_gpu`) live in the platform settings store under the key `transcode.agents`, not in `transcode_settings`.
-- Until ticket 25 adds the Transcode settings page, the policy (target, preset, caps, `min_saving_pct`, `vmaf_samples`) is the settings-store key `transcode.policy` with the defaults below; `Target()` reads it.
+- `jobs.policy_hash` is the policy hash a `TRANSCODE` job was queued (or last re-planned) under.
+- The policy (see [Behaviour › Policy](#policy)) lives in the platform settings store under the key `transcode.policy`; the agent settings (`transfer_cap`, `default_slots_per_gpu`) under `transcode.agents`. `Target()` reads the policy.
 - A job keeps two ETags: `source_etag` is Library's `ProcessingSource.ETag` at offer time, which `TranscodeVerified.SourceETag` carries for Library's own re-check; `transfer_etag` is the strong HTTP ETag from `FileStat` (`"<inode>-<size>-<mtime_ns>"`) that `SourceRef.ETag`, `ResumableJob.SourceETag` and the server's verification compare.
 - `staging_path` (`<StagingDir>/<job>.mkv`, or `<job>.srt` for Whisper) is fixed at offer time, so a cancel can remove the staged file after Library forgot the media file.
 - `excluded_agents` gains an agent once it has two `FAILED` attempts at the job; lost leases don't count, since they are usually restarts the agent may resume from.
 
-The calibration table (`preset × encoder → params`) ships as a versioned file in the server binary and isn't user data.
+The calibration table (`preset × encoder → params`) ships as a versioned file in the server binary (`internal/transcode/calibration.json`) and isn't user data. See [Encoder choice](#policy).
 
 ## Query port
 
@@ -198,7 +198,7 @@ type RunAgentJob struct {
 | `library.TranscodeSwapRejected` | Job `VERIFIED → FAILED` with the reason; delete staging. `SOURCE_CHANGED` / `FILE_GONE`: no retry (a new `CutoffMet` re-queues). `HASH_MISMATCH` / `PROBE_FAILED`: retryable, attempt + 1 with backoff. Publish `JobFailed`. | Job not `VERIFIED` → no-op. |
 | `library.FileDeleted` (any `Reason`, incl. `UPGRADED`) | Cancel non-terminal jobs for the file (send `Cancel` to the agent). Delete staging. Remove from `eligible_files`. | Cancelling a terminal job is a no-op. |
 | `catalog.TitleRemoved` | Same as `FileDeleted` for every file of the title. Remove the exclusion. | Same. |
-| `catalog.LanguagesChanged` | Drop the cached `KeepAudio`/`KeepSubs` of `QUEUED` jobs for the affected title(s); they are recomputed at offer time. Running and finished jobs are not redone. | Idempotent by nature. |
+| Agent `Hello` / `CapabilitiesChanged` (protocol, not the bus) | Record each passed capability in `passed_capabilities`. When a target's encode capability is passed for the first time, queue a sweep of the `NO_CAPABLE_AGENT` skips. | The first pass only; later passes change nothing. |
 | `transcode.RunAgentJob{Kind: WHISPER, MediaFile, Language, Model}` | Queue a `WHISPER` job at Whisper priority, with the file's origin and title. Every Whisper job ends in `WhisperCompleted` or a final `JobFailed`; an admin cancel counts as a final `JobFailed`. | Dedupe on (`media_file_id`, `language`, non-terminal). |
 
 ## External ports
@@ -229,16 +229,18 @@ Admin UI (session auth, Admin role):
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/transcode/jobs?state=&kind=&limit=` | `{jobs, counts, backlog}`: jobs agents hold, then queued ones in offer order, then finished ones newest first (default limit 200); `counts` per state over every job; `backlog` the queued jobs of `LIBRARY_SCAN`/`MIGRATION` files. Each job carries its title name, episode label, file name, origin, target (empty for Whisper), language (Whisper only), agent name, attempt of `maxAttempts`, progress, `prefetched` and error. `400` on an unknown state or kind |
+| GET | `/api/transcode/jobs?state=&kind=&limit=` | `{jobs, counts, backlog, skipped}`: jobs agents hold, then queued ones in offer order, then finished ones newest first (default limit 200); `counts` per state over every job; `backlog` the queued jobs of `LIBRARY_SCAN`/`MIGRATION` files; `skipped` the eligible files per skip reason. Each job carries its title name, episode label, file name, origin, target (empty for Whisper), language (Whisper only), agent name, attempt of `maxAttempts`, progress, `prefetched` and error. `400` on an unknown state or kind |
 | POST | `/api/transcode/jobs/{id}/cancel` | Cancel an unfinished job; `409` once finished, `404` unknown |
 | POST | `/api/transcode/jobs/{id}/retry` | Re-queue a `FAILED` / `NOT_WORTH_IT` job at attempt 1, forgetting its attempts, exclusions and skip; `409` in any other state |
 | GET | `/api/transcode/agents` | Agents, devices, capabilities |
 | PATCH | `/api/transcode/agents/{id}` | `slots_override` (0–8, null = default), `mode`, `draining`. All three are sent together. `400` out of range, `404` unknown agent. |
 | POST | `/api/transcode/agents/{id}/retest` | Ask the agent to re-run capability tests. `202`; `409` when the agent isn't connected. |
-| GET, PUT | `/api/transcode/settings` | Target, preset, caps, thresholds, transfer cap, default slots |
+| GET, PUT | `/api/transcode/settings` | The policy (enabled, target, preset, caps, skip switches and thresholds, per-encoder overrides), transfer cap and default slots. `GET` also returns the calibration table (`encoders`: knob, range, value per preset). `PUT` replaces everything and `400`s anything outside the [12-settings](../12-settings.md#transcode) bounds before storing any of it; a change of the policy hash, or turning transcoding back on, queues a backlog sweep. |
 | GET | `/api/transcode/secret` | `{configured, masked, secret}`: the shared secret from `MAGPIE_AGENT_SECRET`, masked for display and in full for the copy button. No rotate endpoint; rotating = change the env and restart. |
-| PUT, DELETE | `/api/transcode/exclusions/{scope}/{ref}` | Exclude or include a title or root folder |
-| POST | `/api/transcode/backlog/sweep` | Re-evaluate every eligible and skipped file against the current policy |
+| GET | `/api/transcode/exclusions` | Every exclusion, `{scope, ref}` |
+| PUT, DELETE | `/api/transcode/exclusions/{scope}/{ref}` | Exclude (`200` with the exclusion) or include (`204`) a title or root folder; `400` on an unknown scope. A title's files are evaluated at once (queued jobs cancelled, `EXCLUDED` skips); a root folder queues a sweep. A root folder `ref` is the URL-encoded path. |
+| GET | `/api/transcode/backlog` | `{backlog, eligible, skipped}`: queued `LIBRARY_SCAN`/`MIGRATION` jobs, eligible files, skips per reason |
+| POST | `/api/transcode/backlog/sweep` | `202` with the backlog counts. Queues a background re-evaluation of every eligible and skipped file against the current policy |
 
 Agent endpoints (agent auth, see [Auth](#auth)):
 
@@ -477,43 +479,67 @@ The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `
 
 ### Policy
 
-Settings (`transcode_settings`):
+Settings (settings-store key `transcode.policy`):
 
 | Setting | Default |
 |---|---|
-| `target_codec` | `HEVC_10` (or `AV1_10`) |
+| `enabled` | on. Off queues nothing new and holds queued transcodes (Whisper jobs still run); running jobs finish. |
+| `targetCodec` | `HEVC_10` (or `AV1_10`) |
 | `preset` | `HIGH` (`ARCHIVE` \| `HIGH` \| `BALANCED` \| `SMALL`) |
-| `bitrate_caps_mbps` | 2160p 25 · 1080p 10 · 720p 5 · SD 2 (1–200) |
-| `low_bitrate_pct` (skip non-target sources below this % of their resolution cap) | 50 (10–100). With default caps: 2160p < 12.5, 1080p < 5, 720p < 2.5, SD < 1 Mbps |
-| `min_saving_pct` | 15 |
-| `vmaf_samples` | 6 |
-| `transfer_cap` | 2 |
-| `default_slots_per_gpu` | 1 |
+| `capsMbps` | 2160p 25 · 1080p 10 · 720p 5 · SD 2 (1–200) |
+| `skipAlreadyTarget` | on (rule 4) |
+| `skipLowBitrate`, `lowBitratePct` (skip non-target sources below this % of their resolution cap) | on, 50 (10–100). With default caps: 2160p < 12.5, 1080p < 5, 720p < 2.5, SD < 1 Mbps |
+| `minSavingPct` | 15 (0–90) |
+| `encoderOverrides` | none; per ffmpeg encoder name, a quality value in that encoder's range replaces the calibrated one |
+| VMAF samples | 6, fixed |
+| `transfer_cap` | 2 (key `transcode.agents`) |
+| `default_slots_per_gpu` | 1 (key `transcode.agents`) |
 | Imported-library backlog | `LIBRARY_SCAN`/`MIGRATION`-origin jobs run only on slots left free by `DOWNLOAD`-origin jobs |
 
-Until ticket 25, only rules 3 (a skip under the same policy hash), 4 without its cap check (the video is already in the target codec → `ALREADY_TARGET`) and 7 apply, every audio and subtitle stream is kept, and `EncoderArgs` come from one fixed set per encoder. Resolution classes go by the frame's width or height: 2160P from 3200×1800, 1080P from 1600×900, 720P from 1100×650, else SD.
+- Resolution classes go by the frame's width or height: 2160P from 3200×1800, 1080P from 1600×900, 720P from 1100×650, else SD.
+- "Bitrate" is the video stream's own bitrate when the file tags it (`BPS`), else the whole file's. An unknown (0) bitrate never matches rule 5.
+- The **policy hash** covers every setting above except `enabled` and the agent settings, plus the calibration table's version. Empty overrides hash like none.
 
-Evaluation of one media file (on `CutoffMet`, a sweep, or a settings change). The first matching rule wins:
+Evaluation of one media file (on `CutoffMet`, a sweep, a settings change, an exclusion change, or the first agent to pass the target's encode test). The first matching rule wins:
 
 | # | Condition (from `library.Reader` media info, own exclusions) | Result |
 |---|---|---|
 | 1 | Title or root folder excluded | Skip `EXCLUDED` |
 | 2 | Source is Dolby Vision or HDR10+ | Skip `HDR_DYNAMIC` |
-| 3 | Already transcoded by Magpie under the same policy hash | No-op |
-| 4 | Video codec = target and bitrate ≤ cap for its resolution | Skip `ALREADY_TARGET` |
-| 5 | Video codec ≠ target and bitrate < `low_bitrate_pct` % of the cap for its resolution | Skip `LOW_BITRATE` |
-| 6 | No online or offline agent has ever passed the target capability | Skip `NO_CAPABLE_AGENT`; re-evaluated on `CapabilitiesChanged` |
-| 7 | Otherwise | Queue a `TRANSCODE` job with `MaxRateKbps = cap(resolution)` |
+| 3 | Already transcoded by Magpie (a `SWAPPED` job), or found `NOT_WORTH_IT`, under the same policy hash | No-op |
+| 4 | `skipAlreadyTarget`, video codec = target and bitrate ≤ cap for its resolution | Skip `ALREADY_TARGET` |
+| 5 | `skipLowBitrate`, video codec ≠ target and bitrate < `lowBitratePct` % of the cap for its resolution | Skip `LOW_BITRATE` |
+| 6 | No online or offline agent has ever passed the target capability (`passed_capabilities`) | Skip `NO_CAPABLE_AGENT`; re-evaluated when one first passes it (`Hello` or `CapabilitiesChanged`) |
+| 7 | Otherwise | Queue a `TRANSCODE` job with `MaxRateKbps = cap(resolution)`, `HDR10` for HDR10 sources, and the policy hash |
 
-Rule 4 also means a target-codec file over its cap is re-encoded.
+- Rule 4 also means a target-codec file over its cap is re-encoded.
+- A file whose job an agent holds (or the server verifies) isn't evaluated: it finishes under the policy it started with.
+- A file with a `QUEUED` job is evaluated again: a skip cancels the job (reason "The transcode policy now skips the file: …"); a queue moves the job onto the current target, cap and hash.
+- A skip is recorded with the policy hash and publishes `TranscodeSkipped` once: evaluating the file again to the same reason under the same hash publishes nothing. Exclusion and capability changes don't change the hash, so `EXCLUDED` and `NO_CAPABLE_AGENT` skips are re-derived on every evaluation.
+- A file that leaves the library (`FileDeleted`, `TitleRemoved`) loses its eligible row and its skip.
+
+**Backlog sweep:** a backlite task (`transcode.backlog-sweep`) evaluates the eligible files in media file order, 50 per task, and queues the next batch 2 s later (`EnqueueTxAt`). A sweep can be limited to one skip reason (the `NO_CAPABLE_AGENT` sweep). Each file is its own transaction; a shutdown stops between files and the task runs again later.
 
 **Tracks to keep:**
-- Keep audio and subtitle streams whose language is in the Title's wanted languages or is its original language (both from `catalog.Reader`). Computed when the job is offered.
+- Keep audio and subtitle streams whose language is in the Title's wanted languages or is its original language (both from `catalog.Reader`). Computed when the job is offered, so a `catalog.LanguagesChanged` reaches queued jobs without a handler; running and finished jobs are not redone. A title Catalog no longer knows keeps every stream.
 - Streams tagged `und` are kept.
 - If no audio stream would remain, keep all audio.
 - Image subtitles (PGS/VobSub) follow the same rule.
 
-**Encoder choice:** the target codec plus the device vendor give the encoder (`hevc_nvenc`, `hevc_qsv`, `hevc_vaapi`, `av1_nvenc`, `av1_qsv`, `av1_vaapi`). `EncoderArgs` come from the calibration table (VMAF-fitted per encoder and preset; values are produced at build time).
+**Encoder choice:** the target codec plus the device vendor give the encoder (`hevc_nvenc`, `hevc_qsv`, `hevc_vaapi`, `av1_nvenc`, `av1_qsv`, `av1_vaapi`; `libx265`/`libsvtav1` for the `CPU` test device). `EncoderArgs` come from the calibration table: per encoder, its fixed options, its quality knob (`cq` for NVENC, `global_quality` for QSV and VAAPI QVBR, `crf` for the CPU encoders) with range, and the knob's value per preset; an override for the encoder replaces that value. Lower values are higher quality on every encoder, and Archive < High < Balanced < Small.
+
+| Encoder | Fixed options | Archive | High | Balanced | Small |
+|---|---|---|---|---|---|
+| `hevc_nvenc` | `preset p6, tune hq, rc vbr, b:v 0, spatial-aq 1, temporal-aq 1, rc-lookahead 32` | cq 19 | 23 | 26 | 29 |
+| `av1_nvenc` | same as `hevc_nvenc` | cq 24 | 28 | 32 | 36 |
+| `hevc_qsv` | `preset slower` | global_quality 20 | 23 | 26 | 29 |
+| `av1_qsv` | `preset slower` | global_quality 22 | 26 | 30 | 34 |
+| `hevc_vaapi` | `rc_mode QVBR` | global_quality 20 | 24 | 27 | 30 |
+| `av1_vaapi` | `rc_mode QVBR` | global_quality 24 | 28 | 32 | 36 |
+| `libx265` | `preset medium` | crf 18 | 21 | 24 | 27 |
+| `libsvtav1` | `preset 8` | crf 22 | 28 | 32 | 38 |
+
+Version 1 of the table is hand-set from vendor guidance, not yet VMAF-fitted; a fitted table ships as a new version, which changes the policy hash.
 
 ### Scheduler
 
@@ -533,7 +559,7 @@ Runs on: a job queued, a slot freed, an agent online, a capability change, and a
    - The agent isn't in `excluded_agents`.
    - Scratch ≥ 2.2 × source size (download-first) or ≥ 1.2 × source size (direct read).
    - Among those, prefer a resumable match, then an agent other than the previous attempt's, then the highest `throughput_bps`, then the fewest running jobs.
-4. `LIBRARY_SCAN`/`MIGRATION`-origin jobs only take a slot when no `DOWNLOAD`-origin job could use it.
+4. `LIBRARY_SCAN`/`MIGRATION`-origin jobs only take a slot when no waiting job ahead of them (`DOWNLOAD` transcodes, Whisper) could use it, counting one kept from that agent only by the 2-minute avoid window. The same holds for prefetch offers. Jobs waiting out a retry backoff don't hold slots. While transcoding is turned off, `TRANSCODE` jobs aren't offered.
 5. Send `JobOffer` and set state `OFFERED`. A busy download-first agent with no prefetched job may get one `Prefetch` offer for its next job.
 
 ### Job state machine

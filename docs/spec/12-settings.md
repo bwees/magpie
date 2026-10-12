@@ -142,17 +142,17 @@ Owner: **Transcode**. Decided in [ticket 13](../../.scratch/v1-spec/issues/13-tr
 
 | Setting | Default | Validation |
 |---|---|---|
-| Enabled | on | |
-| Target | HEVC 10-bit | `HEVC_10` \| `AV1`. AV1 runs only on agents that passed an AV1 test. Container is always MKV. |
+| Enabled | on | off holds queued transcodes and queues nothing new; turning it back on re-scans the backlog |
+| Target | HEVC 10-bit | `HEVC_10` \| `AV1_10`. AV1 runs only on agents that passed an AV1 test. Container is always MKV. |
 | Quality preset | High | Archive \| High \| Balanced \| Small |
-| Per-encoder overrides (Advanced) | none | per encoder: CQ/ICQ/QP value in that encoder's range |
+| Per-encoder overrides (Advanced) | none | per encoder: its quality value (`cq`, `global_quality` or `crf`) in that encoder's range, shown with the calibrated value as placeholder |
 | Max bitrate per resolution | 2160p 25, 1080p 10, 720p 5, SD 2 Mbps | 1–200 Mbps |
 | Skip: already target codec and under cap | on | |
 | Skip: source bitrate already low | on, below 50% of its resolution cap | 10–100% of cap |
 | Skip: result not smaller by | 15% | 0–90% |
 | Failed job retries | 3 attempts, backoff 1 / 5 / 30 min, different agent preferred | fixed |
 | Skip Dolby Vision / HDR10+ | on (fixed in v1) | read-only |
-| Backlog | action: Re-scan library | |
+| Backlog | action: Re-scan library; shows queued backlog jobs, files not transcoded yet and skips per reason | a policy change re-scans on its own |
 
 ## Agents
 

@@ -137,7 +137,7 @@ type Event struct {
 | `catalog.TitleAddFailed` | Catalog | tmdb, kind, requestID, reason | Requests → request FAILED |
 | `catalog.MonitoringChanged` | Catalog | title, episodes ±, movie?, requestID? | Acquisition → search newly monitored; Requests → link/extend request items; Activity |
 | `catalog.ProfileChanged` | Catalog | title, from, to | Acquisition → re-check cutoff and upgrades |
-| `catalog.LanguagesChanged` | Catalog | title? (nil = global), languages | Subtitles → recompute wanted; Transcode → refresh keep-languages for queued jobs |
+| `catalog.LanguagesChanged` | Catalog | title? (nil = global), languages | Subtitles → recompute wanted (Transcode reads the languages when it offers a job, so it needs no handler) |
 | `catalog.ScanFolderMatched` | Catalog | folder, title | Library → link files in place |
 | `catalog.EpisodesAnnounced` | Catalog | title, episodes | Acquisition → RSS eligibility; Requests → add items in scope |
 | `catalog.WantedReleased` | Catalog | title, episodes (release point reached) | Acquisition → search; Requests → add items |
