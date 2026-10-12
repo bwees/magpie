@@ -14,7 +14,7 @@
 	import DownloadState from './DownloadState.svelte';
 	import ProgressBar from './ProgressBar.svelte';
 	import { DownloadsManager } from './downloads-manager.svelte';
-	import { SEEDING_LABELS, formatEta, formatRatio, formatSpeed, isFinished } from './downloads';
+	import { etaOrGoal, formatRatio, formatSpeed } from './downloads';
 
 	const SKELETON_ROWS = 3;
 	const COLUMNS = [
@@ -37,10 +37,6 @@
 		void manager.load();
 		return manager.watch(live);
 	});
-
-	function etaOrGoal(d: DownloadResponse): string {
-		return isFinished(d.state) ? (SEEDING_LABELS[d.seedingMode] ?? '—') : formatEta(d.etaSeconds);
-	}
 </script>
 
 {#snippet removeButton(d: DownloadResponse)}

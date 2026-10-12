@@ -10,7 +10,8 @@ export enum ImportStatus {
 	PENDING = 'PENDING',
 	IMPORTED = 'IMPORTED',
 	FAILED = 'FAILED',
-	MANUAL = 'MANUAL'
+	MANUAL = 'MANUAL',
+	REMOVED = 'REMOVED'
 }
 
 /** The statuses Activity → Imports lists. */
@@ -53,14 +54,16 @@ export enum HdrFormat {
 
 export enum LibraryEvent {
 	FILE_IMPORTED = 'library.FileImported',
-	IMPORT_FAILED = 'library.ImportFailed'
+	IMPORT_FAILED = 'library.ImportFailed',
+	IMPORT_REMOVED = 'library.ImportRemoved'
 }
 
 export const IMPORT_STATUS_LABELS: Record<string, string> = {
 	[ImportStatus.PENDING]: 'Importing',
 	[ImportStatus.IMPORTED]: 'Imported',
 	[ImportStatus.FAILED]: 'Failed',
-	[ImportStatus.MANUAL]: 'Needs mapping'
+	[ImportStatus.MANUAL]: 'Needs mapping',
+	[ImportStatus.REMOVED]: 'Removed'
 };
 
 export const KIND_LABELS: Record<string, string> = {

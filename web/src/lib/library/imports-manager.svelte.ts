@@ -44,12 +44,14 @@ export interface VideoChoice {
 	episodes: string[];
 }
 
-/** State and actions behind Activity → Imports: failed and manual imports, Retry, Remove and Map files. */
+/** State and actions behind Activity → Imports: failed and manual imports, Retry, Remove & blocklist and Map files. */
 export class ImportsManager {
 	imports = $state<ImportResponse[]>([]);
 	status = $state(LoadStatus.LOADING);
 	error = $state('');
 	readonly busy = new SvelteSet<string>();
+	/** The import whose Remove & blocklist dialog is open. */
+	confirmingRemove = $state<ImportResponse | undefined>();
 
 	/** The import whose mapping picker is open. */
 	mapping = $state<ImportResponse | undefined>();
@@ -89,6 +91,7 @@ export class ImportsManager {
 		const reload = () => void this.load();
 		const stops = [
 			live.on(LibraryEvent.IMPORT_FAILED, reload),
+			live.on(LibraryEvent.IMPORT_REMOVED, reload),
 			live.on(LibraryEvent.FILE_IMPORTED, (m) => {
 				const download = (m.data as FileImported).download;
 				if (download && this.imports.some((imp) => imp.download === download)) reload();
@@ -102,8 +105,22 @@ export class ImportsManager {
 		await this.#act(imp, () => this.#api.retry(imp.download), 'Import queued again');
 	}
 
-	async remove(imp: ImportResponse): Promise<void> {
-		await this.#act(imp, () => this.#api.remove(imp.download), 'Import removed');
+	askRemove(imp: ImportResponse): void {
+		this.confirmingRemove = imp;
+	}
+
+	cancelRemove(): void {
+		this.confirmingRemove = undefined;
+	}
+
+	/** Remove & blocklist: Magpie blocklists the release, deletes the download and looks for another. */
+	async confirmRemove(): Promise<void> {
+		const imp = this.confirmingRemove;
+		if (!imp) {
+			return;
+		}
+		this.confirmingRemove = undefined;
+		await this.#act(imp, () => this.#api.remove(imp.download), 'Import removed and blocklisted');
 	}
 
 	openMapping(imp: ImportResponse): void {

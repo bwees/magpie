@@ -11,7 +11,7 @@ import {
 	subtitleTracks,
 	videoSummary
 } from './library';
-import { ImportsManager, type ImportsApi } from './imports-manager.svelte';
+import { ImportsManager, type ImportsApi, type ImportsLive } from './imports-manager.svelte';
 import { TitleFiles } from './title-files.svelte';
 
 const E1 = { id: 'e1', season: 1, number: 1, name: 'Pilot' };
@@ -65,6 +65,18 @@ function fakeApi(
 }
 
 const notifier = () => ({ success: vi.fn(), error: vi.fn() });
+
+function fakeLive(): ImportsLive & { emit: (type: string) => void } {
+	const handlers = new Map<string, (m: { data: unknown }) => void>();
+	return {
+		on: (type, handler) => {
+			handlers.set(type, handler as (m: { data: unknown }) => void);
+			return () => handlers.delete(type);
+		},
+		onReset: () => () => undefined,
+		emit: (type) => handlers.get(type)?.({ data: {} })
+	};
+}
 
 describe('track summaries', () => {
 	const file = {
@@ -149,14 +161,57 @@ describe('ImportsManager', () => {
 		expect(api.mapped).toEqual([{ files: [{ path: 'Show.S01/Extras.mkv', episodes: [] }] }]);
 	});
 
-	it('drops a retried or removed import from the list', async () => {
+	it('drops a retried import from the list', async () => {
 		const manager = new ImportsManager(fakeApi(), notifier());
 		await manager.load();
 		expect(manager.count).toBe(1);
 
-		await manager.remove(PACK);
+		await manager.retry(PACK);
 
 		expect(manager.count).toBe(0);
+	});
+
+	it('asks before Remove & blocklist and sends nothing when cancelled', async () => {
+		const api = fakeApi();
+		const manager = new ImportsManager(api, notifier());
+		await manager.load();
+
+		manager.askRemove(PACK);
+		expect(manager.confirmingRemove).toEqual(PACK);
+		manager.cancelRemove();
+		expect(manager.confirmingRemove).toBeUndefined();
+		await manager.confirmRemove();
+
+		expect(api.remove).not.toHaveBeenCalled();
+		expect(manager.count).toBe(1);
+	});
+
+	it('removes and blocklists the import once confirmed', async () => {
+		const api = fakeApi();
+		const notify = notifier();
+		const manager = new ImportsManager(api, notify);
+		await manager.load();
+
+		manager.askRemove(PACK);
+		await manager.confirmRemove();
+
+		expect(api.remove).toHaveBeenCalledWith(PACK.download);
+		expect(manager.confirmingRemove).toBeUndefined();
+		expect(manager.count).toBe(0);
+		expect(notify.success).toHaveBeenCalledWith('Import removed and blocklisted', {
+			description: PACK.releaseName
+		});
+	});
+
+	it('reloads when another admin removes an import', async () => {
+		const api = fakeApi();
+		const live = fakeLive();
+		const manager = new ImportsManager(api, notifier());
+		manager.watch(live);
+
+		live.emit(LibraryEvent.IMPORT_REMOVED);
+
+		expect(api.list).toHaveBeenCalled();
 	});
 });
 

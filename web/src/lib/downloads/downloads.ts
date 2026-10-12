@@ -1,3 +1,5 @@
+import type { DownloadResponse } from '$lib/sdk';
+
 /** Mirrors the Go `api.DownloadState` values the Downloads tab shows. */
 export enum DownloadState {
 	AWAITING_METADATA = 'AWAITING_METADATA',
@@ -5,7 +7,8 @@ export enum DownloadState {
 	STALLED = 'STALLED',
 	COMPLETED = 'COMPLETED',
 	SEEDING = 'SEEDING',
-	IMPORTED = 'IMPORTED'
+	IMPORTED = 'IMPORTED',
+	IMPORT_PENDING_USER = 'IMPORT_PENDING_USER'
 }
 
 /** Mirrors the Go `api.SeedingMode` values. */
@@ -40,8 +43,11 @@ export const STATE_LABELS: Record<string, string> = {
 	[DownloadState.STALLED]: 'Stalled',
 	[DownloadState.COMPLETED]: 'Completed',
 	[DownloadState.SEEDING]: 'Seeding',
-	[DownloadState.IMPORTED]: 'Imported'
+	[DownloadState.IMPORTED]: 'Imported',
+	[DownloadState.IMPORT_PENDING_USER]: 'Needs mapping'
 };
+
+const WAITING_FOR_IMPORT = 'Kept until mapped';
 
 export const SEEDING_LABELS: Record<string, string> = {
 	[SeedingMode.SEED_UNTIL_GOALS]: 'Seed to goal',
@@ -66,6 +72,16 @@ export function isQuiet(state: string): boolean {
 
 export function isFinished(state: string): boolean {
 	return state === DownloadState.COMPLETED || state === DownloadState.SEEDING;
+}
+
+/** The ETA while downloading, the seeding mode once finished, or that the data waits for Map files. */
+export function etaOrGoal(
+	d: Pick<DownloadResponse, 'state' | 'seedingMode' | 'etaSeconds'>
+): string {
+	if (d.state === DownloadState.IMPORT_PENDING_USER) {
+		return WAITING_FOR_IMPORT;
+	}
+	return isFinished(d.state) ? (SEEDING_LABELS[d.seedingMode] ?? '—') : formatEta(d.etaSeconds);
 }
 
 const NANOSECONDS_PER_SECOND = 1e9;

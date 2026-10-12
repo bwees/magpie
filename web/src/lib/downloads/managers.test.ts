@@ -13,10 +13,12 @@ import {
 import {
 	DownloadEvent,
 	DownloadState,
+	etaOrGoal,
 	formatEta,
 	formatPercent,
 	formatSpeed,
-	nanosecondsToSeconds
+	nanosecondsToSeconds,
+	STATE_LABELS
 } from './downloads';
 
 const SERVER_ERROR = 500;
@@ -193,5 +195,14 @@ describe('download formatting', () => {
 		expect(formatEta(2 * 3600 + 5 * 60)).toBe('2h 5m');
 		expect(formatPercent(0.999)).toBe('99%');
 		expect(nanosecondsToSeconds(1.5e9)).toBe(2);
+	});
+
+	it('shows the ETA, the seeding mode, or that a download waits for its import', () => {
+		expect(etaOrGoal(download('a', { etaSeconds: 45 }))).toBe('45s');
+		expect(etaOrGoal(download('b', { state: DownloadState.SEEDING }))).toBe('Seed to goal');
+		expect(etaOrGoal(download('c', { state: DownloadState.IMPORT_PENDING_USER }))).toBe(
+			'Kept until mapped'
+		);
+		expect(STATE_LABELS[DownloadState.IMPORT_PENDING_USER]).toBe('Needs mapping');
 	});
 });

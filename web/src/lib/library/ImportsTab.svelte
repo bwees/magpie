@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PackageCheck from '@lucide/svelte/icons/package-check';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -30,14 +31,8 @@
 		<Button size="sm" variant="outline" disabled={busy} onclick={() => manager.retry(imp)}>
 			Retry
 		</Button>
-		<Button
-			size="sm"
-			variant="outline"
-			disabled={busy}
-			title="The release is already blocklisted; this drops it from the queue"
-			onclick={() => manager.remove(imp)}
-		>
-			Remove
+		<Button size="sm" variant="outline" disabled={busy} onclick={() => manager.askRemove(imp)}>
+			Remove & blocklist
 		</Button>
 	</div>
 {/snippet}
@@ -63,7 +58,8 @@
 	</section>
 {:else}
 	<p class="mb-3 text-sm text-muted-foreground">
-		Magpie blocklisted these releases and looked for others. Map the files to import one anyway.
+		Downloads that need mapping keep their files until you map or remove them. Failed ones were
+		blocklisted and Magpie looked for others.
 	</p>
 	<div class="hidden rounded-xl border md:block">
 		<Table.Root>
@@ -112,3 +108,29 @@
 {/if}
 
 <MapFilesDialog {manager} />
+
+<AlertDialog.Root
+	open={manager.confirmingRemove !== undefined}
+	onOpenChange={(open) => {
+		if (!open) manager.cancelRemove();
+	}}
+>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Remove and blocklist this release?</AlertDialog.Title>
+			<AlertDialog.Description>
+				Magpie deletes the download with its files, blocklists the release and looks for another.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<p class="font-mono text-xs break-all">{manager.confirmingRemove?.releaseName}</p>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action
+				class="bg-destructive text-white hover:bg-destructive/90"
+				onclick={() => manager.confirmRemove()}
+			>
+				Remove & blocklist
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
