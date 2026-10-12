@@ -543,6 +543,20 @@ func TestAnotherAgentCantReadTheSource(t *testing.T) {
 	}
 }
 
+func TestTheOfferedAgentMayFetchBeforeItsAcceptLands(t *testing.T) {
+	f := newFixture(t)
+	file := f.addFile(h264Movie(0))
+	f.cutoff(file, domain.OriginDownload)
+	a, _ := f.connect(capableHello("gpu-a"))
+	spec := f.offered(a).Spec
+
+	resp := f.request(a.id, http.MethodGet, spec.Source.URL, nil, nil)
+
+	if body := readAll(t, resp); resp.StatusCode != http.StatusOK || len(body) != len(file.content) {
+		t.Fatalf("download while OFFERED = %d with %d bytes, want the whole source", resp.StatusCode, len(body))
+	}
+}
+
 // Seed 33.
 func TestRetryGoesToAnotherAgent(t *testing.T) {
 	f := newFixture(t)

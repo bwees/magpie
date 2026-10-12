@@ -608,10 +608,11 @@ func (s *JobService) SwapRejected(tx *gorm.DB, rejected libraryapi.TranscodeSwap
 	return s.failAttempt(tx, row, f)
 }
 
-// LeasedSource returns a job leased to the agent, for its byte endpoints.
+// LeasedJob returns a job leased to the agent, for its byte endpoints. A job still offered to it counts:
+// the agent starts fetching as it sends its accept, which may not have been handled yet.
 func (s *JobService) LeasedJob(ctx context.Context, agent domain.AgentID, id domain.JobID) (jobRow, error) {
 	row, err := jobIn(s.deps.DB.Read(ctx), id)
-	if errors.Is(err, ErrJobNotFound) || (err == nil && !heldBy(row, agent)) {
+	if errors.Is(err, ErrJobNotFound) || (err == nil && !heldBy(row, agent) && !offeredTo(row, agent)) {
 		return jobRow{}, ErrNotLeased
 	}
 	return row, err
