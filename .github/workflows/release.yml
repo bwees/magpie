@@ -2,18 +2,31 @@ name: release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 permissions:
   contents: write
+  pull-requests: write
   packages: write
 
 jobs:
-  release:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+
+  goreleaser:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
           fetch-depth: 0
 
       - uses: jdx/mise-action@v2
@@ -36,3 +49,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
+          OPENSUBTITLES_APP_KEY: ${{ secrets.OPENSUBTITLES_APP_KEY }}
