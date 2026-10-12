@@ -30,7 +30,7 @@ Set on the container. Everything else lives in SQLite and is edited in the UI ([
 
 ### Schedules (advanced, collapsed)
 
-All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row is owned by the context that runs the loop. Acquisition's RSS, pending and sweep rows are `GET · PUT /api/acquisition/schedules`; the sweeps' searches are queued 4 s apart.
+All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row is owned by the context that runs the loop. Acquisition's RSS, pending and sweep rows are `GET · PUT /api/acquisition/schedules`; the Jellyfin full reconcile is `GET · PUT /api/library/schedules`; the sweeps' searches are queued 4 s apart.
 
 | Loop | Owner | Default | Bounds |
 |---|---|---|---|
