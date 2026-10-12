@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"magpie/internal/domain"
@@ -18,6 +19,8 @@ const (
 	EnvSecret     = "MAGPIE_AGENT_SECRET"
 	EnvName       = "MAGPIE_AGENT_NAME"
 	EnvScratchDir = "MAGPIE_SCRATCH_DIR"
+	// EnvCPU, set to true, offers the software encoders as a device, for testing without a GPU.
+	EnvCPU = "MAGPIE_AGENT_CPU"
 
 	DefaultScratchDir = "/scratch"
 
@@ -34,6 +37,7 @@ var (
 	ErrMissingSecret = errors.New(EnvSecret + " is required")
 	ErrInvalidName   = errors.New(EnvName + " may only contain a-z, 0-9 and -")
 	ErrCorruptID     = errors.New("agent ID file does not hold a ULID")
+	ErrInvalidCPU    = errors.New(EnvCPU + " must be true or false")
 )
 
 var (
@@ -47,6 +51,8 @@ type Config struct {
 	Name       string // shown in the UI; defaults to the hostname
 	ScratchDir string
 	AgentID    domain.AgentID
+	// CPU offers the software encoders as a device.
+	CPU bool
 }
 
 // Load reads the environment, creates the scratch dir and loads or creates the agent ID in it.
@@ -58,7 +64,14 @@ func Load(getenv func(string) string, hostname func() (string, error)) (Config, 
 		secretErr = ErrMissingSecret
 	}
 	name, nameErr := parseName(getenv(EnvName), hostname)
-	if err := errors.Join(urlErr, secretErr, nameErr); err != nil {
+	var cpu bool
+	var cpuErr error
+	if raw := getenv(EnvCPU); raw != "" {
+		if cpu, cpuErr = strconv.ParseBool(raw); cpuErr != nil {
+			cpuErr = fmt.Errorf("%q: %w", raw, ErrInvalidCPU)
+		}
+	}
+	if err := errors.Join(urlErr, secretErr, nameErr, cpuErr); err != nil {
 		return Config{}, err
 	}
 
@@ -73,7 +86,7 @@ func Load(getenv func(string) string, hostname func() (string, error)) (Config, 
 	if err != nil {
 		return Config{}, err
 	}
-	return Config{ServerURL: serverURL, Secret: secret, Name: name, ScratchDir: scratch, AgentID: id}, nil
+	return Config{ServerURL: serverURL, Secret: secret, Name: name, ScratchDir: scratch, AgentID: id, CPU: cpu}, nil
 }
 
 // LoadAgentID returns the ID stored in dir, creating one on first start so the agent keeps its identity

@@ -105,6 +105,33 @@ func hostWithGPUs() fstest.MapFS {
 	return host
 }
 
+func TestTheCPUDeviceTestsOnlyTheSoftwareEncoders(t *testing.T) {
+	p, runner := newTestProber(fstest.MapFS{},
+		rule{program: DefaultNvidiaSMI, fail: true, stderr: exec.ErrNotFound.Error()},
+		rule{program: DefaultFFmpeg, fragments: []string{"-c:v " + encoderSVTAV1}, stderr: "Unknown encoder 'libsvtav1'\n", fail: true},
+	)
+	withSamplesDir(t, p)
+	p.CPU = true
+
+	reports := p.Probe(context.Background(), "")
+
+	if len(reports) != 1 || reports[0].DeviceID != CPUDeviceID || reports[0].Vendor != agentproto.VendorCPU {
+		t.Fatalf("reports = %+v, want the CPU device alone", reports)
+	}
+	if hevc := capability(t, reports[0], agentproto.CapEncHEVC10); !hevc.OK {
+		t.Errorf("HEVC = %+v", hevc)
+	}
+	if av1 := capability(t, reports[0], agentproto.CapEncAV110); av1.OK || av1.Error != "Unknown encoder 'libsvtav1'" {
+		t.Errorf("AV1 = %+v", av1)
+	}
+	if dec := capability(t, reports[0], agentproto.CapDecHEVC10); dec.OK {
+		t.Errorf("decode = %+v, want not tested", dec)
+	}
+	if calls := strings.Join(runner.calls, "\n"); !strings.Contains(calls, "-pix_fmt yuv420p10le -c:v libx265 -x265-params log-level=error -f null -") {
+		t.Errorf("calls =\n%s", calls)
+	}
+}
+
 func newTestProber(host fs.FS, rules ...rule) (*Prober, *fakeRunner) {
 	runner := &fakeRunner{rules: rules}
 	return &Prober{

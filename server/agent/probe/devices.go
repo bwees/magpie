@@ -46,9 +46,19 @@ var drmVendors = map[string]agentproto.Vendor{
 	pciVendorAMD:   agentproto.VendorAMD,
 }
 
-// devices lists every GPU the agent can see, NVIDIA cards first.
+// CPUDeviceID names the software encoders when the agent offers them.
+const (
+	CPUDeviceID   = "cpu"
+	cpuDeviceName = "CPU (software encoders)"
+)
+
+// devices lists every GPU the agent can see, NVIDIA cards first, then the CPU when it is offered.
 func (p *Prober) devices(ctx context.Context) []agentproto.DeviceReport {
-	return append(p.nvidiaDevices(ctx), p.drmDevices(ctx)...)
+	devices := append(p.nvidiaDevices(ctx), p.drmDevices(ctx)...)
+	if p.CPU {
+		devices = append(devices, agentproto.DeviceReport{DeviceID: CPUDeviceID, Vendor: agentproto.VendorCPU, Name: cpuDeviceName})
+	}
+	return devices
 }
 
 func (p *Prober) nvidiaDevices(ctx context.Context) []agentproto.DeviceReport {

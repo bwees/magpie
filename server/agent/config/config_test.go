@@ -50,6 +50,17 @@ func TestLoadReportsEveryMissingVariable(t *testing.T) {
 	}
 }
 
+func TestLoadReadsTheCPUSwitch(t *testing.T) {
+	vars := map[string]string{EnvURL: testURL, EnvSecret: testSecret, EnvScratchDir: t.TempDir(), EnvCPU: "true"}
+	if cfg, err := Load(envOf(vars), fixedHostname); err != nil || !cfg.CPU {
+		t.Fatalf("config = %+v, %v; want the CPU device on", cfg, err)
+	}
+	vars[EnvCPU] = "sometimes"
+	if _, err := Load(envOf(vars), fixedHostname); !errors.Is(err, ErrInvalidCPU) {
+		t.Fatalf("err = %v, want ErrInvalidCPU", err)
+	}
+}
+
 func TestLoadRejectsNonHTTPURL(t *testing.T) {
 	_, err := Load(envOf(map[string]string{EnvURL: "ftp://magpie.lan", EnvSecret: testSecret, EnvScratchDir: t.TempDir()}), fixedHostname)
 

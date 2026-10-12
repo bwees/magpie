@@ -68,6 +68,8 @@ type Prober struct {
 	// SamplesDir holds the clips the decode tests read.
 	SamplesDir string
 	Timeout    time.Duration
+	// CPU offers the software encoders as a device, for testing without a GPU.
+	CPU bool
 }
 
 // New returns a prober that runs the real programs from PATH.
@@ -118,6 +120,9 @@ func (p *Prober) Probe(ctx context.Context, deviceID string) []agentproto.Device
 }
 
 func (p *Prober) test(ctx context.Context, device agentproto.DeviceReport, samples map[sample]result, whisperErr string) []agentproto.CapabilityResult {
+	if device.Vendor == agentproto.VendorCPU {
+		return p.testCPU(ctx)
+	}
 	commands := commandsByVendor[device.Vendor]
 	results := make([]agentproto.CapabilityResult, 0, len(Capabilities))
 	for _, capability := range Capabilities {
@@ -138,6 +143,23 @@ func (p *Prober) test(ctx context.Context, device agentproto.DeviceReport, sampl
 			if whisperErr == "" {
 				outcome = p.check(ctx, vulkanArgs(device))
 			}
+		}
+		results = append(results, agentproto.CapabilityResult{Capability: capability, OK: outcome.err == "", Error: outcome.err})
+	}
+	return results
+}
+
+// errCPUOnlyEncodes is the result of every test but the encodes on the CPU device: it decodes as the
+// fallback path does and has no Vulkan.
+const errCPUOnlyEncodes = "the CPU device only runs the software encoders"
+
+// testCPU runs the software encoders on the same test clip the GPUs encode.
+func (p *Prober) testCPU(ctx context.Context) []agentproto.CapabilityResult {
+	results := make([]agentproto.CapabilityResult, 0, len(Capabilities))
+	for _, capability := range Capabilities {
+		outcome := result{err: errCPUOnlyEncodes}
+		if name, ok := cpuEncoders[capability]; ok {
+			outcome = p.check(ctx, cpuEncodeArgs(name))
 		}
 		results = append(results, agentproto.CapabilityResult{Capability: capability, OK: outcome.err == "", Error: outcome.err})
 	}

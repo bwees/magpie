@@ -205,6 +205,22 @@ func vulkanArgs(report agentproto.DeviceReport) []string {
 		[]string{"-f", "lavfi", "-i", vulkanSource, "-frames:v", vulkanFrames}, nullOutput())
 }
 
+const encoderSVTAV1 = "libsvtav1"
+
+var cpuEncoders = map[agentproto.Capability]string{
+	agentproto.CapEncHEVC10: encoderLibx265,
+	agentproto.CapEncAV110:  encoderSVTAV1,
+}
+
+// cpuEncodeArgs encodes the test clip at 10-bit with a software encoder.
+func cpuEncodeArgs(encoder string) []string {
+	codec := []string{"-pix_fmt", sampleHEVC10Pixels, "-c:v", encoder}
+	if encoder == encoderLibx265 {
+		codec = append(codec, "-x265-params", x265Quiet)
+	}
+	return args(baseArgs(), testInput(), codec, nullOutput())
+}
+
 // sampleArgs encodes a decode-test sample on the CPU.
 func sampleArgs(s sample, path string) []string {
 	codec := []string{"-pix_fmt", sampleH264Pixels, "-c:v", encoderLibx264}
