@@ -2400,6 +2400,32 @@
 				],
 				"type": "object"
 			},
+			"JobListResponse": {
+				"description": "JobListResponse schema",
+				"properties": {
+					"backlog": {
+						"type": "integer"
+					},
+					"counts": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"type": "object"
+					},
+					"jobs": {
+						"items": {
+							"$ref": "#/components/schemas/JobResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"backlog",
+					"counts",
+					"jobs"
+				],
+				"type": "object"
+			},
 			"JobProgressed": {
 				"description": "JobProgressed schema",
 				"properties": {
@@ -2460,6 +2486,96 @@
 					"mediaFile",
 					"origin",
 					"title"
+				],
+				"type": "object"
+			},
+			"JobResponse": {
+				"properties": {
+					"agent": {
+						"nullable": true,
+						"type": "string"
+					},
+					"agentName": {
+						"type": "string"
+					},
+					"attempt": {
+						"type": "integer"
+					},
+					"episodes": {
+						"type": "string"
+					},
+					"error": {
+						"type": "string"
+					},
+					"fileName": {
+						"type": "string"
+					},
+					"finishedAt": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"maxAttempts": {
+						"type": "integer"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"notBefore": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"origin": {
+						"type": "string"
+					},
+					"progress": {
+						"format": "double",
+						"type": "number"
+					},
+					"queuedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"state": {
+						"type": "string"
+					},
+					"targetCodec": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"titleName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent",
+					"agentName",
+					"attempt",
+					"episodes",
+					"error",
+					"fileName",
+					"finishedAt",
+					"id",
+					"kind",
+					"maxAttempts",
+					"mediaFile",
+					"notBefore",
+					"origin",
+					"progress",
+					"queuedAt",
+					"state",
+					"targetCodec",
+					"title",
+					"titleName"
 				],
 				"type": "object"
 			},
@@ -14524,6 +14640,237 @@
 					}
 				},
 				"summary": "Ask a connected agent to re-run its capability tests (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/jobs": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).listJobs`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listTranscodeJobs",
+				"parameters": [
+					{
+						"description": "Only jobs in these states",
+						"in": "query",
+						"name": "state",
+						"schema": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						}
+					},
+					{
+						"description": "Only TRANSCODE or WHISPER jobs",
+						"in": "query",
+						"name": "kind",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "At most this many jobs (default 200)",
+						"in": "query",
+						"name": "limit",
+						"schema": {
+							"type": "integer"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/JobListResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Jobs agents hold, then queued jobs in offer order, then finished ones (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/jobs/{id}/cancel": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).cancelJob`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "cancelTranscodeJob",
+				"parameters": [
+					{
+						"description": "Job ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/JobResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Cancel an unfinished job; its agent drops it (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/jobs/{id}/retry": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).retryJob`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "retryTranscodeJob",
+				"parameters": [
+					{
+						"description": "Job ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/JobResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Queue a FAILED or NOT_WORTH_IT job again from its first attempt (admin)",
 				"tags": [
 					"api",
 					"transcode"

@@ -952,6 +952,34 @@ export type UpdateAgentRequest = {
 export type RetestResponse = {
     agent: string;
 };
+export type JobResponse = {
+    agent: string | null;
+    agentName: string;
+    attempt: number;
+    episodes: string;
+    error: string;
+    fileName: string;
+    finishedAt: string | null;
+    id: string;
+    kind: string;
+    maxAttempts: number;
+    mediaFile: string;
+    notBefore: string | null;
+    origin: string;
+    progress: number;
+    queuedAt: string;
+    state: string;
+    targetCodec: string;
+    title: string;
+    titleName: string;
+};
+export type JobListResponse = {
+    backlog: number;
+    counts: {
+        [key: string]: number;
+    };
+    jobs: JobResponse[];
+};
 export type AgentSecretResponse = {
     configured: boolean;
     masked: string;
@@ -4215,6 +4243,81 @@ export function retestAgent(id: string, { accept }: {
         status: 500;
         data: HttpError;
     }>(`/api/transcode/agents/${encodeURIComponent(id)}/retest`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Jobs agents hold, then queued jobs in offer order, then finished ones (admin)
+ */
+export function listTranscodeJobs({ state, kind, limit, accept }: {
+    state?: string[];
+    kind?: string;
+    limit?: number;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: JobListResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/transcode/jobs${QS.query(QS.explode({
+        state,
+        kind,
+        limit
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Cancel an unfinished job; its agent drops it (admin)
+ */
+export function cancelTranscodeJob(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: JobResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/transcode/jobs/${encodeURIComponent(id)}/cancel`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Queue a FAILED or NOT_WORTH_IT job again from its first attempt (admin)
+ */
+export function retryTranscodeJob(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: JobResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/transcode/jobs/${encodeURIComponent(id)}/retry`, {
         ...opts,
         method: "POST",
         headers: oazapfts.mergeHeaders(opts?.headers, {
