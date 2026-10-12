@@ -131,7 +131,7 @@ func (t *Transfers) ServeSource(w http.ResponseWriter, r *http.Request) {
 		defer t.gate.Release(holder)
 	}
 
-	ctx, cancel := t.lifetime.Bind(r.Context())
+	ctx, cancel := t.lifetime.Bind(w, r)
 	defer cancel()
 	w.Header().Set("ETag", info.ETag())
 	counted := &countingWriter{ResponseWriter: w, ctx: ctx}
@@ -245,7 +245,7 @@ func (t *Transfers) PutOutput(w http.ResponseWriter, r *http.Request) {
 	}
 	defer t.gate.Release(holder)
 
-	ctx, cancel := t.lifetime.Bind(r.Context())
+	ctx, cancel := t.lifetime.Bind(w, r)
 	defer cancel()
 	started := t.now()
 	written, err := t.write(ctx, file, r.Body, chunk)

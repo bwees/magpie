@@ -2,7 +2,9 @@ package transcode
 
 import (
 	"context"
+	"net/http"
 	"sync"
+	"time"
 )
 
 // Lifetime is the context of Transcode's background work and agent transfers. It ends when the server
@@ -10,38 +12,87 @@ import (
 type Lifetime struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	wg     sync.WaitGroup
+
+	mu      sync.Mutex
+	running map[chan struct{}]struct{}
 }
 
 func NewLifetime() *Lifetime {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Lifetime{ctx: ctx, cancel: cancel}
+	return &Lifetime{ctx: ctx, cancel: cancel, running: map[chan struct{}]struct{}{}}
 }
 
-// Go runs fn in the background with the lifetime's context.
+// Go runs fn in the background with the lifetime's context. Once the lifetime has ended, fn doesn't run.
 func (l *Lifetime) Go(fn func(ctx context.Context)) {
-	l.wg.Go(func() { fn(l.ctx) })
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.ctx.Err() != nil {
+		return
+	}
+	done := make(chan struct{})
+	l.running[done] = struct{}{}
+	go func() {
+		defer l.finish(done)
+		fn(l.ctx)
+	}()
 }
 
-// Bind returns a context that also ends when the lifetime does.
-func (l *Lifetime) Bind(ctx context.Context) (context.Context, context.CancelFunc) {
-	bound, cancel := context.WithCancel(ctx)
-	stop := context.AfterFunc(l.ctx, cancel)
+func (l *Lifetime) finish(done chan struct{}) {
+	l.mu.Lock()
+	delete(l.running, done)
+	l.mu.Unlock()
+	close(done)
+}
+
+// Bind returns the request's context, which also ends when the lifetime does. Ending the lifetime also
+// breaks off a read or write the request is stuck in, since a stalled agent never lets it check the
+// context again.
+func (l *Lifetime) Bind(w http.ResponseWriter, r *http.Request) (context.Context, context.CancelFunc) {
+	bound, cancel := context.WithCancel(r.Context())
+	control := http.NewResponseController(w)
+	interrupted := make(chan struct{})
+	stop := context.AfterFunc(l.ctx, func() {
+		defer close(interrupted)
+		cancel()
+		now := time.Now()
+		_ = control.SetReadDeadline(now)
+		_ = control.SetWriteDeadline(now)
+	})
 	return bound, func() {
-		stop()
+		if !stop() {
+			<-interrupted
+		}
 		cancel()
 	}
 }
 
 // Stop ends the lifetime and waits for the work started with Go.
 func (l *Lifetime) Stop() {
+	l.mu.Lock()
 	l.cancel()
-	l.wg.Wait()
+	l.mu.Unlock()
+	l.Wait()
 }
 
-// Wait waits for the work started with Go without ending the lifetime. Tests use it to settle.
+// Wait waits until no work started with Go is running, without ending the lifetime. Tests use it to
+// settle.
 func (l *Lifetime) Wait() {
-	l.wg.Wait()
+	for {
+		done, ok := l.anyRunning()
+		if !ok {
+			return
+		}
+		<-done
+	}
+}
+
+func (l *Lifetime) anyRunning() (chan struct{}, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for done := range l.running {
+		return done, true
+	}
+	return nil, false
 }
 
 // Wake asks the scheduler for a pass now instead of at its next tick.
