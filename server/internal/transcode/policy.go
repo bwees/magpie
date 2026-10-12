@@ -280,7 +280,7 @@ func (p Policy) decide(facts fileFacts) decision {
 		return skipped(api.SkipLowBitrate, fmt.Sprintf("%s is under %d%% of the %s cap of %d Mbps",
 			mbps(bitrate), p.LowBitratePct, class, p.CapsMbps[class]))
 	case !facts.CapableAgentSeen:
-		return skipped(api.SkipNoCapableAgent, "No agent has passed a "+target.label+" test encode")
+		return skipped(api.SkipNoCapableAgent, "No agent has passed the "+target.label+" test encode")
 	}
 	return decision{Result: resultQueue, Plan: jobPlan{
 		TargetCodec: p.TargetCodec,
