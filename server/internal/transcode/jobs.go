@@ -32,7 +32,9 @@ const (
 	outcomeSwapped      = "SWAPPED"
 )
 
-var failedOutcomes = []string{outcomeFailed, outcomeLeaseExpired}
+// failedOutcomes count towards excluding an agent from a job. A lost lease doesn't: it is usually a
+// restart, and the agent may come back to resume.
+var failedOutcomes = []string{outcomeFailed}
 
 // Failure reasons a job records and JobFailed carries.
 const (

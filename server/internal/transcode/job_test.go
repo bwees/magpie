@@ -576,6 +576,44 @@ func TestRetryGoesToAnotherAgent(t *testing.T) {
 	}
 }
 
+func TestAnAgentFailingAJobTwiceIsExcludedFromIt(t *testing.T) {
+	f := newFixture(t)
+	file := f.addFile(h264Movie(0))
+	f.cutoff(file, domain.OriginDownload)
+	a, _ := f.connect(capableHello("gpu-a"))
+
+	for range failuresBeforeExclusion {
+		spec := f.lease(a)
+		a.send(agentproto.TypeJobResult, agentproto.JobResult{Job: spec.Job, Outcome: agentproto.OutcomeFailed, Error: "encoder crashed"})
+		f.eventually(spec.Job, "requeued", func(r jobRow) bool { return r.State == api.StateQueued })
+		f.clock.Advance(retryBackoff[len(retryBackoff)-1])
+	}
+
+	excluded, err := f.onlyJob(file).excluded()
+	if err != nil || !slices.Contains(excluded, a.id) {
+		t.Fatalf("excluded = %v, %v; want agent A", excluded, err)
+	}
+}
+
+func TestLostLeasesDontExcludeTheAgent(t *testing.T) {
+	f := newFixture(t)
+	file := f.addFile(h264Movie(0))
+	f.cutoff(file, domain.OriginDownload)
+	a, _ := f.connect(capableHello("gpu-a"))
+
+	for range failuresBeforeExclusion {
+		spec := f.lease(a)
+		f.clock.Advance(DefaultTimings.LeaseTTL + time.Second)
+		f.schedule()
+		f.inState(spec.Job, api.StateQueued)
+		f.clock.Advance(DefaultTimings.AvoidAgent + time.Second)
+	}
+
+	if excluded, _ := f.onlyJob(file).excluded(); slices.Contains(excluded, a.id) {
+		t.Fatalf("excluded = %v, want agent A still allowed after lost leases", excluded)
+	}
+}
+
 func TestOfferTimeoutRequeuesWithoutAnAttempt(t *testing.T) {
 	f := newFixture(t)
 	file := f.addFile(h264Movie(0))
