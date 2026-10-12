@@ -6,13 +6,18 @@
 	import TopSearch from '$lib/catalog/TopSearch.svelte';
 	import { getLive, LiveStatus } from '$lib/live/live-client.svelte';
 	import NotificationBell from '$lib/notifications/NotificationBell.svelte';
+	import ScopePickerDialog from '$lib/requests/ScopePickerDialog.svelte';
+	import { getSession } from '$lib/session/session.svelte';
 	import AvatarMenu from './AvatarMenu.svelte';
 	import { getShell } from './shell-state.svelte';
 
 	const shell = getShell();
+	const session = getSession();
 	const live = getLive();
 	const current = $derived(shell.pageFor(page.url.pathname));
 	const search = shell.search;
+	const requests = shell.searchRequests;
+	const actionLabel = $derived(session.isAdmin ? 'Add' : 'Request');
 </script>
 
 <header class="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
@@ -42,10 +47,11 @@
 				</span>
 			{/if}
 			{#if shell.isMobile}
-				<SearchOverlay {search} />
+				<SearchOverlay {search} {requests} {actionLabel} />
 			{:else}
-				<TopSearch {search} />
+				<TopSearch {search} {requests} {actionLabel} />
 			{/if}
+			<ScopePickerDialog {requests} {actionLabel} />
 
 			<NotificationBell />
 

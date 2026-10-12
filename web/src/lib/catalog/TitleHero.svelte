@@ -3,6 +3,7 @@
 	import type { TitleResponse } from '$lib/sdk';
 	import { ProfileOptions } from '$lib/settings/quality/profile-options.svelte';
 	import StageBar from '$lib/activity/StageBar.svelte';
+	import RequestedBy from '$lib/requests/RequestedBy.svelte';
 	import PosterImage from './PosterImage.svelte';
 	import { Button } from '$lib/components/ui/button';
 
@@ -51,7 +52,7 @@
 					<span class={chip}>{profileName}</span>
 				{/if}
 				{#if title.requestedBy}
-					<span class={chip}>Requested</span>
+					<RequestedBy titleId={title.id} class={chip} />
 				{/if}
 				{#if !title.monitored}
 					<span class={chip}>Not monitored</span>

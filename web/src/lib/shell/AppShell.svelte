@@ -17,7 +17,12 @@
 
 	onMount(() => {
 		live.connect();
-		return () => live.close();
+		void shell.pendingRequests.load();
+		const stopPending = shell.pendingRequests.watch(live);
+		return () => {
+			stopPending();
+			live.close();
+		};
 	});
 </script>
 

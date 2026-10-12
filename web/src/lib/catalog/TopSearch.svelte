@@ -3,9 +3,14 @@
 	import { Input } from '$lib/components/ui/input';
 	import { SearchLayout } from './layout';
 	import SearchResults from './SearchResults.svelte';
+	import type { SearchRequests } from '$lib/requests/search-requests.svelte';
 	import type { TitleSearch } from './title-search.svelte';
 
-	let { search }: { search: TitleSearch } = $props();
+	let {
+		search,
+		requests,
+		actionLabel
+	}: { search: TitleSearch; requests: SearchRequests; actionLabel: string } = $props();
 
 	const ESCAPE_KEY = 'Escape';
 
@@ -44,7 +49,7 @@
 		<div
 			class="absolute top-11 right-0 z-50 max-h-[75vh] w-[36rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border bg-popover p-3 text-popover-foreground shadow-xl"
 		>
-			<SearchResults {search} layout={SearchLayout.POPOVER} />
+			<SearchResults {search} {requests} {actionLabel} layout={SearchLayout.POPOVER} />
 		</div>
 	{/if}
 </div>

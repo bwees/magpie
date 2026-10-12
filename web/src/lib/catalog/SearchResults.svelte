@@ -1,14 +1,30 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { SearchLayout } from './layout';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { CardState, type SearchRequests } from '$lib/requests/search-requests.svelte';
 	import { cn } from '$lib/utils';
 	import { ImageWidth, sizedImage, titlePath } from './images';
 	import PosterImage from './PosterImage.svelte';
 	import { LoadState, type TitleSearch } from './title-search.svelte';
 
-	let { search, layout }: { search: TitleSearch; layout: SearchLayout } = $props();
+	let {
+		search,
+		layout,
+		requests,
+		actionLabel
+	}: {
+		search: TitleSearch;
+		layout: SearchLayout;
+		requests: SearchRequests;
+		actionLabel: string;
+	} = $props();
+
+	onMount(() => {
+		void requests.load();
+	});
 
 	const GRID_COLUMNS: Record<SearchLayout, string> = {
 		[SearchLayout.POPOVER]: 'grid-cols-5',
@@ -71,13 +87,14 @@
 		{:else}
 			<ul class={cn('grid gap-3', GRID_COLUMNS[layout])}>
 				{#each search.tmdbItems as item (`${item.kind}-${item.tmdbId}`)}
+					{@const state = requests.stateOf(item)}
 					<li class="flex min-w-0 flex-col gap-1">
 						<PosterImage src={item.posterUrl} alt={item.name} />
 						<span class="truncate text-xs font-medium" title={item.name}>{item.name}</span>
 						<span class="text-[11px] text-muted-foreground">
 							{item.year || '—'} · {KIND_LABELS[item.kind] ?? item.kind}
 						</span>
-						{#if item.inLibrary && item.titleId}
+						{#if state === CardState.IN_LIBRARY && item.titleId}
 							<Badge
 								href={titlePath(item.titleId)}
 								variant="secondary"
@@ -86,9 +103,16 @@
 							>
 								In library
 							</Badge>
+						{:else if state === CardState.REQUESTED}
+							<Badge variant="outline" class="w-full">Requested</Badge>
 						{:else}
-							<Button size="xs" class="w-full" disabled title="Adding titles arrives with Requests">
-								Add
+							<Button
+								size="xs"
+								class="w-full"
+								disabled={requests.isSending(item)}
+								onclick={() => requests.request(item)}
+							>
+								{actionLabel}
 							</Button>
 						{/if}
 					</li>

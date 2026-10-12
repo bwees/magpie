@@ -6,9 +6,14 @@
 	import { Input } from '$lib/components/ui/input';
 	import { SearchLayout } from './layout';
 	import SearchResults from './SearchResults.svelte';
+	import type { SearchRequests } from '$lib/requests/search-requests.svelte';
 	import type { TitleSearch } from './title-search.svelte';
 
-	let { search }: { search: TitleSearch } = $props();
+	let {
+		search,
+		requests,
+		actionLabel
+	}: { search: TitleSearch; requests: SearchRequests; actionLabel: string } = $props();
 </script>
 
 <Button
@@ -53,7 +58,7 @@
 			</Button>
 		</div>
 		<div class="flex-1 overflow-y-auto p-4">
-			<SearchResults {search} layout={SearchLayout.OVERLAY} />
+			<SearchResults {search} {requests} {actionLabel} layout={SearchLayout.OVERLAY} />
 		</div>
 	</Dialog.Content>
 </Dialog.Root>
