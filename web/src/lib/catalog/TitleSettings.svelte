@@ -8,6 +8,7 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import { LoadStatus } from '$lib/load-status';
 	import ProfileSelect from '$lib/settings/quality/ProfileSelect.svelte';
+	import { TitleExclusion } from '$lib/transcode/title-exclusion.svelte';
 	import WantedLanguagesEditor from './WantedLanguagesEditor.svelte';
 	import type { TitlePage } from './title-page.svelte';
 	import {
@@ -22,6 +23,7 @@
 
 	const order = $derived(new EpisodeOrder(page));
 	const languages = $derived(new LanguageOverride(page));
+	const exclusion = $derived(new TitleExclusion(page.id));
 
 	const LANGUAGE_SOURCE_LABELS: Record<LanguageSource, string> = {
 		[LanguageSource.GLOBAL]: 'Use the global list',
@@ -29,10 +31,11 @@
 	};
 
 	$effect(() => {
-		const [currentOrder, currentLanguages] = [order, languages];
+		const [currentOrder, currentLanguages, currentExclusion] = [order, languages, exclusion];
 		untrack(() => {
 			if (page.isSeries) currentOrder.load();
 			currentLanguages.load();
+			currentExclusion.load();
 		});
 	});
 
@@ -121,6 +124,27 @@
 				</p>
 			</div>
 		{/if}
+
+		<div class="flex items-center justify-between gap-4">
+			<div>
+				<label for="title-transcode-excluded" class="text-sm font-medium"
+					>Exclude from transcoding</label
+				>
+				<p class="text-xs text-muted-foreground">
+					{#if exclusion.status === LoadStatus.ERROR}
+						<span class="text-destructive">{exclusion.error}</span>
+					{:else}
+						Keep this title's files as they are; queued transcodes are cancelled
+					{/if}
+				</p>
+			</div>
+			<Switch
+				id="title-transcode-excluded"
+				checked={exclusion.excluded}
+				disabled={exclusion.status !== LoadStatus.READY || exclusion.saving}
+				onCheckedChange={(checked) => exclusion.set(checked)}
+			/>
+		</div>
 
 		<div class="grid gap-2">
 			<span id="title-languages-label" class="text-sm font-medium">Subtitle languages</span>
