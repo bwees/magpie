@@ -1,13 +1,17 @@
 import { toast } from 'svelte-sonner';
-import { SvelteSet } from 'svelte/reactivity';
+import { SvelteMap } from 'svelte/reactivity';
 import {
 	apiErrorMessage,
 	cancelSearch,
 	getSearch,
 	grabRelease,
 	startSearch,
+	type DownloadProgressed,
 	type GrabRequest,
+	type GrabResponse,
 	type ReleaseDecision,
+	type ReleaseGrabbed,
+	type ReleaseRejected,
 	type SearchCompleted,
 	type SearchIndexerResponse,
 	type SearchProfileResponse,
@@ -27,7 +31,43 @@ export enum IndexerStatus {
 
 export enum SearchEventType {
 	RESULTS = 'acquisition.SearchResultsReceived',
-	COMPLETED = 'acquisition.SearchCompleted'
+	COMPLETED = 'acquisition.SearchCompleted',
+	GRABBED = 'acquisition.ReleaseGrabbed',
+	REJECTED = 'acquisition.ReleaseRejected',
+	PROGRESSED = 'acquisition.DownloadProgressed'
+}
+
+/** Where a grabbed release stands. Mirrors the Go `GrabStatus` values. */
+export enum GrabState {
+	/** The grab request is in flight, or a magnet waits for its file list. */
+	CHECKING = 'CHECKING',
+	DOWNLOADING = 'DOWNLOADING',
+	REJECTED = 'REJECTED'
+}
+
+/** Mirrors the Go `RejectionReason` values a grabbed release can be dropped for. */
+export enum DropReason {
+	BLOCKED_FILE = 'BLOCKED_FILE',
+	METADATA_TIMEOUT = 'METADATA_TIMEOUT',
+	STALLED = 'STALLED'
+}
+
+const AWAITING_METADATA = 'AWAITING_METADATA';
+
+function dropMessage(reason: string, blockedFile?: string): string {
+	switch (reason) {
+		case DropReason.BLOCKED_FILE:
+			return `Rejected: ${blockedFile ?? 'a file'} is a blocked file type`;
+		case DropReason.METADATA_TIMEOUT:
+			return 'Rejected: the file list never arrived';
+		case DropReason.STALLED:
+			return 'Rejected: the download stalled';
+	}
+	return 'Rejected: the download failed';
+}
+
+function nextMessage(next?: string): string {
+	return next ? 'Grabbing the next best release.' : 'Nothing else cached; searching again.';
 }
 
 export enum SearchPhase {
@@ -50,7 +90,7 @@ export interface SearchApi {
 	start(titleId: string): Promise<SearchResponse>;
 	get(searchId: string): Promise<SearchResponse>;
 	cancel(searchId: string): Promise<unknown>;
-	grab(searchId: string, request: GrabRequest): Promise<unknown>;
+	grab(searchId: string, request: GrabRequest): Promise<GrabResponse>;
 }
 
 export const ACQUISITION_SEARCH_API: SearchApi = {
@@ -88,7 +128,10 @@ export class InteractiveSearch {
 	/** Accepted release IDs, best first. */
 	order = $state<string[]>([]);
 	completed = $state(false);
-	readonly grabbing = new SvelteSet<string>();
+	/** Grab state by release ID, for releases grabbed by the user or by the fallback. */
+	readonly grabs = new SvelteMap<string, GrabState>();
+	/** The release behind each download this search grabbed. */
+	readonly #grabbedAs = new SvelteMap<string, string>();
 
 	readonly answered = $derived(
 		this.indexers.filter((i) => i.status !== IndexerStatus.PENDING).length
@@ -164,16 +207,85 @@ export class InteractiveSearch {
 		if (!id) {
 			return;
 		}
-		this.grabbing.add(release.release);
+		this.grabs.set(release.release, GrabState.CHECKING);
 		try {
-			await this.#api.grab(id, { releaseId: release.release, override: !isAccepted(release) });
-			toast.success('Grab sent', { description: release.name });
+			const result = await this.#api.grab(id, {
+				releaseId: release.release,
+				override: !isAccepted(release)
+			});
+			this.#applyGrab(release, result);
 		} catch (error) {
+			this.grabs.delete(release.release);
 			toast.error(apiErrorMessage(error, 'Could not grab the release.'), {
 				description: release.name
 			});
-		} finally {
-			this.grabbing.delete(release.release);
+		}
+	}
+
+	grabState(release: ReleaseDecision): GrabState | undefined {
+		return this.grabs.get(release.release);
+	}
+
+	#applyGrab(release: ReleaseDecision, result: GrabResponse): void {
+		if (result.download) {
+			this.#grabbedAs.set(result.download, release.release);
+		}
+		if (result.status === GrabState.REJECTED) {
+			this.#reject(release, DropReason.BLOCKED_FILE, result.blockedFile, result.next);
+			return;
+		}
+		if (this.grabs.get(release.release) === GrabState.CHECKING) {
+			this.grabs.set(release.release, result.status as GrabState);
+		}
+		if (result.status === GrabState.DOWNLOADING) {
+			toast.success('Downloading', { description: release.name });
+		}
+	}
+
+	/** Marks a release rejected once, however its rejection arrives first: the grab answer or the event. */
+	#reject(release: ReleaseDecision, reason: string, blockedFile?: string, next?: string): void {
+		if (this.grabs.get(release.release) === GrabState.REJECTED) {
+			return;
+		}
+		this.grabs.set(release.release, GrabState.REJECTED);
+		toast.error(dropMessage(reason, blockedFile), {
+			description: `${release.name}. ${nextMessage(next)}`
+		});
+	}
+
+	#releaseNamed(name: string, indexerName: string): ReleaseDecision | undefined {
+		return this.releases.find((r) => r.name === name && r.indexer === indexerName);
+	}
+
+	/** A grab this dialog didn't ask for is the fallback after a rejection. */
+	#onGrabbed(event: ReleaseGrabbed): void {
+		const release = this.#releaseNamed(event.release, event.indexer);
+		if (event.title !== this.#titleId || !release) {
+			return;
+		}
+		this.#grabbedAs.set(event.download, release.release);
+		if (!this.grabs.has(release.release)) {
+			this.grabs.set(release.release, GrabState.CHECKING);
+			toast.success('Grabbed the next best release', { description: release.name });
+		}
+	}
+
+	#onRejected(event: ReleaseRejected): void {
+		const release = this.#releaseNamed(event.release, event.indexer);
+		if (event.title !== this.#titleId || !release || !this.grabs.has(release.release)) {
+			return;
+		}
+		this.#reject(release, event.reason, event.blockedFile ?? undefined, event.next ?? undefined);
+	}
+
+	#onProgressed(event: DownloadProgressed): void {
+		const releaseId = this.#grabbedAs.get(event.download);
+		if (
+			releaseId &&
+			event.state !== AWAITING_METADATA &&
+			this.grabs.get(releaseId) === GrabState.CHECKING
+		) {
+			this.grabs.set(releaseId, GrabState.DOWNLOADING);
 		}
 	}
 
@@ -184,7 +296,8 @@ export class InteractiveSearch {
 		this.releases = [];
 		this.order = [];
 		this.completed = false;
-		this.grabbing.clear();
+		this.grabs.clear();
+		this.#grabbedAs.clear();
 	}
 
 	#watch(): void {
@@ -195,6 +308,11 @@ export class InteractiveSearch {
 		const stops = [
 			this.#live.on(SearchEventType.RESULTS, onResults),
 			this.#live.on(SearchEventType.COMPLETED, onCompleted),
+			this.#live.on(SearchEventType.GRABBED, (m) => this.#onGrabbed(m.data as ReleaseGrabbed)),
+			this.#live.on(SearchEventType.REJECTED, (m) => this.#onRejected(m.data as ReleaseRejected)),
+			this.#live.on(SearchEventType.PROGRESSED, (m) =>
+				this.#onProgressed(m.data as DownloadProgressed)
+			),
 			this.#live.onReset(() => void this.#refresh())
 		];
 		this.#unwatch = () => stops.forEach((stop) => stop());

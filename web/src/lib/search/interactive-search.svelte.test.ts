@@ -5,12 +5,17 @@ import type { LiveHandler, ResetListener } from '$lib/live/live-connection';
 import { searchTopic, type LiveMessage } from '$lib/live/protocol';
 import type {
 	GrabRequest,
+	GrabResponse,
 	ReleaseDecision,
+	ReleaseGrabbed,
+	ReleaseRejected,
 	SearchIndexerResponse,
 	SearchResponse,
 	SearchResultsReceived
 } from '$lib/sdk';
 import {
+	DropReason,
+	GrabState,
 	IndexerStatus,
 	InteractiveSearch,
 	SearchEventType,
@@ -25,7 +30,24 @@ const TITLE = '01TITLE';
 const SEARCH = '01SEARCH';
 const WEB_1080P = 3;
 const WEB_720P = 5;
-const NOT_IMPLEMENTED = 501;
+const BAD_GATEWAY = 502;
+const DOWNLOAD = '01DOWNLOAD';
+const NEXT_DOWNLOAD = '01NEXT';
+
+function grabbedEvent(r: ReleaseDecision, download: string): ReleaseGrabbed {
+	return {
+		download,
+		title: TITLE,
+		episodes: [],
+		release: r.name,
+		indexer: r.indexer,
+		infoHash: '',
+		quality: r.quality,
+		cfScore: r.cfScore,
+		trigger: 'INTERACTIVE',
+		override: false
+	};
+}
 
 function release(id: string, rank: number, change: Partial<ReleaseDecision> = {}): ReleaseDecision {
 	return {
@@ -136,9 +158,15 @@ class FakeApi implements SearchApi {
 		return undefined;
 	}
 
-	async grab(_id: string, request: GrabRequest): Promise<unknown> {
+	/** The answer to the next grab, or an error to throw. */
+	answer: GrabResponse | HttpError = { status: GrabState.CHECKING, download: DOWNLOAD };
+
+	async grab(_id: string, request: GrabRequest): Promise<GrabResponse> {
 		this.grabs.push(request);
-		throw new HttpError(NOT_IMPLEMENTED, { detail: "Grabbing isn't available yet" }, new Headers());
+		if (this.answer instanceof HttpError) {
+			throw this.answer;
+		}
+		return this.answer;
 	}
 }
 
@@ -148,6 +176,7 @@ describe('InteractiveSearch', () => {
 	let search: InteractiveSearch;
 
 	beforeEach(() => {
+		vi.clearAllMocks();
 		live = new FakeLive();
 		api = new FakeApi();
 		search = new InteractiveSearch(TITLE, live, api);
@@ -232,6 +261,11 @@ describe('InteractiveSearch', () => {
 	it('sends override for a rejected release and shows why a grab failed', async () => {
 		await search.start();
 		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1), rejected('r')]);
+		api.answer = new HttpError(
+			BAD_GATEWAY,
+			{ detail: 'qBittorrent is unreachable' },
+			new Headers()
+		);
 
 		await search.grab(search.accepted[0]);
 		await search.grab(search.rejected[0]);
@@ -240,8 +274,85 @@ describe('InteractiveSearch', () => {
 			{ releaseId: 'a', override: false },
 			{ releaseId: 'r', override: true }
 		]);
-		expect(toast.error).toHaveBeenCalledWith("Grabbing isn't available yet", expect.anything());
-		expect(search.grabbing.size).toBe(0);
+		expect(toast.error).toHaveBeenCalledWith('qBittorrent is unreachable', expect.anything());
+		expect(search.grabs.size).toBe(0);
+	});
+
+	it('checks a magnet, then shows it downloading once its metadata passed', async () => {
+		await search.start();
+		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1)]);
+		const [grabbed] = search.accepted;
+
+		await search.grab(grabbed);
+		expect(search.grabState(grabbed)).toBe(GrabState.CHECKING);
+
+		live.emit(SearchEventType.PROGRESSED, { download: DOWNLOAD, state: 'AWAITING_METADATA' });
+		expect(search.grabState(grabbed)).toBe(GrabState.CHECKING);
+		live.emit(SearchEventType.PROGRESSED, { download: DOWNLOAD, state: 'DOWNLOADING' });
+		expect(search.grabState(grabbed)).toBe(GrabState.DOWNLOADING);
+	});
+
+	it('shows a blocked release rejected once and marks the fallback grab', async () => {
+		await search.start();
+		live.results('Nyaa', IndexerStatus.DONE, [release('a', 2), release('b', 1)]);
+		const [first, next] = search.accepted;
+		api.answer = { status: GrabState.REJECTED, blockedFile: 'Movie.exe', next: NEXT_DOWNLOAD };
+
+		const rejection: ReleaseRejected = {
+			title: TITLE,
+			release: first.name,
+			indexer: first.indexer,
+			infoHash: 'h',
+			reason: DropReason.BLOCKED_FILE,
+			blockedFile: 'Movie.exe',
+			next: NEXT_DOWNLOAD
+		};
+		live.emit(SearchEventType.GRABBED, grabbedEvent(next, NEXT_DOWNLOAD));
+		await search.grab(first);
+		live.emit(SearchEventType.REJECTED, rejection);
+
+		expect(search.grabState(first)).toBe(GrabState.REJECTED);
+		expect(search.grabState(next)).toBe(GrabState.CHECKING);
+		expect(toast.error).toHaveBeenCalledTimes(1);
+		expect(toast.error).toHaveBeenCalledWith(
+			'Rejected: Movie.exe is a blocked file type',
+			expect.anything()
+		);
+	});
+
+	it('rejects a checked magnet when its rejection arrives later', async () => {
+		await search.start();
+		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1)]);
+		const [grabbed] = search.accepted;
+		await search.grab(grabbed);
+
+		live.emit(SearchEventType.REJECTED, {
+			title: TITLE,
+			release: grabbed.name,
+			indexer: grabbed.indexer,
+			infoHash: 'h',
+			reason: DropReason.METADATA_TIMEOUT,
+			blockedFile: null,
+			next: null
+		} satisfies ReleaseRejected);
+
+		expect(search.grabState(grabbed)).toBe(GrabState.REJECTED);
+		expect(toast.error).toHaveBeenCalledWith(
+			'Rejected: the file list never arrived',
+			expect.objectContaining({ description: expect.stringContaining('searching again') })
+		);
+	});
+
+	it('ignores grabs of other titles', async () => {
+		await search.start();
+		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1)]);
+
+		live.emit(SearchEventType.GRABBED, {
+			...grabbedEvent(search.accepted[0], DOWNLOAD),
+			title: 'other'
+		});
+
+		expect(search.grabs.size).toBe(0);
 	});
 
 	it('cancels a running search when it stops, but not a finished one', async () => {

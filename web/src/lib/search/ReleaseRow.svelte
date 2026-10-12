@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { fly } from 'svelte/transition';
+	import Ban from '@lucide/svelte/icons/ban';
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Download from '@lucide/svelte/icons/download';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Star from '@lucide/svelte/icons/star';
 	import { Button } from '$lib/components/ui/button';
 	import type { ReleaseDecision } from '$lib/sdk';
 	import { formatSize } from './format';
-	import { isAccepted, type InteractiveSearch } from './interactive-search.svelte';
+	import { GrabState, isAccepted, type InteractiveSearch } from './interactive-search.svelte';
 
 	let {
 		search,
@@ -19,7 +21,7 @@
 
 	const rejected = $derived(!isAccepted(release));
 	const reasons = $derived((release.rejections ?? []).map((r) => r.message).join(' · '));
-	const checking = $derived(search.grabbing.has(release.release));
+	const grabState = $derived(search.grabState(release));
 </script>
 
 <div
@@ -72,9 +74,17 @@
 		<span class="tabular-nums md:w-12 md:text-right" title="Seeders">↑{release.seeders}</span>
 		<span class="truncate md:w-28">{release.indexer}</span>
 	</div>
-	{#if checking}
+	{#if grabState === GrabState.CHECKING}
 		<Button size="sm" variant="outline" disabled>
 			<LoaderCircle class="animate-spin" />Checking…
+		</Button>
+	{:else if grabState === GrabState.DOWNLOADING}
+		<Button size="sm" variant="outline" class="border-primary/50 text-primary" disabled>
+			<CircleCheck />Downloading
+		</Button>
+	{:else if grabState === GrabState.REJECTED}
+		<Button size="sm" variant="outline" class="border-destructive/50 text-destructive" disabled>
+			<Ban />Rejected
 		</Button>
 	{:else}
 		<Button

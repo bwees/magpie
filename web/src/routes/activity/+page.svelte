@@ -1,11 +1,13 @@
 <script lang="ts">
 	import * as Tabs from '$lib/components/ui/tabs';
 	import HistoryTab from '$lib/activity/HistoryTab.svelte';
+	import BlocklistTab from '$lib/downloads/BlocklistTab.svelte';
+	import DownloadsTab from '$lib/downloads/DownloadsTab.svelte';
 	import AgentsTab from '$lib/transcode/AgentsTab.svelte';
 	import { ACTIVITY_TABS, ActivityTab, TAB_LABELS } from '$lib/activity/activity-tabs';
 	import { NAV_ITEMS } from '$lib/navigation/nav';
 
-	let tab = $state(ActivityTab.HISTORY);
+	let tab = $state(ActivityTab.DOWNLOADS);
 </script>
 
 <svelte:head>
@@ -22,7 +24,11 @@
 	</div>
 	{#each ACTIVITY_TABS as value (value)}
 		<Tabs.Content {value}>
-			{#if value === ActivityTab.HISTORY}
+			{#if value === ActivityTab.DOWNLOADS}
+				<DownloadsTab />
+			{:else if value === ActivityTab.BLOCKLIST}
+				<BlocklistTab />
+			{:else if value === ActivityTab.HISTORY}
 				<HistoryTab />
 			{:else if value === ActivityTab.AGENTS}
 				<AgentsTab />
