@@ -38,12 +38,10 @@ type JobView struct {
 	FinishedAt *time.Time
 }
 
-// JobList is a page of jobs with the queue's totals.
+// JobList is a page of jobs with the jobs per state.
 type JobList struct {
 	Jobs   []JobView
 	Counts map[api.JobState]int
-	// Backlog is the queued jobs of files found by a library scan or a migration.
-	Backlog int
 }
 
 const defaultJobListLimit = 200
@@ -58,11 +56,6 @@ func (s *JobService) Jobs(ctx context.Context, filter JobFilter) (JobList, error
 		return JobList{}, err
 	}
 	counts, err := s.deps.Jobs.counts(ctx)
-	if err != nil {
-		return JobList{}, err
-	}
-	var backlog int64
-	err = s.deps.DB.Read(ctx).Model(&jobRow{}).Where("state = ? AND kind = ? AND origin <> ?", api.StateQueued, api.JobKindTranscode, domain.OriginDownload).Count(&backlog).Error
 	if err != nil {
 		return JobList{}, err
 	}
@@ -83,7 +76,7 @@ func (s *JobService) Jobs(ctx context.Context, filter JobFilter) (JobList, error
 		}
 		views = append(views, view)
 	}
-	return JobList{Jobs: views, Counts: counts, Backlog: int(backlog)}, nil
+	return JobList{Jobs: views, Counts: counts}, nil
 }
 
 // Job returns one job as the list shows it.

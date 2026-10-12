@@ -11,6 +11,7 @@ import (
 	"magpie/internal/domain"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
+	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/settings"
 	"magpie/internal/transcode/api"
 	"magpie/internal/transcode/api/agentproto"
@@ -57,20 +58,32 @@ type AgentService struct {
 	repo    *AgentRepository
 	hub     *AgentHub
 	store   *settings.Store
+	queue   jobs.Enqueuer
 	timings Timings
 	now     func() time.Time
 }
 
-func NewAgentService(d *db.DB, b *bus.Bus, repo *AgentRepository, hub *AgentHub, store *settings.Store, timings Timings) *AgentService {
+func NewAgentService(d *db.DB, b *bus.Bus, repo *AgentRepository, hub *AgentHub, store *settings.Store, queue jobs.Enqueuer, timings Timings) *AgentService {
 	return &AgentService{
 		db:      d,
 		bus:     b,
 		repo:    repo,
 		hub:     hub,
 		store:   store,
+		queue:   queue,
 		timings: timings,
 		now:     func() time.Time { return time.Now().UTC() },
 	}
+}
+
+// rememberPassed records the capabilities the devices passed. The first agent to pass a target's test
+// encode sweeps the files skipped for want of one.
+func (s *AgentService) rememberPassed(tx *gorm.DB, id domain.AgentID, devices []agentproto.DeviceReport) error {
+	first, err := s.repo.recordPassed(tx, id, devices, s.now())
+	if err != nil || !liftsNoCapableAgent(first) {
+		return err
+	}
+	return s.queue.EnqueueTx(tx, sweepTask{Reason: api.SkipNoCapableAgent})
 }
 
 // Connect registers the agent on its first Hello, refreshes it on later ones, and returns its Welcome.
@@ -80,6 +93,9 @@ func (s *AgentService) Connect(ctx context.Context, hello agentproto.Hello) (age
 	err := s.db.Write(ctx, func(tx *gorm.DB) error {
 		wasOnline, err := s.repo.register(tx, hello, s.now(), s.timings.RetestDelay)
 		if err != nil {
+			return err
+		}
+		if err := s.rememberPassed(tx, hello.AgentID, hello.Devices); err != nil {
 			return err
 		}
 		if !wasOnline {
@@ -111,7 +127,10 @@ func (s *AgentService) Heartbeat(ctx context.Context, id domain.AgentID, heartbe
 // CapabilitiesChanged stores the results of a retest. A device that passes again becomes healthy.
 func (s *AgentService) CapabilitiesChanged(ctx context.Context, id domain.AgentID, changed agentproto.CapabilitiesChanged) error {
 	return s.db.Write(ctx, func(tx *gorm.DB) error {
-		return s.repo.saveDevices(tx, id, changed.Devices, s.now(), s.timings.RetestDelay)
+		if err := s.repo.saveDevices(tx, id, changed.Devices, s.now(), s.timings.RetestDelay); err != nil {
+			return err
+		}
+		return s.rememberPassed(tx, id, changed.Devices)
 	})
 }
 

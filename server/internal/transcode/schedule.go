@@ -31,11 +31,11 @@ func (s *JobService) Schedule(ctx context.Context) error {
 	}
 	s.startPrefetched(ctx, &fleet, prefetched)
 
-	queued, rows, err := s.queued(ctx)
+	policy, err := policyKey.Get(ctx, s.deps.Store)
 	if err != nil {
 		return err
 	}
-	policy, err := policyKey.Get(ctx, s.deps.Store)
+	queued, rows, err := s.queued(ctx, policy.Enabled)
 	if err != nil {
 		return err
 	}
@@ -147,12 +147,16 @@ func (s *JobService) startPrefetched(ctx context.Context, fleet *Fleet, prefetch
 	}
 }
 
-// queued lists the jobs that may be offered now, in offer order.
-func (s *JobService) queued(ctx context.Context) ([]QueuedJob, map[domain.JobID]jobRow, error) {
+// queued lists the jobs that may be offered now, in offer order. Transcodes wait while transcoding is
+// turned off.
+func (s *JobService) queued(ctx context.Context, transcoding bool) ([]QueuedJob, map[domain.JobID]jobRow, error) {
 	now := s.now()
 	var rows []jobRow
-	err := s.deps.DB.Read(ctx).Where("state = ? AND (not_before IS NULL OR not_before <= ?)", api.StateQueued, now).
-		Order(offerOrder).Find(&rows).Error
+	q := s.deps.DB.Read(ctx).Where("state = ? AND (not_before IS NULL OR not_before <= ?)", api.StateQueued, now)
+	if !transcoding {
+		q = q.Where("kind <> ?", api.JobKindTranscode)
+	}
+	err := q.Order(offerOrder).Find(&rows).Error
 	if err != nil {
 		return nil, nil, err
 	}
@@ -170,6 +174,7 @@ func (s *JobService) queued(ctx context.Context) ([]QueuedJob, map[domain.JobID]
 			ExcludedAgents: excluded,
 			SourceSize:     row.SourceSize,
 			LastAgent:      row.LastAgentID,
+			Backlog:        row.backlog(),
 		}
 		if row.AvoidAgentID != nil && row.AvoidUntil != nil && row.AvoidUntil.After(now) {
 			job.Avoid = row.AvoidAgentID
@@ -222,7 +227,11 @@ func (s *JobService) offer(ctx context.Context, row jobRow, offer Offer, agent a
 		}
 		spec.Kind, spec.Whisper = agentproto.KindWhisper, &params
 	} else {
-		params, err := transcodeParams(policy, row.plan(), agentproto.Vendor(device.Vendor), source.MediaInfo)
+		keep, err := languagesToKeep(ctx, s.deps.Catalog, row.TitleID)
+		if err != nil {
+			return err
+		}
+		params, err := transcodeParams(policy, row.plan(), agentproto.Vendor(device.Vendor), source.MediaInfo, keep)
 		if err != nil {
 			return err
 		}

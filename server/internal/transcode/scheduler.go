@@ -28,6 +28,8 @@ type QueuedJob struct {
 	Avoid *domain.AgentID
 	// ResumableOn still holds the job's scratch from before a restart.
 	ResumableOn *domain.AgentID
+	// Backlog jobs take only slots no other waiting job could use.
+	Backlog bool
 }
 
 // Fleet is the agents the scheduler can offer to and the jobs they already run.
@@ -105,7 +107,8 @@ type planner struct {
 }
 
 // Plan offers each job, in the order given, to the best free slot (scheduler step 3), then gives each
-// busy download-first agent one job to prefetch.
+// busy download-first agent one job to prefetch. A backlog job never takes a slot, or a prefetch, that a
+// waiting job ahead of the backlog could use, even one kept from that agent for a moment (step 4).
 func Plan(jobs []QueuedJob, fleet Fleet) []Offer {
 	p := planner{
 		fleet:    fleet,
@@ -125,11 +128,18 @@ func Plan(jobs []QueuedJob, fleet Fleet) []Offer {
 	}
 
 	var offers []Offer
-	var waiting []QueuedJob
+	var waiting, waitingAhead []QueuedJob
 	for _, job := range jobs {
-		slot, ok := p.best(job, p.freeSlots())
+		slots := p.freeSlots()
+		if job.Backlog {
+			slots = p.spare(slots, waitingAhead)
+		}
+		slot, ok := p.best(job, slots)
 		if !ok {
 			waiting = append(waiting, job)
+			if !job.Backlog {
+				waitingAhead = append(waitingAhead, job)
+			}
 			continue
 		}
 		offers = append(offers, p.take(job, slot, false))
@@ -139,7 +149,11 @@ func Plan(jobs []QueuedJob, fleet Fleet) []Offer {
 		prefetching[agent] = holds
 	}
 	for _, job := range waiting {
-		slot, ok := p.best(job, p.prefetchSlots(prefetching))
+		slots := p.prefetchSlots(prefetching)
+		if job.Backlog {
+			slots = p.spare(slots, waitingAhead)
+		}
+		slot, ok := p.best(job, slots)
 		if !ok {
 			continue
 		}
@@ -203,13 +217,24 @@ func (p *planner) best(job QueuedJob, slots []SlotKey) (SlotKey, bool) {
 }
 
 func (p *planner) fits(job QueuedJob, key SlotKey) bool {
-	agent := p.agents[key.Agent]
 	resumable := job.ResumableOn != nil && *job.ResumableOn == key.Agent
 	avoided := job.Avoid != nil && *job.Avoid == key.Agent && !resumable
+	return p.couldUse(job, key) && !avoided
+}
+
+// couldUse is fits without the short avoid window.
+func (p *planner) couldUse(job QueuedJob, key SlotKey) bool {
+	agent := p.agents[key.Agent]
 	return p.passedBy[key][job.Needs] &&
 		!slices.Contains(job.ExcludedAgents, key.Agent) &&
-		!avoided &&
 		p.scratch[key.Agent] >= scratchNeeded(agent.Mode, job.SourceSize)
+}
+
+// spare drops the slots a waiting job ahead of the backlog could use.
+func (p *planner) spare(slots []SlotKey, ahead []QueuedJob) []SlotKey {
+	return slices.DeleteFunc(slots, func(key SlotKey) bool {
+		return slices.ContainsFunc(ahead, func(job QueuedJob) bool { return p.couldUse(job, key) })
+	})
 }
 
 func (p *planner) take(job QueuedJob, slot SlotKey, prefetch bool) Offer {

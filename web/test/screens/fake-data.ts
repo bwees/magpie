@@ -624,6 +624,7 @@ function job(overrides: Partial<JobResponse>): JobResponse {
 
 export const JOBS: JobListResponse = {
 	backlog: 38,
+	skipped: {},
 	counts: {},
 	jobs: [
 		job({}),

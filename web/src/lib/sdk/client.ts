@@ -1015,6 +1015,17 @@ export type UpdateAgentRequest = {
 export type RetestResponse = {
     agent: string;
 };
+export type BacklogResponse = {
+    backlog: number;
+    eligible: number;
+    skipped: {
+        [key: string]: number;
+    };
+};
+export type ExclusionResponse = {
+    ref: string;
+    scope: string;
+};
 export type JobResponse = {
     agent: string | null;
     agentName: string;
@@ -1044,18 +1055,59 @@ export type JobListResponse = {
         [key: string]: number;
     };
     jobs: JobResponse[];
+    skipped: {
+        [key: string]: number;
+    };
 };
 export type AgentSecretResponse = {
     configured: boolean;
     masked: string;
     secret: string;
 };
+export type EncoderCalibrationResponse = {
+    encoder: string;
+    max: number;
+    min: number;
+    presets: {
+        [key: string]: number;
+    };
+    qualityArg: string;
+};
 export type TranscodeSettingsResponse = {
+    bitrateCapsMbps: {
+        [key: string]: number;
+    };
     defaultSlotsPerGpu: number;
+    enabled: boolean;
+    encoderOverrides: {
+        [key: string]: number;
+    };
+    encoders: EncoderCalibrationResponse[];
+    lowBitratePct: number;
+    minSavingPct: number;
+    preset: string;
+    skipAlreadyTarget: boolean;
+    skipLowBitrate: boolean;
+    targetCodec: string;
     transferCap: number;
 };
 export type UpdateTranscodeSettingsRequest = {
+    bitrateCapsMbps: {
+        [key: string]: number;
+    };
     defaultSlotsPerGpu: number;
+    enabled: boolean;
+    encoderOverrides: {
+        [key: string]: number;
+    } | {
+        [key: string]: number;
+    };
+    lowBitratePct: number;
+    minSavingPct: number;
+    preset: string;
+    skipAlreadyTarget: boolean;
+    skipLowBitrate: boolean;
+    targetCodec: string;
     transferCap: number;
 };
 export type AgentOffline = {
@@ -4549,6 +4601,119 @@ export function retestAgent(id: string, { accept }: {
     }));
 }
 /**
+ * Queued backlog jobs, eligible files and skips per reason (admin)
+ */
+export function getTranscodeBacklog({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BacklogResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/transcode/backlog", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Re-evaluate every eligible and skipped file against the current policy, in the background (admin)
+ */
+export function sweepTranscodeBacklog({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: BacklogResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/transcode/backlog/sweep", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Titles and root folders kept out of transcoding (admin)
+ */
+export function listTranscodeExclusions({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ExclusionResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/transcode/exclusions", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * End an exclusion and evaluate its files again (admin)
+ */
+export function includeInTranscoding(scope: string, ref: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/transcode/exclusions/${encodeURIComponent(scope)}/${encodeURIComponent(ref)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Keep a title or root folder out of transcoding; its queued jobs are cancelled (admin)
+ */
+export function excludeFromTranscoding(scope: string, ref: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ExclusionResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/transcode/exclusions/${encodeURIComponent(scope)}/${encodeURIComponent(ref)}`, {
+        ...opts,
+        method: "PUT",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
  * Jobs agents hold, then queued jobs in offer order, then finished ones (admin)
  */
 export function listTranscodeJobs({ state, kind, limit, accept }: {
@@ -4668,7 +4833,7 @@ export function getTranscodeSettings({ accept }: {
     }));
 }
 /**
- * Update transcode settings (admin)
+ * Update transcode settings; a policy change re-evaluates the backlog (admin)
  */
 export function updateTranscodeSettings(updateTranscodeSettingsRequest: UpdateTranscodeSettingsRequest, { accept }: {
     accept?: string;

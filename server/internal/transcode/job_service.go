@@ -12,13 +12,11 @@ import (
 	"slices"
 	"time"
 
-	acquisitionapi "magpie/internal/acquisition/api"
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
-	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/settings"
 	"magpie/internal/transcode/api"
 	"magpie/internal/transcode/api/agentproto"
@@ -47,7 +45,7 @@ type JobDeps struct {
 	Catalog  catalogapi.Reader
 	Files    FileStat
 	Prober   MediaProber
-	Queue    jobs.Enqueuer
+	Queue    TaskQueue
 	Gate     *TransferGate
 	Lifetime *Lifetime
 	Wake     *Wake
@@ -82,62 +80,6 @@ func (s *JobService) afterCommit(tx *gorm.DB, fn func(ctx context.Context)) erro
 
 func (s *JobService) kickAfterCommit(tx *gorm.DB) error {
 	return db.AfterCommit(tx, s.deps.Wake.Kick)
-}
-
-// QueueOnCutoff makes a file eligible and queues its transcode unless a job is already open or the
-// minimal policy skips it. Ticket 25 adds the remaining skip rules.
-func (s *JobService) QueueOnCutoff(ctx context.Context, tx *gorm.DB, met acquisitionapi.CutoffMet) error {
-	now := s.now()
-	eligible := eligibleFileRow{MediaFileID: met.File, TitleID: met.Title, Origin: met.Origin, CutoffMetAt: now}
-	if err := tx.Save(&eligible).Error; err != nil {
-		return err
-	}
-	if _, open, err := openJobFor(tx, met.File, api.JobKindTranscode); err != nil || open {
-		return err
-	}
-	file, err := s.deps.Library.File(ctx, met.File)
-	if errors.Is(err, libraryapi.ErrNotFound) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	policy, err := policyKey.GetTx(tx)
-	if err != nil {
-		return err
-	}
-	if skip, ok, err := skipFor(tx, met.File); err != nil || (ok && skip.PolicyHash == policy.Hash()) {
-		return err
-	}
-	if policy.AlreadyTarget(file.MediaInfo) {
-		return s.skip(tx, met.File, api.SkipAlreadyTarget, "The video is already "+string(policy.TargetCodec), policy)
-	}
-
-	row := jobRow{
-		ID:             domain.NewID[domain.JobID](),
-		Kind:           api.JobKindTranscode,
-		MediaFileID:    met.File,
-		TitleID:        met.Title,
-		Origin:         met.Origin,
-		State:          api.StateQueued,
-		Priority:       transcodePriority(met.Origin),
-		Attempt:        1,
-		TargetCodec:    policy.TargetCodec,
-		MaxRateKbps:    policy.MaxRateKbps(file.MediaInfo.Width, file.MediaInfo.Height),
-		HDR10:          file.MediaInfo.HDR == libraryapi.HDR10,
-		ExcludedAgents: emptyAgents,
-		SourceSize:     file.Size,
-		QueuedAt:       now,
-		UpdatedAt:      now,
-	}
-	if err := tx.Create(&row).Error; err != nil {
-		return err
-	}
-	queued := api.JobQueued{Job: row.ID, Kind: row.Kind, MediaFile: row.MediaFileID, Title: row.TitleID, Origin: row.Origin}
-	if err := s.deps.Bus.Publish(tx, bus.EventOf(queued)); err != nil {
-		return err
-	}
-	return s.kickAfterCommit(tx)
 }
 
 const emptyAgents = "[]"
@@ -184,14 +126,6 @@ func (s *JobService) QueueWhisper(ctx context.Context, tx *gorm.DB, run api.RunA
 		return err
 	}
 	return s.kickAfterCommit(tx)
-}
-
-func (s *JobService) skip(tx *gorm.DB, file domain.MediaFileID, reason api.SkipReason, detail string, policy Policy) error {
-	row := skipRow{MediaFileID: file, Reason: reason, Detail: detail, PolicyHash: policy.Hash(), SkippedAt: s.now()}
-	if err := saveSkip(tx, row); err != nil {
-		return err
-	}
-	return s.deps.Bus.Publish(tx, bus.EventOf(api.TranscodeSkipped{MediaFile: file, Reason: reason, Detail: detail}))
 }
 
 // Accept leases an offered job to the agent that accepted it. An agent accepting a job that isn't
@@ -550,6 +484,9 @@ func (s *JobService) CancelForFile(tx *gorm.DB, file domain.MediaFileID, reason 
 	if err := tx.Where("media_file_id = ?", file).Delete(&eligibleFileRow{}).Error; err != nil {
 		return err
 	}
+	if err := deleteSkip(tx, file); err != nil {
+		return err
+	}
 	rows, err := openJobsWhere(tx, "media_file_id = ?", file)
 	if err != nil {
 		return err
@@ -564,6 +501,10 @@ func (s *JobService) CancelForFile(tx *gorm.DB, file domain.MediaFileID, reason 
 
 // CancelForTitle cancels the jobs of every file of a removed title and drops its exclusion.
 func (s *JobService) CancelForTitle(tx *gorm.DB, title domain.TitleID) error {
+	files := tx.Model(&eligibleFileRow{}).Select("media_file_id").Where("title_id = ?", title)
+	if err := tx.Where("media_file_id IN (?)", files).Delete(&skipRow{}).Error; err != nil {
+		return err
+	}
 	if err := tx.Where("title_id = ?", title).Delete(&eligibleFileRow{}).Error; err != nil {
 		return err
 	}

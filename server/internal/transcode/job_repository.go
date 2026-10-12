@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	jobsTable          = "transcode_jobs"
-	attemptsTable      = "transcode_job_attempts"
-	eligibleFilesTable = "transcode_eligible_files"
-	exclusionsTable    = "transcode_exclusions"
-	skipsTable         = "transcode_skips"
+	jobsTable               = "transcode_jobs"
+	attemptsTable           = "transcode_job_attempts"
+	eligibleFilesTable      = "transcode_eligible_files"
+	exclusionsTable         = "transcode_exclusions"
+	skipsTable              = "transcode_skips"
+	passedCapabilitiesTable = "transcode_passed_capabilities"
 
 	newestJobsFirst = "queued_at DESC, id DESC"
 	offerOrder      = "priority DESC, queued_at, id"
@@ -65,6 +66,7 @@ type jobRow struct {
 	TargetCodec    api.TargetCodec
 	MaxRateKbps    int
 	HDR10          bool            `gorm:"column:hdr10"`
+	PolicyHash     string          // TRANSCODE jobs: the policy they were queued under
 	Language       domain.Language // WHISPER jobs only, like WhisperModel
 	WhisperModel   string
 	AgentID        *domain.AgentID
@@ -134,7 +136,12 @@ func (r jobRow) result() (agentproto.JobResult, error) {
 }
 
 func (r jobRow) plan() jobPlan {
-	return jobPlan{TargetCodec: r.TargetCodec, MaxRateKbps: r.MaxRateKbps, HDR10: r.HDR10}
+	return jobPlan{TargetCodec: r.TargetCodec, MaxRateKbps: r.MaxRateKbps, HDR10: r.HDR10, PolicyHash: r.PolicyHash}
+}
+
+// backlog is a transcode of a file a library scan or a migration found; it runs on spare slots only.
+func (r jobRow) backlog() bool {
+	return r.Kind == api.JobKindTranscode && r.Origin != domain.OriginDownload
 }
 
 func encodeJSON(v any) (*string, error) {
@@ -387,4 +394,62 @@ func skipFor(tx *gorm.DB, file domain.MediaFileID) (skipRow, bool, error) {
 
 func saveSkip(tx *gorm.DB, row skipRow) error {
 	return tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&row).Error
+}
+
+func deleteSkip(tx *gorm.DB, file domain.MediaFileID) error {
+	return tx.Where("media_file_id = ?", file).Delete(&skipRow{}).Error
+}
+
+// doneUnderPolicy reports whether Magpie transcoded the file, or found it not worth it, under the policy.
+func doneUnderPolicy(tx *gorm.DB, file domain.MediaFileID, policyHash string) (bool, error) {
+	var skips int64
+	err := tx.Model(&skipRow{}).Where("media_file_id = ? AND reason = ? AND policy_hash = ?", file, api.SkipNotWorthIt, policyHash).
+		Count(&skips).Error
+	if err != nil || skips > 0 {
+		return skips > 0, err
+	}
+	var swapped int64
+	err = tx.Model(&jobRow{}).Where("media_file_id = ? AND kind = ? AND state = ? AND policy_hash = ?",
+		file, api.JobKindTranscode, api.StateSwapped, policyHash).Count(&swapped).Error
+	return swapped > 0, err
+}
+
+// excludedFile reports whether the title or the root folder holding the file is excluded.
+func excludedFile(tx *gorm.DB, title domain.TitleID, rootFolder string) (bool, error) {
+	var n int64
+	err := tx.Model(&exclusionRow{}).
+		Where("(scope = ? AND ref = ?) OR (scope = ? AND ref = ?)", ExcludeTitle, title, ExcludeRootFolder, cleanFolder(rootFolder)).
+		Count(&n).Error
+	return n > 0, err
+}
+
+// skipCounts counts the skipped files that are still eligible, per reason.
+func skipCounts(conn *gorm.DB) (map[api.SkipReason]int, error) {
+	var rows []struct {
+		Reason api.SkipReason
+		N      int
+	}
+	err := conn.Model(&skipRow{}).Select("reason, COUNT(*) AS n").
+		Where("media_file_id IN (?)", conn.Model(&eligibleFileRow{}).Select("media_file_id")).
+		Group("reason").Scan(&rows).Error
+	counts := map[api.SkipReason]int{}
+	for _, row := range rows {
+		counts[row.Reason] = row.N
+	}
+	return counts, err
+}
+
+type passedCapabilityRow struct {
+	Capability agentproto.Capability `gorm:"primaryKey"`
+	AgentID    domain.AgentID
+	PassedAt   time.Time
+}
+
+func (passedCapabilityRow) TableName() string { return passedCapabilitiesTable }
+
+// everPassed reports whether any agent, online or not, has passed the capability.
+func everPassed(tx *gorm.DB, c agentproto.Capability) (bool, error) {
+	var n int64
+	err := tx.Model(&passedCapabilityRow{}).Where("capability = ?", c).Count(&n).Error
+	return n > 0, err
 }

@@ -5,10 +5,12 @@ import type {
 	PipelineRowResponse,
 	RequestResponse,
 	TitleCoverageResponse,
-	TitleResponse
+	TitleResponse,
+	TranscodeSettingsResponse
 } from '$lib/sdk';
 import { Stage } from '$lib/activity/pipeline';
 import { MediaKind } from '$lib/catalog/title-page.svelte';
+import { Preset, ResolutionClass, TargetCodec } from '$lib/transcode/transcode-settings';
 
 // Complete API responses for manager tests; each takes the fields a test cares about.
 
@@ -142,6 +144,56 @@ export function media(overrides: Partial<DiscoverDetailResponse> = {}): Discover
 		inLibrary: false,
 		titleId: null,
 		seasons: [],
+		...overrides
+	};
+}
+
+export function transcodeSettings(
+	overrides: Partial<TranscodeSettingsResponse> = {}
+): TranscodeSettingsResponse {
+	return {
+		enabled: true,
+		targetCodec: TargetCodec.HEVC_10,
+		preset: Preset.HIGH,
+		bitrateCapsMbps: {
+			[ResolutionClass.UHD]: 25,
+			[ResolutionClass.FHD]: 10,
+			[ResolutionClass.HD]: 5,
+			[ResolutionClass.SD]: 2
+		},
+		skipAlreadyTarget: true,
+		skipLowBitrate: true,
+		lowBitratePct: 50,
+		minSavingPct: 15,
+		encoderOverrides: {},
+		transferCap: 2,
+		defaultSlotsPerGpu: 1,
+		encoders: [
+			{
+				encoder: 'hevc_nvenc',
+				qualityArg: 'cq',
+				min: 1,
+				max: 51,
+				presets: {
+					[Preset.ARCHIVE]: 19,
+					[Preset.HIGH]: 23,
+					[Preset.BALANCED]: 26,
+					[Preset.SMALL]: 29
+				}
+			},
+			{
+				encoder: 'libsvtav1',
+				qualityArg: 'crf',
+				min: 1,
+				max: 63,
+				presets: {
+					[Preset.ARCHIVE]: 22,
+					[Preset.HIGH]: 28,
+					[Preset.BALANCED]: 32,
+					[Preset.SMALL]: 38
+				}
+			}
+		],
 		...overrides
 	};
 }

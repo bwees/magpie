@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "encoders": {
+    "hevc_nvenc": {
+      "quality": { "arg": "cq", "min": 1, "max": 51 },
+      "args": { "preset": "p6", "tune": "hq", "rc": "vbr", "b:v": "0", "spatial-aq": "1", "temporal-aq": "1", "rc-lookahead": "32" },
+      "presets": { "ARCHIVE": 19, "HIGH": 23, "BALANCED": 26, "SMALL": 29 }
+    },
+    "av1_nvenc": {
+      "quality": { "arg": "cq", "min": 1, "max": 51 },
+      "args": { "preset": "p6", "tune": "hq", "rc": "vbr", "b:v": "0", "spatial-aq": "1", "temporal-aq": "1", "rc-lookahead": "32" },
+      "presets": { "ARCHIVE": 24, "HIGH": 28, "BALANCED": 32, "SMALL": 36 }
+    },
+    "hevc_qsv": {
+      "quality": { "arg": "global_quality", "min": 1, "max": 51 },
+      "args": { "preset": "slower" },
+      "presets": { "ARCHIVE": 20, "HIGH": 23, "BALANCED": 26, "SMALL": 29 }
+    },
+    "av1_qsv": {
+      "quality": { "arg": "global_quality", "min": 1, "max": 51 },
+      "args": { "preset": "slower" },
+      "presets": { "ARCHIVE": 22, "HIGH": 26, "BALANCED": 30, "SMALL": 34 }
+    },
+    "hevc_vaapi": {
+      "quality": { "arg": "global_quality", "min": 1, "max": 51 },
+      "args": { "rc_mode": "QVBR" },
+      "presets": { "ARCHIVE": 20, "HIGH": 24, "BALANCED": 27, "SMALL": 30 }
+    },
+    "av1_vaapi": {
+      "quality": { "arg": "global_quality", "min": 1, "max": 51 },
+      "args": { "rc_mode": "QVBR" },
+      "presets": { "ARCHIVE": 24, "HIGH": 28, "BALANCED": 32, "SMALL": 36 }
+    },
+    "libx265": {
+      "quality": { "arg": "crf", "min": 0, "max": 51 },
+      "args": { "preset": "medium" },
+      "presets": { "ARCHIVE": 18, "HIGH": 21, "BALANCED": 24, "SMALL": 27 }
+    },
+    "libsvtav1": {
+      "quality": { "arg": "crf", "min": 1, "max": 63 },
+      "args": { "preset": "8" },
+      "presets": { "ARCHIVE": 22, "HIGH": 28, "BALANCED": 32, "SMALL": 38 }
+    }
+  }
+}

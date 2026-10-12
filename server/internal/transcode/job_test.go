@@ -48,9 +48,12 @@ func TestCutoffQueuesATranscodeCappedAtTheResolutionsRate(t *testing.T) {
 	}
 }
 
-func TestCutoffSkipsAFileAlreadyInTheTargetCodec(t *testing.T) {
+// Seed 2.
+func TestCutoffSkipsAFileAlreadyInTheTargetCodecUnderItsCap(t *testing.T) {
 	f := newFixture(t)
-	file := f.addFile(hevcOutput())
+	info := hevcOutput()
+	info.BitrateKbps = 8 * kbpsPerMbps
+	file := f.addFile(info)
 
 	f.cutoff(file, domain.OriginDownload)
 

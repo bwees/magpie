@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentResponse, UpdateAgentRequest } from '$lib/sdk';
+import type { AgentResponse, UpdateAgentRequest, UpdateTranscodeSettingsRequest } from '$lib/sdk';
+import { transcodeSettings } from '$lib/testing/fixtures';
+import { toUpdate } from './transcode-settings';
 import type { LiveHandler, LiveConnection, ResetListener } from '$lib/live/live-connection';
 import type { LiveMessage } from '$lib/live/protocol';
 import { AgentEvent, TransferMode } from './agents';
@@ -138,8 +140,8 @@ describe('AgentSettingsManager', () => {
 	function settingsApi() {
 		return {
 			secret: vi.fn(async () => ({ configured: true, masked: '••••6789', secret: SECRET })),
-			settings: vi.fn(async () => ({ transferCap: 2, defaultSlotsPerGpu: 1 })),
-			save: vi.fn(async (s) => s)
+			settings: vi.fn(async () => transcodeSettings()),
+			save: vi.fn(async (s: UpdateTranscodeSettingsRequest) => transcodeSettings(s))
 		} satisfies AgentSettingsApi;
 	}
 
@@ -154,7 +156,11 @@ describe('AgentSettingsManager', () => {
 
 		manager.transferCap = 4;
 		await manager.save();
-		expect(api.save).toHaveBeenCalledWith({ transferCap: 4, defaultSlotsPerGpu: 1 });
+		expect(api.save).toHaveBeenCalledWith({
+			...toUpdate(transcodeSettings()),
+			transferCap: 4,
+			defaultSlotsPerGpu: 1
+		});
 		expect(manager.canSave).toBe(false);
 	});
 

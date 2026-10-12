@@ -347,6 +347,29 @@
 				],
 				"type": "object"
 			},
+			"BacklogResponse": {
+				"description": "BacklogResponse schema",
+				"properties": {
+					"backlog": {
+						"type": "integer"
+					},
+					"eligible": {
+						"type": "integer"
+					},
+					"skipped": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"type": "object"
+					}
+				},
+				"required": [
+					"backlog",
+					"eligible",
+					"skipped"
+				],
+				"type": "object"
+			},
 			"BackupResponse": {
 				"description": "BackupResponse schema",
 				"properties": {
@@ -1260,6 +1283,36 @@
 				],
 				"type": "object"
 			},
+			"EncoderCalibrationResponse": {
+				"properties": {
+					"encoder": {
+						"type": "string"
+					},
+					"max": {
+						"type": "integer"
+					},
+					"min": {
+						"type": "integer"
+					},
+					"presets": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"type": "object"
+					},
+					"qualityArg": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"encoder",
+					"max",
+					"min",
+					"presets",
+					"qualityArg"
+				],
+				"type": "object"
+			},
 			"EpisodeGroupChanged": {
 				"description": "EpisodeGroupChanged schema",
 				"properties": {
@@ -1474,6 +1527,22 @@
 				"required": [
 					"name",
 					"reason"
+				],
+				"type": "object"
+			},
+			"ExclusionResponse": {
+				"description": "ExclusionResponse schema",
+				"properties": {
+					"ref": {
+						"type": "string"
+					},
+					"scope": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"ref",
+					"scope"
 				],
 				"type": "object"
 			},
@@ -2497,12 +2566,19 @@
 							"$ref": "#/components/schemas/JobResponse"
 						},
 						"type": "array"
+					},
+					"skipped": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"type": "object"
 					}
 				},
 				"required": [
 					"backlog",
 					"counts",
-					"jobs"
+					"jobs",
+					"skipped"
 				],
 				"type": "object"
 			},
@@ -5708,15 +5784,64 @@
 			"TranscodeSettingsResponse": {
 				"description": "TranscodeSettingsResponse schema",
 				"properties": {
+					"bitrateCapsMbps": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"type": "object"
+					},
 					"defaultSlotsPerGpu": {
 						"type": "integer"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"encoderOverrides": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"type": "object"
+					},
+					"encoders": {
+						"items": {
+							"$ref": "#/components/schemas/EncoderCalibrationResponse"
+						},
+						"type": "array"
+					},
+					"lowBitratePct": {
+						"type": "integer"
+					},
+					"minSavingPct": {
+						"type": "integer"
+					},
+					"preset": {
+						"type": "string"
+					},
+					"skipAlreadyTarget": {
+						"type": "boolean"
+					},
+					"skipLowBitrate": {
+						"type": "boolean"
+					},
+					"targetCodec": {
+						"type": "string"
 					},
 					"transferCap": {
 						"type": "integer"
 					}
 				},
 				"required": [
+					"bitrateCapsMbps",
 					"defaultSlotsPerGpu",
+					"enabled",
+					"encoderOverrides",
+					"encoders",
+					"lowBitratePct",
+					"minSavingPct",
+					"preset",
+					"skipAlreadyTarget",
+					"skipLowBitrate",
+					"targetCodec",
 					"transferCap"
 				],
 				"type": "object"
@@ -6061,15 +6186,60 @@
 			"UpdateTranscodeSettingsRequest": {
 				"description": "UpdateTranscodeSettingsRequest schema",
 				"properties": {
+					"bitrateCapsMbps": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"type": "object"
+					},
 					"defaultSlotsPerGpu": {
 						"type": "integer"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"encoderOverrides": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"type": [
+							"object",
+							"null"
+						]
+					},
+					"lowBitratePct": {
+						"type": "integer"
+					},
+					"minSavingPct": {
+						"type": "integer"
+					},
+					"preset": {
+						"type": "string"
+					},
+					"skipAlreadyTarget": {
+						"type": "boolean"
+					},
+					"skipLowBitrate": {
+						"type": "boolean"
+					},
+					"targetCodec": {
+						"type": "string"
 					},
 					"transferCap": {
 						"type": "integer"
 					}
 				},
 				"required": [
+					"bitrateCapsMbps",
 					"defaultSlotsPerGpu",
+					"enabled",
+					"encoderOverrides",
+					"lowBitratePct",
+					"minSavingPct",
+					"preset",
+					"skipAlreadyTarget",
+					"skipLowBitrate",
+					"targetCodec",
 					"transferCap"
 				],
 				"type": "object"
@@ -15657,6 +15827,353 @@
 				]
 			}
 		},
+		"/api/transcode/backlog": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).backlog`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getTranscodeBacklog",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BacklogResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Queued backlog jobs, eligible files and skips per reason (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/backlog/sweep": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).sweep`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "sweepTranscodeBacklog",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BacklogResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Re-evaluate every eligible and skipped file against the current policy, in the background (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/exclusions": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).listExclusions`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listTranscodeExclusions",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ExclusionResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Titles and root folders kept out of transcoding (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
+		"/api/transcode/exclusions/{scope}/{ref}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).include`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "includeInTranscoding",
+				"parameters": [
+					{
+						"description": "TITLE or ROOT_FOLDER",
+						"in": "path",
+						"name": "scope",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Title ID, or the root folder path URL-encoded",
+						"in": "path",
+						"name": "ref",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "End an exclusion and evaluate its files again (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).exclude`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "excludeFromTranscoding",
+				"parameters": [
+					{
+						"description": "TITLE or ROOT_FOLDER",
+						"in": "path",
+						"name": "scope",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Title ID, or the root folder path URL-encoded",
+						"in": "path",
+						"name": "ref",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExclusionResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Keep a title or root folder out of transcoding; its queued jobs are cancelled (admin)",
+				"tags": [
+					"api",
+					"transcode"
+				]
+			}
+		},
 		"/api/transcode/jobs": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).listJobs`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -16076,7 +16593,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Update transcode settings (admin)",
+				"summary": "Update transcode settings; a policy change re-evaluates the backlog (admin)",
 				"tags": [
 					"api",
 					"transcode"

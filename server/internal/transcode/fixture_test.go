@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -76,7 +77,8 @@ func newFixture(t *testing.T) *fixture {
 	b := bus.New()
 	agents := NewAgentRepository(d)
 	hub := NewAgentHub()
-	service := NewAgentService(d, b, agents, hub, store, DefaultTimings)
+	queue := &testQueue{}
+	service := NewAgentService(d, b, agents, hub, store, queue, DefaultTimings)
 	service.now = clock.Now
 	gate := NewTransferGate()
 	gate.now = clock.Now
@@ -86,8 +88,9 @@ func newFixture(t *testing.T) *fixture {
 	f := &fixture{
 		t: t, db: d, clock: clock, store: store, service: service, hub: hub, gate: gate, lifetime: lifetime,
 		library: librarytest.NewFake(librarytest.Fixture{}), catalog: catalogtest.NewFake(catalogtest.Fixture{}),
-		prober: &testProber{infos: map[string]libraryapi.MediaInfo{}}, queue: &testQueue{}, root: t.TempDir(),
+		prober: &testProber{infos: map[string]libraryapi.MediaInfo{}}, queue: queue, root: t.TempDir(),
 	}
+	f.knownEncoder(agentproto.CapEncHEVC10)
 	f.jobs = NewJobService(JobDeps{
 		DB: d, Bus: b, Jobs: NewJobRepository(d, agents, store), Agents: agents, Hub: hub, Store: store,
 		Library: f.library, Catalog: f.catalog, Files: osFileStat{}, Prober: f.prober, Queue: f.queue, Gate: gate,
@@ -152,6 +155,54 @@ func (q *testQueue) Enqueue(_ context.Context, task backlite.Task) error {
 
 func (q *testQueue) EnqueueTx(_ *gorm.DB, task backlite.Task) error {
 	return q.Enqueue(context.Background(), task)
+}
+
+func (q *testQueue) EnqueueTxAt(_ *gorm.DB, task backlite.Task, _ time.Time) error {
+	return q.Enqueue(context.Background(), task)
+}
+
+// knownEncoder records that some agent once passed the capability. The fixture starts with HEVC, so
+// files queue before a test agent connects.
+func (f *fixture) knownEncoder(c agentproto.Capability) {
+	f.t.Helper()
+	row := passedCapabilityRow{Capability: c, AgentID: domain.NewID[domain.AgentID](), PassedAt: testStart}
+	if err := f.db.Write(context.Background(), func(tx *gorm.DB) error { return tx.Create(&row).Error }); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+// setPolicy changes the stored policy, as Settings → Transcode would.
+func (f *fixture) setPolicy(change func(*Policy)) {
+	f.t.Helper()
+	policy, err := policyKey.Get(context.Background(), f.store)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	policy.CapsMbps = maps.Clone(policy.CapsMbps)
+	change(&policy)
+	if err := f.jobs.UpdatePolicy(context.Background(), policy); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+// runTasks runs the backlite tasks queued so far, and those they queue, until none are left.
+func (f *fixture) runTasks() {
+	f.t.Helper()
+	for tasks := f.queue.drain(); len(tasks) > 0; tasks = f.queue.drain() {
+		for _, task := range tasks {
+			var err error
+			switch t := task.(type) {
+			case verifyTask:
+				err = f.jobs.Verify(context.Background(), t.Job)
+			case sweepTask:
+				err = f.jobs.SweepBacklog(context.Background(), t)
+			}
+			if err != nil {
+				f.t.Fatal(err)
+			}
+		}
+		f.lifetime.Wait()
+	}
 }
 
 func (q *testQueue) drain() []backlite.Task {

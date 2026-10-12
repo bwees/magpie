@@ -1,7 +1,9 @@
 package transcode
 
 import (
+	"context"
 	"errors"
+	"maps"
 	"net/http"
 	"reflect"
 	"slices"
@@ -77,13 +79,43 @@ type AgentSecretResponse struct {
 }
 
 type TranscodeSettingsResponse struct {
-	TransferCap        int `json:"transferCap" validate:"required"`
-	DefaultSlotsPerGPU int `json:"defaultSlotsPerGpu" validate:"required"`
+	Enabled           bool                        `json:"enabled" validate:"required"`
+	TargetCodec       api.TargetCodec             `json:"targetCodec" validate:"required"` // HEVC_10 | AV1_10
+	Preset            api.Preset                  `json:"preset" validate:"required"`      // ARCHIVE | HIGH | BALANCED | SMALL
+	BitrateCapsMbps   map[api.ResolutionClass]int `json:"bitrateCapsMbps" validate:"required"`
+	SkipAlreadyTarget bool                        `json:"skipAlreadyTarget" validate:"required"`
+	SkipLowBitrate    bool                        `json:"skipLowBitrate" validate:"required"`
+	LowBitratePct     int                         `json:"lowBitratePct" validate:"required"`
+	MinSavingPct      int                         `json:"minSavingPct" validate:"required"`
+	// EncoderOverrides replaces the calibrated quality value of an encoder.
+	EncoderOverrides   map[string]int `json:"encoderOverrides" validate:"required"`
+	TransferCap        int            `json:"transferCap" validate:"required"`
+	DefaultSlotsPerGPU int            `json:"defaultSlotsPerGpu" validate:"required"`
+	// Encoders is the calibration table, read-only.
+	Encoders []EncoderCalibrationResponse `json:"encoders" validate:"required"`
 }
 
+type EncoderCalibrationResponse struct {
+	Encoder    string             `json:"encoder" validate:"required"`    // hevc_nvenc, av1_qsv, libx265, …
+	QualityArg string             `json:"qualityArg" validate:"required"` // cq | global_quality | crf
+	Min        int                `json:"min" validate:"required"`
+	Max        int                `json:"max" validate:"required"`
+	Presets    map[api.Preset]int `json:"presets" validate:"required"`
+}
+
+// UpdateTranscodeSettingsRequest replaces every setting; the bounds are in 12-settings.
 type UpdateTranscodeSettingsRequest struct {
-	TransferCap        int `json:"transferCap" validate:"required"`        // 1–16
-	DefaultSlotsPerGPU int `json:"defaultSlotsPerGpu" validate:"required"` // 1–4
+	Enabled            bool                        `json:"enabled"`
+	TargetCodec        api.TargetCodec             `json:"targetCodec" validate:"required"`
+	Preset             api.Preset                  `json:"preset" validate:"required"`
+	BitrateCapsMbps    map[api.ResolutionClass]int `json:"bitrateCapsMbps" validate:"required"` // 1–200 each
+	SkipAlreadyTarget  bool                        `json:"skipAlreadyTarget"`
+	SkipLowBitrate     bool                        `json:"skipLowBitrate"`
+	LowBitratePct      int                         `json:"lowBitratePct"`      // 10–100
+	MinSavingPct       int                         `json:"minSavingPct"`       // 0–90
+	EncoderOverrides   map[string]int              `json:"encoderOverrides"`   // within each encoder's range
+	TransferCap        int                         `json:"transferCap"`        // 1–16
+	DefaultSlotsPerGPU int                         `json:"defaultSlotsPerGpu"` // 1–4
 }
 
 type JobResponse struct {
@@ -116,6 +148,8 @@ type JobListResponse struct {
 	Counts map[api.JobState]int `json:"counts" validate:"required"`
 	// Backlog is the queued jobs of files found by a library scan or a migration.
 	Backlog int `json:"backlog" validate:"required"`
+	// Skipped counts eligible files kept as they are, per reason; reasons without files are absent.
+	Skipped map[api.SkipReason]int `json:"skipped" validate:"required"`
 }
 
 const (
@@ -200,9 +234,10 @@ func (c *Controller) Register(s *fuego.Server) {
 	)
 	fuego.Put(s, "/transcode/settings", c.updateSettings,
 		fuego.OptionOperationID("updateTranscodeSettings"),
-		fuego.OptionSummary("Update transcode settings (admin)"),
+		fuego.OptionSummary("Update transcode settings; a policy change re-evaluates the backlog (admin)"),
 		fuego.OptionTags(tagTranscode),
 	)
+	c.registerBacklog(s)
 }
 
 func (c *Controller) listAgents(ctx fuego.ContextNoBody) ([]AgentResponse, error) {
@@ -288,10 +323,44 @@ func (c *Controller) getSettings(ctx fuego.ContextNoBody) (TranscodeSettingsResp
 	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
 		return TranscodeSettingsResponse{}, err
 	}
-	current, err := c.service.Settings(ctx.Context())
-	return TranscodeSettingsResponse(current), err
+	return c.settings(ctx.Context())
 }
 
+func (c *Controller) settings(ctx context.Context) (TranscodeSettingsResponse, error) {
+	agents, err := c.service.Settings(ctx)
+	if err != nil {
+		return TranscodeSettingsResponse{}, err
+	}
+	policy, err := c.jobs.Policy(ctx)
+	if err != nil {
+		return TranscodeSettingsResponse{}, err
+	}
+	overrides := policy.EncoderOverrides
+	if overrides == nil {
+		overrides = map[string]int{}
+	}
+	return TranscodeSettingsResponse{
+		Enabled: policy.Enabled, TargetCodec: policy.TargetCodec, Preset: policy.Preset, BitrateCapsMbps: policy.CapsMbps,
+		SkipAlreadyTarget: policy.SkipAlreadyTarget, SkipLowBitrate: policy.SkipLowBitrate, LowBitratePct: policy.LowBitratePct,
+		MinSavingPct: policy.MinSavingPct, EncoderOverrides: overrides,
+		TransferCap: agents.TransferCap, DefaultSlotsPerGPU: agents.DefaultSlotsPerGPU,
+		Encoders: encoderCalibrations(),
+	}, nil
+}
+
+func encoderCalibrations() []EncoderCalibrationResponse {
+	all := Calibrations()
+	response := make([]EncoderCalibrationResponse, 0, len(all))
+	for _, encoder := range slices.Sorted(maps.Keys(all)) {
+		cal := all[encoder]
+		response = append(response, EncoderCalibrationResponse{
+			Encoder: encoder, QualityArg: cal.Quality.Arg, Min: cal.Quality.Min, Max: cal.Quality.Max, Presets: cal.Presets,
+		})
+	}
+	return response
+}
+
+// updateSettings checks the policy and the agent settings before storing either.
 func (c *Controller) updateSettings(ctx fuego.ContextWithBody[UpdateTranscodeSettingsRequest]) (TranscodeSettingsResponse, error) {
 	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
 		return TranscodeSettingsResponse{}, err
@@ -300,14 +369,26 @@ func (c *Controller) updateSettings(ctx fuego.ContextWithBody[UpdateTranscodeSet
 	if err != nil {
 		return TranscodeSettingsResponse{}, err
 	}
-	err = c.service.UpdateSettings(ctx.Context(), AgentSettings(body))
+	policy := Policy{
+		Enabled: body.Enabled, TargetCodec: body.TargetCodec, Preset: body.Preset, CapsMbps: body.BitrateCapsMbps,
+		SkipAlreadyTarget: body.SkipAlreadyTarget, SkipLowBitrate: body.SkipLowBitrate, LowBitratePct: body.LowBitratePct,
+		MinSavingPct: body.MinSavingPct, EncoderOverrides: body.EncoderOverrides,
+	}
+	agents := AgentSettings{TransferCap: body.TransferCap, DefaultSlotsPerGPU: body.DefaultSlotsPerGPU}
+	err = errors.Join(policy.validate(), agents.validate())
+	if err == nil {
+		err = c.service.UpdateSettings(ctx.Context(), agents)
+	}
+	if err == nil {
+		err = c.jobs.UpdatePolicy(ctx.Context(), policy)
+	}
 	if errors.Is(err, ErrInvalidSetting) {
 		return TranscodeSettingsResponse{}, problem.New(problem.TypeBadRequest, http.StatusBadRequest, err.Error())
 	}
 	if err != nil {
 		return TranscodeSettingsResponse{}, err
 	}
-	return TranscodeSettingsResponse(body), nil
+	return c.settings(ctx.Context())
 }
 
 // output takes HEAD for the committed offset and PUT for a chunk; the mux pattern has no method so both
@@ -360,7 +441,13 @@ func (c *Controller) listJobs(ctx fuego.ContextNoBody) (JobListResponse, error) 
 	if err != nil {
 		return JobListResponse{}, err
 	}
-	response := JobListResponse{Jobs: make([]JobResponse, 0, len(list.Jobs)), Counts: list.Counts, Backlog: list.Backlog}
+	backlog, err := c.jobs.Backlog(ctx.Context())
+	if err != nil {
+		return JobListResponse{}, err
+	}
+	response := JobListResponse{
+		Jobs: make([]JobResponse, 0, len(list.Jobs)), Counts: list.Counts, Backlog: backlog.Backlog, Skipped: backlog.Skipped,
+	}
 	for _, view := range list.Jobs {
 		response.Jobs = append(response.Jobs, jobResponse(view))
 	}

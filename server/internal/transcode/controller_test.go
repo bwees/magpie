@@ -62,7 +62,7 @@ func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 
 func TestAgentEndpointsAreAdminOnly(t *testing.T) {
 	c := newFixture(t).api()
-	for _, path := range []string{"/transcode/agents", "/transcode/secret", "/transcode/settings"} {
+	for _, path := range []string{"/transcode/agents", "/transcode/secret", "/transcode/settings", "/transcode/backlog", "/transcode/exclusions"} {
 		if rec := c.do(requester, http.MethodGet, path, nil); rec.Code != http.StatusForbidden {
 			t.Errorf("GET %s as requester = %d, want 403", path, rec.Code)
 		}
@@ -130,20 +130,57 @@ func TestSettingsRoundTripWithinBounds(t *testing.T) {
 	c := newFixture(t).api()
 
 	defaults := decodeJSON[TranscodeSettingsResponse](t, c.do(admin, http.MethodGet, "/transcode/settings", nil))
-	if defaults.TransferCap != defaultTransferCap || defaults.DefaultSlotsPerGPU != defaultSlotsPerGPU {
+	if defaults.TransferCap != defaultTransferCap || defaults.DefaultSlotsPerGPU != defaultSlotsPerGPU ||
+		!defaults.Enabled || defaults.TargetCodec != api.TargetHEVC10 || defaults.Preset != api.PresetHigh ||
+		defaults.BitrateCapsMbps[api.Resolution1080] != defaultCap1080Mbps || defaults.LowBitratePct != defaultLowBitratePct ||
+		defaults.MinSavingPct != defaultMinSavingPct || !defaults.SkipAlreadyTarget || !defaults.SkipLowBitrate ||
+		len(defaults.Encoders) != len(calibration.Encoders) {
 		t.Fatalf("defaults = %+v", defaults)
 	}
 
-	outOfRange := UpdateTranscodeSettingsRequest{TransferCap: MaxTransferCap + 1, DefaultSlotsPerGPU: MinSlotsPerGPU}
-	if rec := c.do(admin, http.MethodPut, "/transcode/settings", outOfRange); rec.Code != http.StatusBadRequest {
-		t.Fatalf("transfer cap %d = %d, want 400", outOfRange.TransferCap, rec.Code)
+	valid := func() UpdateTranscodeSettingsRequest {
+		return UpdateTranscodeSettingsRequest{
+			Enabled: true, TargetCodec: api.TargetAV110, Preset: api.PresetSmall,
+			BitrateCapsMbps: map[api.ResolutionClass]int{
+				api.Resolution2160: MaxCapMbps, api.Resolution1080: 8, api.Resolution720: 4, api.ResolutionSD: MinCapMbps,
+			},
+			SkipLowBitrate: true, LowBitratePct: MaxLowBitratePct, MinSavingPct: MinSavingPct,
+			EncoderOverrides: map[string]int{EncoderAV1NVENC: 30},
+			TransferCap:      MaxTransferCap, DefaultSlotsPerGPU: MaxSlotsPerGPU,
+		}
+	}
+	outOfRange := map[string]func(*UpdateTranscodeSettingsRequest){
+		"transfer cap": func(r *UpdateTranscodeSettingsRequest) { r.TransferCap = MaxTransferCap + 1 },
+		"bitrate cap":  func(r *UpdateTranscodeSettingsRequest) { r.BitrateCapsMbps[api.Resolution720] = MaxCapMbps + 1 },
+		"missing cap":  func(r *UpdateTranscodeSettingsRequest) { delete(r.BitrateCapsMbps, api.ResolutionSD) },
+		"low bitrate":  func(r *UpdateTranscodeSettingsRequest) { r.LowBitratePct = MinLowBitratePct - 1 },
+		"saving":       func(r *UpdateTranscodeSettingsRequest) { r.MinSavingPct = MaxSavingPct + 1 },
+		"target":       func(r *UpdateTranscodeSettingsRequest) { r.TargetCodec = "H264" },
+		"preset":       func(r *UpdateTranscodeSettingsRequest) { r.Preset = "ULTRA" },
+		"override range": func(r *UpdateTranscodeSettingsRequest) {
+			r.EncoderOverrides[EncoderSVTAV1] = calibration.Encoders[EncoderSVTAV1].Quality.Max + 1
+		},
+		"override encoder": func(r *UpdateTranscodeSettingsRequest) { r.EncoderOverrides["h264_nvenc"] = 20 },
+	}
+	for name, change := range outOfRange {
+		body := valid()
+		change(&body)
+		if rec := c.do(admin, http.MethodPut, "/transcode/settings", body); rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s = %d, want 400", name, rec.Code)
+		}
+	}
+	if got := decodeJSON[TranscodeSettingsResponse](t, c.do(admin, http.MethodGet, "/transcode/settings", nil)); got.TransferCap != defaultTransferCap {
+		t.Fatalf("a refused update stored the transfer cap %d", got.TransferCap)
 	}
 
-	updated := UpdateTranscodeSettingsRequest{TransferCap: MaxTransferCap, DefaultSlotsPerGPU: MaxSlotsPerGPU}
+	updated := valid()
 	if rec := c.do(admin, http.MethodPut, "/transcode/settings", updated); rec.Code != http.StatusOK {
 		t.Fatalf("update = %d: %s", rec.Code, rec.Body.String())
 	}
-	if got := decodeJSON[TranscodeSettingsResponse](t, c.do(admin, http.MethodGet, "/transcode/settings", nil)); got != TranscodeSettingsResponse(updated) {
+	got := decodeJSON[TranscodeSettingsResponse](t, c.do(admin, http.MethodGet, "/transcode/settings", nil))
+	if got.TransferCap != MaxTransferCap || got.DefaultSlotsPerGPU != MaxSlotsPerGPU || got.TargetCodec != api.TargetAV110 ||
+		got.Preset != api.PresetSmall || got.BitrateCapsMbps[api.Resolution2160] != MaxCapMbps || got.SkipAlreadyTarget ||
+		got.LowBitratePct != MaxLowBitratePct || got.EncoderOverrides[EncoderAV1NVENC] != 30 {
 		t.Fatalf("settings = %+v, want %+v", got, updated)
 	}
 }
@@ -181,5 +218,52 @@ func TestJobEndpointsListCancelAndRetry(t *testing.T) {
 	}
 	if rec := c.do(admin, http.MethodPost, "/transcode/jobs/"+string(domain.NewID[domain.JobID]())+"/cancel", nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("unknown job = %d, want 404", rec.Code)
+	}
+}
+
+func TestExclusionEndpointsExcludeAndInclude(t *testing.T) {
+	f := newFixture(t)
+	file := f.addFile(h264Movie(0))
+	f.cutoff(file, domain.OriginLibraryScan)
+	c := f.api()
+	path := "/transcode/exclusions/TITLE/" + string(file.Title)
+
+	if rec := c.do(requester, http.MethodPut, path, nil); rec.Code != http.StatusForbidden {
+		t.Fatalf("requester exclude = %d, want 403", rec.Code)
+	}
+	if rec := c.do(admin, http.MethodPut, "/transcode/exclusions/SHELF/x", nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown scope = %d, want 400", rec.Code)
+	}
+	if rec := c.do(admin, http.MethodPut, path, nil); rec.Code != http.StatusOK {
+		t.Fatalf("exclude = %d: %s", rec.Code, rec.Body.String())
+	}
+	listed := decodeJSON[[]ExclusionResponse](t, c.do(admin, http.MethodGet, "/transcode/exclusions", nil))
+	if len(listed) != 1 || listed[0].Scope != ExcludeTitle || listed[0].Ref != string(file.Title) {
+		t.Fatalf("exclusions = %+v", listed)
+	}
+	backlog := decodeJSON[BacklogResponse](t, c.do(admin, http.MethodGet, "/transcode/backlog", nil))
+	if backlog.Backlog != 0 || backlog.Eligible != 1 || backlog.Skipped[api.SkipExcluded] != 1 {
+		t.Fatalf("backlog = %+v, want one excluded file", backlog)
+	}
+
+	if rec := c.do(admin, http.MethodDelete, path, nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("include = %d: %s", rec.Code, rec.Body.String())
+	}
+	backlog = decodeJSON[BacklogResponse](t, c.do(admin, http.MethodGet, "/transcode/backlog", nil))
+	if backlog.Backlog != 1 || len(backlog.Skipped) != 0 {
+		t.Fatalf("backlog = %+v, want the file queued again", backlog)
+	}
+}
+
+func TestSweepEndpointRunsInTheBackground(t *testing.T) {
+	f := newFixture(t)
+	c := f.api()
+
+	if rec := c.do(admin, http.MethodPost, "/transcode/backlog/sweep", nil); rec.Code != http.StatusAccepted {
+		t.Fatalf("sweep = %d: %s", rec.Code, rec.Body.String())
+	}
+	tasks := f.queue.drain()
+	if len(tasks) != 1 || tasks[0] != (sweepTask{}) {
+		t.Fatalf("tasks = %+v, want one sweep", tasks)
 	}
 }

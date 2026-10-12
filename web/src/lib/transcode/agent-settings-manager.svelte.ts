@@ -5,16 +5,18 @@ import {
 	getTranscodeSettings,
 	updateTranscodeSettings,
 	type AgentSecretResponse,
-	type TranscodeSettingsResponse
+	type TranscodeSettingsResponse,
+	type UpdateTranscodeSettingsRequest
 } from '$lib/sdk';
 import { DEFAULT_SLOTS_PER_GPU, TRANSFER_CAP } from './agents';
+import { inRange, toUpdate } from './transcode-settings';
 import { dockerRunCommand } from './docker-run';
 import { LoadState, type Notifier } from './agents-manager.svelte';
 
 export interface AgentSettingsApi {
 	secret: () => Promise<AgentSecretResponse>;
 	settings: () => Promise<TranscodeSettingsResponse>;
-	save: (settings: TranscodeSettingsResponse) => Promise<TranscodeSettingsResponse>;
+	save: (settings: UpdateTranscodeSettingsRequest) => Promise<TranscodeSettingsResponse>;
 }
 
 export interface Clipboard {
@@ -27,19 +29,13 @@ const sdkApi: AgentSettingsApi = {
 	save: (settings) => updateTranscodeSettings(settings)
 };
 
-function inRange(value: number, bounds: { MIN: number; MAX: number }): boolean {
-	return Number.isInteger(value) && value >= bounds.MIN && value <= bounds.MAX;
-}
-
 /** State and actions behind Settings → Agents. */
 export class AgentSettingsManager {
 	loadState = $state(LoadState.LOADING);
 	error = $state('');
 	secret = $state<AgentSecretResponse>({ configured: false, masked: '', secret: '' });
-	saved = $state<TranscodeSettingsResponse>({
-		transferCap: TRANSFER_CAP.MIN,
-		defaultSlotsPerGpu: DEFAULT_SLOTS_PER_GPU.MIN
-	});
+	/** The whole Transcode settings; this page edits only the agent limits and sends the rest back. */
+	saved = $state<TranscodeSettingsResponse | null>(null);
 	transferCap = $state<number>(TRANSFER_CAP.MIN);
 	defaultSlotsPerGpu = $state<number>(DEFAULT_SLOTS_PER_GPU.MIN);
 	saving = $state(false);
@@ -65,8 +61,9 @@ export class AgentSettingsManager {
 	readonly transferCapValid = $derived(inRange(this.transferCap, TRANSFER_CAP));
 	readonly defaultSlotsValid = $derived(inRange(this.defaultSlotsPerGpu, DEFAULT_SLOTS_PER_GPU));
 	readonly dirty = $derived(
-		this.transferCap !== this.saved.transferCap ||
-			this.defaultSlotsPerGpu !== this.saved.defaultSlotsPerGpu
+		this.saved !== null &&
+			(this.transferCap !== this.saved.transferCap ||
+				this.defaultSlotsPerGpu !== this.saved.defaultSlotsPerGpu)
 	);
 	readonly canSave = $derived(
 		this.dirty && this.transferCapValid && this.defaultSlotsValid && !this.saving
@@ -85,11 +82,12 @@ export class AgentSettingsManager {
 	}
 
 	async save(): Promise<void> {
-		if (!this.canSave) return;
+		if (!this.canSave || !this.saved) return;
 		this.saving = true;
 		try {
 			this.#apply(
 				await this.#api.save({
+					...toUpdate(this.saved),
 					transferCap: this.transferCap,
 					defaultSlotsPerGpu: this.defaultSlotsPerGpu
 				})

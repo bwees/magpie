@@ -152,6 +152,27 @@ func (r *AgentRepository) saveDevices(tx *gorm.DB, agent domain.AgentID, reports
 	return nil
 }
 
+// recordPassed remembers each capability the reports passed and returns those no agent had passed before.
+func (r *AgentRepository) recordPassed(tx *gorm.DB, agent domain.AgentID, reports []agentproto.DeviceReport, now time.Time) ([]agentproto.Capability, error) {
+	var first []agentproto.Capability
+	for _, report := range reports {
+		for _, result := range report.Capabilities {
+			if !result.OK {
+				continue
+			}
+			row := passedCapabilityRow{Capability: result.Capability, AgentID: agent, PassedAt: now}
+			created := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
+			if created.Error != nil {
+				return nil, created.Error
+			}
+			if created.RowsAffected > 0 {
+				first = append(first, result.Capability)
+			}
+		}
+	}
+	return first, nil
+}
+
 // seen records a heartbeat and reports whether the agent was already online.
 func (r *AgentRepository) seen(tx *gorm.DB, id domain.AgentID, scratchFree int64, now time.Time) (wasOnline bool, err error) {
 	row, err := r.row(tx, id)

@@ -202,6 +202,45 @@ func TestPlanGivesABusyDownloadFirstAgentOnePrefetch(t *testing.T) {
 	}
 }
 
+// Seed 21, the scheduler's part, and step 4.
+func TestPlanGivesBacklogJobsOnlySlotsNoDownloadCouldUse(t *testing.T) {
+	agent := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+	backlog := queuedJob(agentproto.CapEncHEVC10)
+	backlog.Backlog = true
+	download := queuedJob(agentproto.CapEncHEVC10)
+
+	if offers := Plan([]QueuedJob{download, backlog}, fleetOf(nil, agent)); len(offers) != 1 || offers[0].Job != download.ID {
+		t.Fatalf("offers = %+v, want the download job only", offers)
+	}
+
+	download.Avoid = &agent.ID
+	if offers := Plan([]QueuedJob{download, backlog}, fleetOf(nil, agent)); len(offers) != 0 {
+		t.Fatalf("offers = %+v; the slot waits for the download job kept from it for a moment", offers)
+	}
+
+	whisper := queuedJob(agentproto.CapWhisperVulkan)
+	if offers := Plan([]QueuedJob{whisper, backlog}, fleetOf(nil, agent)); len(offers) != 1 || offers[0].Job != backlog.ID {
+		t.Fatalf("offers = %+v, want the backlog job on a slot the waiting Whisper job can't use", offers)
+	}
+}
+
+func TestPlanGivesNoBacklogPrefetchADownloadCouldUse(t *testing.T) {
+	agent := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))
+	agent.Mode = api.TransferDownloadFirst
+	running := map[SlotKey]int{slotOn(agent): testDefault}
+	backlog := queuedJob(agentproto.CapEncHEVC10)
+	backlog.Backlog = true
+	download := queuedJob(agentproto.CapEncHEVC10)
+	download.Avoid = &agent.ID
+
+	if offers := Plan([]QueuedJob{download, backlog}, fleetOf(running, agent)); len(offers) != 0 {
+		t.Fatalf("offers = %+v, want no prefetch for the backlog job", offers)
+	}
+	if offers := Plan([]QueuedJob{backlog}, fleetOf(running, agent)); len(offers) != 1 || !offers[0].Prefetch {
+		t.Fatalf("offers = %+v, want the backlog job prefetched when nothing else waits", offers)
+	}
+}
+
 func TestFreeSlots(t *testing.T) {
 	two, zero := 2, 0
 	withOverride := func(n *int, a api.Agent) api.Agent { a.SlotsOverride = n; return a }

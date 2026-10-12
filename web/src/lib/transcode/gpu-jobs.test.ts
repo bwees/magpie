@@ -39,7 +39,7 @@ function job(id: string, change: Partial<JobResponse> = {}): JobResponse {
 function list(jobs: JobResponse[], backlog = 0): JobListResponse {
 	const counts: Record<string, number> = {};
 	for (const j of jobs) counts[j.state] = (counts[j.state] ?? 0) + 1;
-	return { jobs, counts, backlog };
+	return { jobs, counts, backlog, skipped: {} };
 }
 
 function fakeApi(jobs: JobResponse[], backlog = 0) {
