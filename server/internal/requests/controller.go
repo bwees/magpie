@@ -104,6 +104,7 @@ func NewController(s *Service) *Controller {
 }
 
 func (c *Controller) Register(server *fuego.Server) {
+	c.registerIssues(server)
 	idPath := fuego.OptionPath(pathRequestID, "Request ID")
 	fuego.Post(server, root, c.create,
 		fuego.OptionOperationID("createRequest"),

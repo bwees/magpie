@@ -449,17 +449,11 @@ func (s *Service) view(ctx context.Context, id domain.RequestID) (RequestView, e
 func (s *Service) views(ctx context.Context, rows []requestRow) ([]RequestView, error) {
 	ids := make([]domain.UserID, 0, len(rows))
 	for _, row := range rows {
-		if !slices.Contains(ids, row.UserID) {
-			ids = append(ids, row.UserID)
-		}
+		ids = append(ids, row.UserID)
 	}
-	users, err := s.identity.Users(ctx, ids)
+	names, err := s.names(ctx, ids)
 	if err != nil {
 		return nil, err
-	}
-	names := map[domain.UserID]string{}
-	for _, u := range users {
-		names[u.ID] = u.DisplayName
 	}
 	views := make([]RequestView, 0, len(rows))
 	for _, row := range rows {

@@ -907,6 +907,55 @@ export type CreateRequestRequest = {
     seasons?: number[] | null;
     tmdbId: number;
 };
+export type IssueEpisodeResponse = {
+    id: string;
+    name: string;
+    "number": number;
+    season: number;
+};
+export type IssueResponse = {
+    action: string;
+    comments: number;
+    createdAt: string;
+    episode?: IssueEpisodeResponse;
+    episodeId: string | null;
+    id: string;
+    kind: string;
+    reporter: RequesterResponse;
+    resolvedAt: string | null;
+    resolvedBy: string;
+    status: string;
+    text: string;
+    titleId: string;
+    titleName: string;
+};
+export type IssueListResponse = {
+    items: IssueResponse[];
+    total: number;
+};
+export type ReportIssueRequest = {
+    episodeId?: string;
+    kind: string;
+    text: string;
+    titleId: string;
+};
+export type IssueCommentResponse = {
+    author: RequesterResponse;
+    body: string;
+    createdAt: string;
+    id: string;
+};
+export type IssueThreadResponse = {
+    comments: IssueCommentResponse[];
+    issue: IssueResponse;
+};
+export type IssueActionRequest = {
+    action: string;
+    waitingRemoved?: boolean;
+};
+export type CommentIssueRequest = {
+    body: string;
+};
 export type ApproveRequestRequest = {
     profileId?: string;
 };
@@ -1284,6 +1333,7 @@ export type IssueActionRequested = {
     action: string;
     episode: string | null;
     issue: string;
+    removedDownloads: string[] | null;
     title: string;
 };
 export type IssueCommented = {
@@ -4230,6 +4280,154 @@ export function createRequest(createRequestRequest: CreateRequestRequest, { acce
             Accept: accept
         })
     })));
+}
+/**
+ * Issues the viewer may see, newest first: their own unless they may view others' requests
+ */
+export function listIssues({ status, userId, titleId, count, accept }: {
+    status?: string[];
+    userId?: string;
+    titleId?: string;
+    count?: boolean;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IssueListResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/issues${QS.query(QS.explode({
+        status,
+        userId,
+        titleId,
+        count
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Report a problem with a Title or one episode (needs the report-issues toggle)
+ */
+export function reportIssue(reportIssueRequest: ReportIssueRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: IssueResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/requests/issues", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: reportIssueRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * One issue with its comment thread
+ */
+export function getIssue(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IssueThreadResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/issues/${encodeURIComponent(id)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Fix an open issue: blocklist and re-grab, or re-run subtitles (admin)
+ */
+export function requestIssueAction(id: string, issueActionRequest: IssueActionRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IssueResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/issues/${encodeURIComponent(id)}/actions`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: issueActionRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Reply on an issue (its reporter or an admin)
+ */
+export function commentIssue(id: string, commentIssueRequest: CommentIssueRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: IssueCommentResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/issues/${encodeURIComponent(id)}/comments`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: commentIssueRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Close an issue by hand (its reporter or an admin)
+ */
+export function resolveIssue(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: IssueResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/requests/issues/${encodeURIComponent(id)}/resolve`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
 }
 /**
  * Cancel your own pending request

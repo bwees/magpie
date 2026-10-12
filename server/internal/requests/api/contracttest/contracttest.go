@@ -117,6 +117,9 @@ func runIssues(t *testing.T, newReader Factory) {
 
 	resolved := issue(alice, dune, api.IssueStatusResolved, 0)
 	openDune := issue(alice, dune, api.IssueStatusOpen, 1)
+	openDune.Comments = 2
+	episode := domain.NewID[domain.EpisodeID]()
+	openDune.Episode = &episode
 	pendingOther := issue(bob, other, api.IssueStatusActionPending, 2)
 	openDuneLater := issue(carol, dune, api.IssueStatusOpen, 3)
 
@@ -149,6 +152,17 @@ func runIssues(t *testing.T, newReader Factory) {
 		}
 		if _, err := r.Issue(ctx, domain.NewID[domain.IssueID]()); !errors.Is(err, api.ErrNotFound) {
 			t.Errorf("err = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("Issue returns the episode and the comment count", func(t *testing.T) {
+		r := newReader(t, fixture)
+		got, err := r.Issue(ctx, openDune.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Comments != openDune.Comments || got.Episode == nil || *got.Episode != episode || got.User != alice || !got.CreatedAt.Equal(openDune.CreatedAt) {
+			t.Errorf("Issue = %+v, want %+v", got, openDune)
 		}
 	})
 }

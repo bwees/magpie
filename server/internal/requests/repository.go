@@ -135,16 +135,6 @@ func (r *Repository) Requesters(ctx context.Context, title domain.TitleID) ([]do
 	return users, err
 }
 
-// OpenIssues has no issues to list until Issues are stored.
-func (r *Repository) OpenIssues(context.Context, *domain.TitleID) ([]api.Issue, error) {
-	return []api.Issue{}, nil
-}
-
-// Issue finds nothing until Issues are stored.
-func (r *Repository) Issue(context.Context, domain.IssueID) (api.Issue, error) {
-	return api.Issue{}, api.ErrNotFound
-}
-
 func (r *Repository) request(conn *gorm.DB, id domain.RequestID) (requestRow, error) {
 	var row requestRow
 	err := conn.Select(withItemCounts).Where("id = ?", id).Take(&row).Error

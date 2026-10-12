@@ -21,5 +21,8 @@ var Module = fx.Module(string(owner.Requests),
 		bus.AsHandler(newEpisodesHandler),
 		bus.AsHandler(newTitleAddFailedHandler),
 		bus.AsHandler(newItemAvailableHandler),
+		bus.AsHandler(newRegrabDoneHandler),
+		bus.AsHandler(newSubtitlesDoneHandler),
+		bus.AsHandler(newTitleRemovedHandler),
 	),
 )

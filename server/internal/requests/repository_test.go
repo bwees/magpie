@@ -16,7 +16,7 @@ import (
 )
 
 func TestRepositoryMeetsTheRequestsContract(t *testing.T) {
-	contracttest.RunRequests(t, func(t *testing.T, f contracttest.Fixture) api.Reader {
+	contracttest.Run(t, func(t *testing.T, f contracttest.Fixture) api.Reader {
 		d := dbtest.Open(t, Migrations())
 		repo := NewRepository(d)
 		err := d.Write(context.Background(), func(tx *gorm.DB) error {
@@ -28,6 +28,16 @@ func TestRepositoryMeetsTheRequestsContract(t *testing.T) {
 					return err
 				}
 			}
+			for _, i := range f.Issues {
+				if err := repo.saveIssue(tx, fixtureIssue(i)); err != nil {
+					return err
+				}
+				for _, c := range fixtureComments(i) {
+					if err := repo.addComment(tx, c); err != nil {
+						return err
+					}
+				}
+			}
 			return nil
 		})
 		if err != nil {
@@ -37,14 +47,20 @@ func TestRepositoryMeetsTheRequestsContract(t *testing.T) {
 	})
 }
 
-func TestRepositoryHasNoIssuesYet(t *testing.T) {
-	repo := NewRepository(dbtest.Open(t, Migrations()))
-	if issues, err := repo.OpenIssues(context.Background(), nil); err != nil || issues == nil || len(issues) != 0 {
-		t.Errorf("OpenIssues = %#v, %v; want an empty slice", issues, err)
+func fixtureIssue(i api.Issue) issueRow {
+	return issueRow{
+		ID: i.ID, UserID: i.User, TitleID: i.Title, EpisodeID: i.Episode, Kind: i.Kind, Text: i.Text,
+		Status: i.Status, CreatedAt: i.CreatedAt,
 	}
-	if _, err := repo.Issue(context.Background(), domain.NewID[domain.IssueID]()); err != api.ErrNotFound {
-		t.Errorf("Issue err = %v, want ErrNotFound", err)
+}
+
+// fixtureComments stores Comments replies by the reporter.
+func fixtureComments(i api.Issue) []commentRow {
+	rows := make([]commentRow, 0, i.Comments)
+	for len(rows) < i.Comments {
+		rows = append(rows, commentRow{ID: domain.NewID[CommentID](), IssueID: i.ID, UserID: i.User, Body: i.Text, CreatedAt: i.CreatedAt})
 	}
+	return rows
 }
 
 func fixtureRow(r api.Request) requestRow {

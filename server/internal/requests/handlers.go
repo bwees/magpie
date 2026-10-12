@@ -7,6 +7,8 @@ import (
 	"magpie/internal/domain"
 	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
+	"magpie/internal/requests/api"
+	subtitlesapi "magpie/internal/subtitles/api"
 
 	"gorm.io/gorm"
 )
@@ -17,6 +19,9 @@ const (
 	handlerEpisodes       = "requests.extend-on-new-episodes"
 	handlerTitleAddFailed = "requests.fail-on-title-add-failed"
 	handlerItemAvailable  = "requests.mark-available-on-item-available"
+	handlerRegrabDone     = "requests.resolve-regrab-on-file-imported"
+	handlerSubtitlesDone  = "requests.resolve-rerun-on-subtitle-added"
+	handlerTitleRemoved   = "requests.close-issues-on-title-removed"
 )
 
 // newTitleAddedHandler links the request a Title was added for.
@@ -88,6 +93,55 @@ func newItemAvailableHandler(s *Service) bus.Handler {
 				return err
 			}
 			return s.MarkAvailable(tx, available.Title, available.Episodes)
+		},
+	}
+}
+
+// newRegrabDoneHandler resolves REGRAB issues once a download replaced the reported file.
+func newRegrabDoneHandler(s *Service) bus.Handler {
+	return bus.Handler{
+		Name:       handlerRegrabDone,
+		EventTypes: []string{libraryapi.TypeFileImported},
+		Handle: func(_ context.Context, tx *gorm.DB, ev bus.Event) error {
+			imported, err := bus.Decode[libraryapi.FileImported](ev)
+			if err != nil || imported.Origin != domain.OriginDownload {
+				return err
+			}
+			episodes := make([]domain.EpisodeID, 0, len(imported.Episodes))
+			for _, ep := range imported.Episodes {
+				episodes = append(episodes, ep.Episode)
+			}
+			return s.ResolveAction(tx, api.IssueActionRegrab, imported.Title, episodes)
+		},
+	}
+}
+
+// newSubtitlesDoneHandler resolves RERUN_SUBTITLES issues once a subtitle was added for the file.
+func newSubtitlesDoneHandler(s *Service) bus.Handler {
+	return bus.Handler{
+		Name:       handlerSubtitlesDone,
+		EventTypes: []string{subtitlesapi.TypeSubtitleAdded},
+		Handle: func(_ context.Context, tx *gorm.DB, ev bus.Event) error {
+			added, err := bus.Decode[subtitlesapi.SubtitleAdded](ev)
+			if err != nil {
+				return err
+			}
+			return s.ResolveAction(tx, api.IssueActionRerunSubtitles, added.Title, added.Episodes)
+		},
+	}
+}
+
+// newTitleRemovedHandler closes the open issues of a removed Title.
+func newTitleRemovedHandler(s *Service) bus.Handler {
+	return bus.Handler{
+		Name:       handlerTitleRemoved,
+		EventTypes: []string{catalogapi.TypeTitleRemoved},
+		Handle: func(_ context.Context, tx *gorm.DB, ev bus.Event) error {
+			removed, err := bus.Decode[catalogapi.TitleRemoved](ev)
+			if err != nil {
+				return err
+			}
+			return s.CloseForRemovedTitle(tx, removed.Title)
 		},
 	}
 }

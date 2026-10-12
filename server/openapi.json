@@ -538,6 +538,18 @@
 				],
 				"type": "object"
 			},
+			"CommentIssueRequest": {
+				"description": "CommentIssueRequest schema",
+				"properties": {
+					"body": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"body"
+				],
+				"type": "object"
+			},
 			"ConnectionsResponse": {
 				"description": "ConnectionsResponse schema",
 				"properties": {
@@ -2382,6 +2394,21 @@
 				],
 				"type": "object"
 			},
+			"IssueActionRequest": {
+				"description": "IssueActionRequest schema",
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"waitingRemoved": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"action"
+				],
+				"type": "object"
+			},
 			"IssueActionRequested": {
 				"description": "IssueActionRequested schema",
 				"properties": {
@@ -2395,6 +2422,15 @@
 					"issue": {
 						"type": "string"
 					},
+					"removedDownloads": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
 					"title": {
 						"type": "string"
 					}
@@ -2403,7 +2439,32 @@
 					"action",
 					"episode",
 					"issue",
+					"removedDownloads",
 					"title"
+				],
+				"type": "object"
+			},
+			"IssueCommentResponse": {
+				"properties": {
+					"author": {
+						"$ref": "#/components/schemas/RequesterResponse"
+					},
+					"body": {
+						"type": "string"
+					},
+					"createdAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"author",
+					"body",
+					"createdAt",
+					"id"
 				],
 				"type": "object"
 			},
@@ -2424,6 +2485,48 @@
 					"author",
 					"issue",
 					"reporter"
+				],
+				"type": "object"
+			},
+			"IssueEpisodeResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"number": {
+						"type": "integer"
+					},
+					"season": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"number",
+					"season"
+				],
+				"type": "object"
+			},
+			"IssueListResponse": {
+				"description": "IssueListResponse schema",
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/IssueResponse"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"items",
+					"total"
 				],
 				"type": "object"
 			},
@@ -2473,6 +2576,91 @@
 					"by",
 					"issue",
 					"reporter"
+				],
+				"type": "object"
+			},
+			"IssueResponse": {
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"comments": {
+						"type": "integer"
+					},
+					"createdAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"episode": {
+						"$ref": "#/components/schemas/IssueEpisodeResponse"
+					},
+					"episodeId": {
+						"nullable": true,
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"reporter": {
+						"$ref": "#/components/schemas/RequesterResponse"
+					},
+					"resolvedAt": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"resolvedBy": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"titleId": {
+						"type": "string"
+					},
+					"titleName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"action",
+					"comments",
+					"createdAt",
+					"episodeId",
+					"id",
+					"kind",
+					"reporter",
+					"resolvedAt",
+					"resolvedBy",
+					"status",
+					"text",
+					"titleId",
+					"titleName"
+				],
+				"type": "object"
+			},
+			"IssueThreadResponse": {
+				"description": "IssueThreadResponse schema",
+				"properties": {
+					"comments": {
+						"items": {
+							"$ref": "#/components/schemas/IssueCommentResponse"
+						},
+						"type": "array"
+					},
+					"issue": {
+						"$ref": "#/components/schemas/IssueResponse"
+					}
+				},
+				"required": [
+					"comments",
+					"issue"
 				],
 				"type": "object"
 			},
@@ -4172,6 +4360,29 @@
 				"required": [
 					"deleteFiles",
 					"id"
+				],
+				"type": "object"
+			},
+			"ReportIssueRequest": {
+				"description": "ReportIssueRequest schema",
+				"properties": {
+					"episodeId": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"titleId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"kind",
+					"text",
+					"titleId"
 				],
 				"type": "object"
 			},
@@ -14667,6 +14878,480 @@
 				]
 			}
 		},
+		"/api/requests/issues": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).listIssues`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listIssues",
+				"parameters": [
+					{
+						"description": "Only these statuses",
+						"in": "query",
+						"name": "status",
+						"schema": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						}
+					},
+					{
+						"description": "Only this reporter's issues",
+						"in": "query",
+						"name": "userId",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Only issues on this Title",
+						"in": "query",
+						"name": "titleId",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Return only the total, without items",
+						"in": "query",
+						"name": "count",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IssueListResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Issues the viewer may see, newest first: their own unless they may view others' requests",
+				"tags": [
+					"api",
+					"issues"
+				]
+			},
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).reportIssue`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "reportIssue",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ReportIssueRequest"
+							}
+						}
+					},
+					"description": "Request body for requests.ReportIssueRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IssueResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Report a problem with a Title or one episode (needs the report-issues toggle)",
+				"tags": [
+					"api",
+					"issues"
+				]
+			}
+		},
+		"/api/requests/issues/{id}": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).issueThread`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getIssue",
+				"parameters": [
+					{
+						"description": "Issue ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IssueThreadResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "One issue with its comment thread",
+				"tags": [
+					"api",
+					"issues"
+				]
+			}
+		},
+		"/api/requests/issues/{id}/actions": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).issueAction`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "requestIssueAction",
+				"parameters": [
+					{
+						"description": "Issue ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/IssueActionRequest"
+							}
+						}
+					},
+					"description": "Request body for requests.IssueActionRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IssueResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Fix an open issue: blocklist and re-grab, or re-run subtitles (admin)",
+				"tags": [
+					"api",
+					"issues"
+				]
+			}
+		},
+		"/api/requests/issues/{id}/comments": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).commentIssue`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "commentIssue",
+				"parameters": [
+					{
+						"description": "Issue ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CommentIssueRequest"
+							}
+						}
+					},
+					"description": "Request body for requests.CommentIssueRequest",
+					"required": true
+				},
+				"responses": {
+					"201": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IssueCommentResponse"
+								}
+							}
+						},
+						"description": "Created"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Reply on an issue (its reporter or an admin)",
+				"tags": [
+					"api",
+					"issues"
+				]
+			}
+		},
+		"/api/requests/issues/{id}/resolve": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).resolveIssue`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "resolveIssue",
+				"parameters": [
+					{
+						"description": "Issue ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/IssueResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Close an issue by hand (its reporter or an admin)",
+				"tags": [
+					"api",
+					"issues"
+				]
+			}
+		},
 		"/api/requests/{id}": {
 			"delete": {
 				"description": "#### Controller: \n\n`magpie/internal/requests.(*Controller).cancel`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -16630,6 +17315,9 @@
 		},
 		{
 			"name": "identity"
+		},
+		{
+			"name": "issues"
 		},
 		{
 			"name": "library"

@@ -57,7 +57,7 @@ Platform    → Identity, Requests   (live gateway role filter only)
 
 - Library never reads Acquisition: everything it needs about a download comes in the `DownloadCompleted` payload.
 - Transcode never reads Subtitles or Acquisition: wanted languages come from Catalog, and cutoff arrives as `CutoffMet`.
-- `acquisition.Reader` exists for Acquisition's own HTTP layer, plus Requests reading `DefaultProfile` for new requests. The UI reads profiles from `GET /api/acquisition/profiles`.
+- `acquisition.Reader` exists for Acquisition's own HTTP layer, plus Requests reading `DefaultProfile` for new requests and `DownloadsForTitle` for the REGRAB check on downloads waiting for mapping. The UI reads profiles from `GET /api/acquisition/profiles`.
 - Importing an `api` for its event structs or command is not a query dependency. For example, Library imports `acquisition/api` for `DownloadCompleted` but never uses `acquisition.Reader`, and the live gateway imports `acquisition/api` only for the search event-type constants.
 
 Reader contents other contexts rely on:

@@ -2,7 +2,7 @@
 
 Handles users asking for Titles, admin approval, tracking each request until Jellyfin has it, and user-reported Issues.
 
-- **Depends on (Readers):** `catalog.Reader`, `identity.Reader`, `acquisition.Reader` (only `DefaultProfile`, for new requests).
+- **Depends on (Readers):** `catalog.Reader`, `identity.Reader`, `acquisition.Reader` (`DefaultProfile` for new requests; `DownloadsForTitle` to find a download waiting for mapping before a REGRAB).
 - **Publishes:** `RequestCreated`, `RequestApproved`, `RequestDeclined`, `RequestCancelled`, `RequestAvailable`, `IssueReported`, `IssueCommented`, `IssueActionRequested`, `IssueResolved`.
 - **Consumes:** `catalog.TitleAdded`, `catalog.MonitoringChanged`, `catalog.TitleAddFailed`, `catalog.WantedReleased`, `catalog.EpisodesAnnounced`, `catalog.TitleRemoved`, `library.ItemAvailable`, `library.FileImported`, `subtitles.SubtitleAdded`.
 - **Read by:** the platform live gateway (role filter) and Activity.
@@ -22,7 +22,7 @@ Handles users asking for Titles, admin approval, tracking each request until Jel
 |---|---|
 | `requests_requests` | `id`, `userId`, `kind` (`MOVIE` \| `SERIES`), `tmdbId`, `titleId?`, `scope` (`MOVIE` \| `ALL_SEASONS` \| `SEASONS`), `seasons` (JSON int[]), `profileId`, `status`, `createdAt`, `decidedBy?`, `decidedAt?`, `declineReason?`, `failureReason?`, `availableAt?` |
 | `requests_request_items` | `requestId`, `episodeId?` (null for a movie), `availableAt?` — one row per requested movie or released episode in scope, unique on `(requestId, episodeId)` |
-| `issues` | `id`, `userId`, `titleId`, `episodeId?`, `kind` (`VIDEO` \| `AUDIO` \| `SUBTITLE` \| `OTHER`), `text`, `status` (`OPEN` \| `ACTION_PENDING` \| `RESOLVED`), `pendingAction?`, `createdAt`, `resolvedAt?`, `resolvedBy?` |
+| `issues` | `id`, `userId`, `titleId`, `episodeId?`, `kind` (`VIDEO` \| `AUDIO` \| `SUBTITLE` \| `OTHER`), `text`, `status` (`OPEN` \| `ACTION_PENDING` \| `RESOLVED`), `pendingAction?` (the action last asked for; kept after it resolves), `createdAt`, `resolvedAt?`, `resolvedBy?` (`ACTION` \| `TITLE_REMOVED` \| user ID) |
 | `issue_comments` | `id`, `issueId`, `userId`, `body`, `createdAt` |
 
 ## Query port
@@ -145,13 +145,17 @@ type IssueActionRequested struct {
     Title   domain.TitleID
     Episode *domain.EpisodeID
     Action  string // REGRAB | RERUN_SUBTITLES
+    // RemovedDownloads: downloads that waited for the user to map their import, which the admin removed
+    // (Remove & blocklist) to make way for this REGRAB. Its search doesn't count them as queued, even before
+    // Acquisition has dropped them. Empty otherwise.
+    RemovedDownloads []domain.DownloadID
 }
 
-// IssueResolved: the Issue was closed, by a completed action or by a person.
+// IssueResolved: the Issue was closed, by a completed action, by a person, or because its Title was removed.
 type IssueResolved struct {
     Issue    domain.IssueID
     Reporter domain.UserID
-    By       string // "ACTION" | user ID
+    By       string // "ACTION" | "TITLE_REMOVED" | user ID
 }
 ```
 
@@ -163,10 +167,10 @@ type IssueResolved struct {
 | `catalog.MonitoringChanged{RequestID}` | Catalog | Same as `TitleAdded` for a Title that already existed | Same | Same |
 | `catalog.MonitoringChanged` (no RequestID), `catalog.WantedReleased`, `catalog.EpisodesAnnounced` | Catalog | For non-terminal requests on that Title, add `request_items` for newly released episodes in scope | Keyed rows | — |
 | `catalog.TitleAddFailed{RequestID}` | Catalog | Status → `FAILED` with the reason. Admin can retry. | Event ID | — |
-| `catalog.TitleRemoved` | Catalog | Requests on that Title stay as history (`titleId` kept); open Issues → `RESOLVED` | Event ID | — |
+| `catalog.TitleRemoved` | Catalog | Requests on that Title stay as history (`titleId` kept); open Issues → `RESOLVED` + `IssueResolved{By: "TITLE_REMOVED"}` | Event ID | — |
 | `library.ItemAvailable` | Library | Set `availableAt` on matching items, then recompute status: some → `PARTIALLY_AVAILABLE`, all → `AVAILABLE` + `RequestAvailable` (first time only) | Event ID; `availableAt` set once | — |
-| `library.FileImported` (`Origin = DOWNLOAD`) | Library | Issues in `ACTION_PENDING` with `REGRAB` for that Title/episode → `RESOLVED` + `IssueResolved` | Event ID | — |
-| `subtitles.SubtitleAdded` | Subtitles | Issues in `ACTION_PENDING` with `RERUN_SUBTITLES` whose file matches (via the Title/episode in the payload) → `RESOLVED` + `IssueResolved` | Event ID | — |
+| `library.FileImported` (`Origin = DOWNLOAD`) | Library | Issues in `ACTION_PENDING` with `REGRAB` for that Title whose episode is in `Episodes` (an issue on the whole Title, or a movie, always matches) → `RESOLVED` + `IssueResolved{By: "ACTION"}` | Event ID; a resolved issue doesn't change | — |
+| `subtitles.SubtitleAdded` | Subtitles | Issues in `ACTION_PENDING` with `RERUN_SUBTITLES` matched the same way by the payload's `Title` and `Episodes` → `RESOLVED` + `IssueResolved{By: "ACTION"}` | Event ID; a resolved issue doesn't change | — |
 
 ## External ports
 
@@ -183,11 +187,12 @@ Routes under `/api/requests`: requests at the root (`POST /api/requests`), issue
 - `POST /api/requests/{id}/decline` `{reason?}` (admin).
 - `POST /api/requests/{id}/retry` re-publish `RequestApproved` for a `FAILED` request (admin).
 - `DELETE /api/requests/{id}` cancel your own `PENDING` request (`204`), publishing `RequestCancelled`.
-- `POST /api/requests/issues` `{titleId, episodeId?, kind, text}` (needs the "report issues" toggle).
-- `GET /api/requests/issues` list; `GET /api/requests/issues/{id}`.
-- `POST /api/requests/issues/{id}/comments` `{body}` (reporter or admin).
-- `POST /api/requests/issues/{id}/actions` `{action: REGRAB | RERUN_SUBTITLES}` (admin).
-- `POST /api/requests/issues/{id}/resolve` (admin or reporter).
+- `POST /api/requests/issues` `{titleId, episodeId?, kind, text}` (needs the "report issues" toggle, else `403`; admins always may). An unknown title, an episode of another title, an unknown kind or blank text is `400`.
+- `GET /api/requests/issues` list, newest first: `{items, total}`. Visibility as for requests (own issues unless "view others' requests"). Filters: `status` (repeatable), `userId`, `titleId`, `count=true`. Each item carries the reporter's name, the title's name, the episode's season/number while Catalog knows them, the comment count, the last `action`, `resolvedAt` and `resolvedBy`.
+- `GET /api/requests/issues/{id}`: `{issue, comments}`, comments oldest first. Another user's issue is `404` without the toggle.
+- `POST /api/requests/issues/{id}/comments` `{body}` (reporter or admin; a visible issue someone else reported is `403`).
+- `POST /api/requests/issues/{id}/actions` `{action: REGRAB | RERUN_SUBTITLES, waitingRemoved?}` (admin). An issue that isn't `OPEN` is `409 issue-status`. A REGRAB while a download for the issue's items waits for its import to be mapped (`IMPORT_PENDING_USER`) is `409 import-waiting`: `detail` names the release and `instance` is `/api/library/imports/{downloadId}`. With `waitingRemoved: true` (the admin removed it first) the downloads still waiting go in `RemovedDownloads`.
+- `POST /api/requests/issues/{id}/resolve` (admin or reporter). A resolved issue is `409 issue-status`.
 
 ## Behaviour
 
@@ -225,7 +230,9 @@ DECLINED              FAILED ──retry──▶ APPROVED          PARTIALLY_AV
   - `REGRAB`: Acquisition blocklists the current file's release and searches again. This works even when the file has been transcoded (a manual override of "upgrades stop after transcode").
   - `RERUN_SUBTITLES`: Subtitles redoes subtitles for the file.
   - Either action sets `ACTION_PENDING` and publishes `IssueActionRequested`. The Issue resolves automatically when the matching `FileImported` or `SubtitleAdded` arrives, or manually.
-- Only one action can be pending per Issue. A second action returns `409` until the first resolves.
+- Only one action can be pending per Issue. A second action returns `409` until the first resolves. A resolved Issue takes no action.
+- **REGRAB while a download waits for mapping** (owner decision, [ticket 27](../../../.scratch/v1-build/issues/27-issues-and-fix-actions.md)): a download in `IMPORT_PENDING_USER` holds the issue's items, so a REGRAB search would be rejected `ALREADY_QUEUED`. Requests checks `acquisition.Reader.DownloadsForTitle` (any waiting download of the title for a movie or a whole-title issue, else those covering the episode) and answers `409 import-waiting` naming it. The UI offers **View the release** (Activity → Imports, to map it) or **Remove it and continue**. That calls Library's Remove & blocklist for the waiting import (`DELETE /api/library/imports/{downloadId}` → `ImportRemoved`, Acquisition drops the download), then repeats the action with `waitingRemoved`. Acquisition blocklists the current file's release and runs the REGRAB search without counting the downloads in `RemovedDownloads` as queued, since its drop job may not have run yet.
+- Comments and resolutions notify through Activity: an admin's reply notifies the reporter, the reporter's reply notifies admins, and `IssueResolved` notifies the reporter.
 
 ## Test seeds
 
@@ -245,3 +252,4 @@ DECLINED              FAILED ──retry──▶ APPROVED          PARTIALLY_AV
 14. **Given** an `OPEN` issue on episode E, **when** an admin requests `REGRAB`, **then** status is `ACTION_PENDING` and `IssueActionRequested{Episode: E, Action: REGRAB}` is published; a second action returns `409`.
 15. **Given** an `ACTION_PENDING` `REGRAB` issue on episode E, **when** `library.FileImported` for E arrives, **then** the issue is `RESOLVED` and `IssueResolved{By: "ACTION"}` is published once.
 16. **Given** a comment by an admin, **then** `IssueCommented{Reporter}` is published.
+17. **Given** an `OPEN` issue on episode E and a download for E in `IMPORT_PENDING_USER`, **when** an admin requests `REGRAB`, **then** the API returns `409 import-waiting` naming the download and nothing is published; **when** the admin repeats it with `waitingRemoved`, **then** `IssueActionRequested{RemovedDownloads: [that download]}` is published.

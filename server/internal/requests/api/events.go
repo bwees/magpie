@@ -20,8 +20,13 @@ const (
 	IssueActionRerunSubtitles = "RERUN_SUBTITLES"
 )
 
-// IssueResolvedByAction is IssueResolved.By when a completed action closed the issue.
-const IssueResolvedByAction = "ACTION"
+// IssueResolved.By values besides a user ID.
+const (
+	// IssueResolvedByAction: a completed action closed the issue.
+	IssueResolvedByAction = "ACTION"
+	// IssueResolvedByTitleRemoved: the issue's Title left Catalog.
+	IssueResolvedByTitleRemoved = "TITLE_REMOVED"
+)
 
 // RequestCreated is durable: a request is waiting for approval. Not published for auto-approved requests.
 type RequestCreated struct {
@@ -118,6 +123,10 @@ type IssueActionRequested struct {
 	Title   domain.TitleID    `json:"title"`
 	Episode *domain.EpisodeID `json:"episode"`
 	Action  string            `json:"action"` // IssueActionRegrab | IssueActionRerunSubtitles
+	// RemovedDownloads are downloads that waited for the user to map their import, which the admin removed
+	// (Remove & blocklist) to make way for this REGRAB. Its search doesn't count them as queued, even before
+	// Acquisition has dropped them. Empty otherwise.
+	RemovedDownloads []domain.DownloadID `json:"removedDownloads"`
 }
 
 func (IssueActionRequested) Type() string          { return TypeIssueActionRequested }
@@ -128,7 +137,7 @@ func (IssueActionRequested) Durable() bool         { return true }
 type IssueResolved struct {
 	Issue    domain.IssueID `json:"issue"`
 	Reporter domain.UserID  `json:"reporter"`
-	By       string         `json:"by"` // IssueResolvedByAction | user ID
+	By       string         `json:"by"` // IssueResolvedByAction | IssueResolvedByTitleRemoved | user ID
 }
 
 func (IssueResolved) Type() string          { return TypeIssueResolved }

@@ -91,6 +91,9 @@ func newHarness(t *testing.T) *harness {
 		newEpisodesHandler(h.service),
 		newTitleAddFailedHandler(h.service),
 		newItemAvailableHandler(h.service),
+		newRegrabDoneHandler(h.service),
+		newSubtitlesDoneHandler(h.service),
+		newTitleRemovedHandler(h.service),
 	}
 	h.server = httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{NewController(h.service)})
 	return h
