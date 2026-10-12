@@ -158,7 +158,7 @@ type Event struct {
 | `acquisition.ReleaseGrabbed` | Acquisition | download, release, indexer, infoHash, title, episodes, quality, cfScore | Activity |
 | `acquisition.ReleaseRejected` | Acquisition | release, infoHash, reason, blockedFile?, next? | Activity → timeline |
 | `acquisition.DownloadProgressed` *(ephemeral)* | Acquisition | download, state, progress, speed, eta | live gateway |
-| `acquisition.DownloadCompleted` | Acquisition | download, title, episodes, contentPath, files[], releaseName, quality, cfScore, seedingMode (published only after the blocked-file backstop passes) | Library → import |
+| `acquisition.DownloadCompleted` | Acquisition | download, title, episodes, contentPath, files[], releaseName, infoHash, quality, cfScore, seedingMode (published only after the blocked-file backstop passes) | Library → import |
 | `acquisition.DownloadFailed` | Acquisition | download, reason | Activity → notify |
 | `acquisition.CutoffMet` | Acquisition | mediaFile, title, episodes, quality, cfScore, origin | Transcode → evaluate policy and queue (DOWNLOAD origin ahead of LIBRARY_SCAN/MIGRATION) |
 | `library.FileImported` | Library | mediaFile, title, episodes, path, quality, releaseName, osHash, size, mediaInfo, replaces? (informational), download? (nil for scan/migration), sidecars, origin | Acquisition → cutoff check + seeding/remove; Subtitles → find subtitles; Requests → resolve REGRAB issues; Activity |

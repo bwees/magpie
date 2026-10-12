@@ -25,9 +25,9 @@ Decisions: [04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md), 
 | Table | Key columns |
 |---|---|
 | `root_folders` | id, kind (MOVIE/SERIES), path, device_id |
-| `media_files` | id, title_id, root_folder_id, path, size, quality_id, quality_name, release_name, os_hash, media_info (json: streams, duration, HDR), etag, origin (DOWNLOAD/LIBRARY_SCAN/MIGRATION), imported_at, download_id?, info_hash?, transcoded, transcoded_at, original_size, jellyfin_item_id?, available_at? |
-| `media_file_episodes` | media_file_id, episode_id (many-to-many: multi-episode files) |
-| `imports` | download_id, status (PENDING/IMPORTED/FAILED/MANUAL), attempts, last_error, updated_at |
+| `media_files` | id, title_id, root_folder_id, path, size, quality (json), release_name, os_hash, media_info (json: streams, duration, HDR), etag, origin (DOWNLOAD/LIBRARY_SCAN/MIGRATION), imported_at, download_id?, info_hash?, transcoded, transcoded_at, original_size, jellyfin_item_id?, available_at? |
+| `media_file_episodes` | media_file_id, episode_id, season, number (many-to-many: multi-episode files; the numbers as imported) |
+| `imports` | download_id, title_id, release_name, status (PENDING/IMPORTED/FAILED/MANUAL), attempts, last_error, payload (the `DownloadCompleted`), files (json: the last attempt's videos and subtitles with their sample flag and matched episodes), mapping? (json: the user's file → episodes choice), created_at, updated_at |
 | `scan_folders` | path, status (FOUND/LINKED/IGNORED), title_id? (set on `ScanFolderMatched`) |
 
 - `etag` = hash of (device, inode, size, mtime). It changes whenever the file is replaced or modified.
@@ -155,6 +155,12 @@ type FileSystem interface {
 	Walk(root string, fn func(path string, info FileInfo) error) error
 }
 
+// DownloadLocation is implemented by the qBittorrent adapter, for the hardlink check.
+type DownloadLocation interface {
+	// SavePath is where qBittorrent saves Magpie's category (else its default), path mapping applied.
+	SavePath(ctx context.Context) (string, error)
+}
+
 type MediaProber interface {
 	// Probe runs ffprobe. probesize 50 MB, retried at 150 MB with longer analyzeduration. ErrProbeFailed if unreadable.
 	Probe(ctx context.Context, path string) (MediaInfo, error)
@@ -193,19 +199,23 @@ var ErrCrossDevice, ErrProbeFailed, ErrItemNotFound, ErrJellyfinUnavailable erro
 | GET | `/api/library/files/{id}` | One file with media info |
 | GET | `/api/library/coverage?titles=` | Episodes with a file / confirmed in Jellyfin, size (TV page) |
 | DELETE | `/api/library/files/{id}` | Delete a file from disk → `FileDeleted{REMOVED}` (admin) |
-| GET | `/api/library/root-folders` · POST · DELETE `/{id}` | Root folders; POST validates the path exists and is writable, and reports the hardlink check |
-| GET | `/api/library/imports?status=FAILED,MANUAL` | Failed and manual imports |
-| POST | `/api/library/imports/{downloadId}/manual` | Body: file → episodes mapping; runs import with that mapping |
+| GET | `/api/library/root-folders` · POST · DELETE `/{id}` | Root folders, each with its hardlink check (`link`: `HARDLINK` \| `COPY` \| `UNKNOWN`); POST validates the path is absolute, exists and is writable (400 `invalid-root-folder`, 409 `root-folder-exists`); DELETE refuses a folder that still holds media files (409 `root-folder-in-use`) |
+| GET | `/api/library/imports?status=FAILED,MANUAL` | Failed and manual imports, with each download's videos and subtitles, the matched episodes, and the series' episodes for the picker |
+| POST | `/api/library/imports/{downloadId}/manual` | Body `{files: [{path, episodes}]}`: imports the listed videos as those episodes (a movie's video has none) and skips the rest; 202, runs as the import job. 400 `invalid-file-mapping`, 409 `import-not-stopped` unless FAILED or MANUAL |
+| POST | `/api/library/imports/{downloadId}/retry` | Runs a FAILED or MANUAL import again with automatic mapping; 202 |
+| DELETE | `/api/library/imports/{downloadId}` | Drops a FAILED or MANUAL import from the queue (Acquisition already blocklisted its release); 204 |
 | POST | `/api/library/scan` | Start a library scan (backlite job) |
-| GET | `/api/library/hardlink-check` | Whether the qBittorrent download path and each root folder share a device |
+| GET | `/api/library/hardlink-check` | Whether the qBittorrent download path (from `DownloadLocation`) and each root folder share a device; `problem` says why the result is `UNKNOWN` |
 
 ## Behaviour
 
 **Import** (on `DownloadCompleted`):
+0. The handler stores an `imports` row keyed by download ID (a redelivery finds it and does nothing) and queues the import job in the same transaction. The job runs only a `PENDING` import, and moves it to `IMPORTED` in the transaction that inserts the `media_files` rows.
 1. Resolve `contentPath` and list files. Keep only video files (`mkv mp4 m4v avi ts`) and subtitle files (`srt ass ssa sub idx sup vtt`). Anything else is ignored.
    - The blocked-file backstop runs in Acquisition before it publishes `DownloadCompleted`. Library never imports unknown extensions and never reads Acquisition's block list.
-2. Probe each video. Skip samples: runtime ≤ the threshold for the expected runtime (≤3 min → 15 s, ≤10 → 90 s, ≤30 → 300 s, else 600 s). Unknown runtime rejects as a sample ([04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md)).
-3. Map videos to episodes. A single file maps to the payload's episodes. Season packs parse each file name, falling back to the folder name, then the release name. Any video that can't be mapped makes the import `MANUAL` (no partial import).
+   - A single-file torrent's `contentPath` is the file. `Files` paths are relative to `contentPath`, or to its parent when they start with its folder name (as qBittorrent lists them).
+2. Probe each video. Skip samples: runtime ≤ the threshold for the expected runtime (≤3 min → 15 s, ≤10 → 90 s, ≤30 → 300 s, else 600 s). A video ffprobe can't read counts as a sample ([04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md)). The expected runtime is the episode's, else the title's, else 45 min.
+3. Map videos to episodes. A single file maps to the payload's episodes. Season packs parse each file name, falling back to the folder name, then the release name, and match the current numbering, then TMDB's aired order. Any video that can't be mapped, two videos for one episode, or several videos for a movie make the import `MANUAL` (no partial import). No video at all (or only samples) makes it `FAILED`. Both publish `ImportFailed{Retryable:false}`.
 4. Build the target path from `catalog.Reader` (fixed Jellyfin naming, no editor):
    - Movie: `<movies root>/<Title> (<Year>) [tmdbid-<id>]/<Title> (<Year>).<ext>`
    - Episode: `<tv root>/<Show> (<Year>) [tmdbid-<id>]/Season <NN>/<Show> S<NN>E<NN>[-E<NN>].<ext>`
@@ -213,7 +223,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrItemNotFound, ErrJellyfinUnavailable erro
 5. Place the file. If `seedingMode = SEED_UNTIL_GOALS`: hardlink, falling back to copy when the devices differ. If `DONT_SEED`: move. Hardlink/copy/move happens into a temp name, then an atomic rename.
 6. Compute OSHash and ETag. Store `release_name` and the download's info hash from the payload.
 7. Upgrade: if an existing file covers the same episodes, delete it after the new file is in place. In the same transaction publish `FileImported{Replaces: old}` for the new file, then `FileDeleted{Reason: UPGRADED}` for the old one.
-8. Release subtitles in wanted form go to `<basename>.<lang>[.forced|.sdh].<ext>`, reported in `Sidecars`. The language is parsed from the file name; files with no language are dropped.
+8. Release subtitles go to `<basename>.<lang>[.forced|.sdh].<ext>`, reported in `Sidecars`. The language (ISO 639-1/2 code or English name) is parsed from the end of the file name; files with no language are dropped. A subtitle belongs to the video whose name it starts with, the only video, or the video covering the episodes its own name gives.
 9. Commit and publish `FileImported`. Then refresh Jellyfin for the parent folder.
 
 **Availability:**

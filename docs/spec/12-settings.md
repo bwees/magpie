@@ -68,8 +68,8 @@ Owner: **Library** unless noted.
 | Setting | Default | Validation |
 |---|---|---|
 | Root folders (Movies, TV) | set in the wizard | must exist, be writable, and be visible to Jellyfin |
-| After download (seeding mode) | Seed until goals | `SEED_UNTIL_GOALS` \| `DONT_SEED`. Owner: Acquisition; Library receives it in `DownloadCompleted.SeedingMode`. |
-| Hardlink check | automatic | Shows the result. Copy fallback when downloads and library are on different filesystems. |
+| After download (seeding mode) | Seed until goals | `SEED_UNTIL_GOALS` \| `DONT_SEED`. Owner: Acquisition (`acquisition.seedingMode`, in `GET · PUT /api/acquisition/download-options`; also shown under Downloads); Library receives it in `DownloadCompleted.SeedingMode`. |
+| Hardlink check | automatic | Shows the result per root folder against qBittorrent's save path for Magpie's category. Copy fallback when downloads and library are on different filesystems. |
 | Naming | fixed Jellyfin convention | read-only: `Movies/Title (Year) [tmdbid-N]/Title (Year).mkv`, `TV/Show (Year) [tmdbid-N]/Season 01/Show S01E02.mkv` |
 | Scan existing library | action | match by `[tmdbid-N]`, else fuzzy title+year → review |
 | Rename matched folders on scan | off | |
@@ -110,7 +110,7 @@ The per-indexer rows live on each indexer (`PUT /api/acquisition/indexers/{id}`)
 
 ## Downloads
 
-Owner: **Acquisition**. Decided in [ticket 11](../../.scratch/v1-spec/issues/11-blocked-file-policy.md). The first four rows are `GET · PUT /api/acquisition/download-options`; patterns and the switch save on change, the timeouts with Save.
+Owner: **Acquisition**. Decided in [ticket 11](../../.scratch/v1-spec/issues/11-blocked-file-policy.md). The first five rows and the after-download mode are `GET · PUT /api/acquisition/download-options`; patterns, the switch and the mode save on change, the timeouts and the seeding goal with Save.
 
 | Setting | Default | Validation |
 |---|---|---|
@@ -118,7 +118,7 @@ Owner: **Acquisition**. Decided in [ticket 11](../../.scratch/v1-spec/issues/11-
 | Blocked file patterns | `*.exe *.msi *.bat *.cmd *.com *.scr *.lnk *.ps1 *.vbs *.js *.jar *.apk *.dmg *.iso *.rar *.r[0-9][0-9] *.zip *.7z` | glob or `regex:` prefix; regex must compile |
 | Magnet metadata timeout | 5 min (then temporary blocklist for 24 h) | 1–60 min |
 | Stalled download limit | 6 h (then `DownloadFailed`, temporary blocklist for 24 h, grab next) | 30 min–72 h |
-| Global seeding goal | ratio 2.0 or 14 days, whichever first | ratio 0–100, days 0–365 |
+| Global seeding goal | ratio 2.0 or 14 days, whichever first (`acquisition.seedingGoal`) | ratio 0–100, days 0–365 |
 | Search when a title is added | on | `GET · PUT /api/acquisition/search-options`; saves on change. Requested and manually added titles only. |
 
 ## Subtitles

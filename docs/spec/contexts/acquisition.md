@@ -174,6 +174,7 @@ type DownloadCompleted struct {
     ContentPath string         // as qBittorrent reports it (remote path mapping already applied)
     Files       []DownloadFile // relative path + size; only files with priority > 0
     ReleaseName string
+    InfoHash    string         // the torrent's info hash; Library stores it as the file's source hash
     Quality     domain.Quality
     CFScore     int
     SeedingMode SeedingMode    // SEED_UNTIL_GOALS → Library hardlinks (copy fallback); DONT_SEED → Library moves
@@ -209,9 +210,9 @@ Idempotency: every handler records `event.ID` in `processed_events` within the s
 | `catalog.TitleRemoved` | Catalog | Cancel running searches; drop pending releases; remove its downloads from qBittorrent (`deleteFiles=true` only if `deleteFiles`); keep blocklist rows. | qBit unreachable → retry job. |
 | `requests.IssueActionRequested{REGRAB}` | Requests | Resolve the current file for `Title`/`Episode` via `library.Reader` (its source info hash and release name). Blocklist that hash permanently (`ISSUE`) and enqueue a REGRAB search for the episode or movie. A transcoded file does **not** block a REGRAB. | No source hash (scan/migration file) → blocklist by release name + indexer if known, else just search. |
 | `requests.IssueActionRequested{RERUN_SUBTITLES}` | Requests | Ignored. | — |
-| `library.FileImported` | Library | Compute CF score from `ReleaseName` (fall back to file name). Upsert `file_scores` with `Origin`. If cutoff met → publish `CutoffMet{Origin}`. If `Download` set: mark download `IMPORTED`; if its mode is `DONT_SEED`, remove the torrent (no data delete; Library moved it). `Replaces` is informational; cleanup of the old file happens on `FileDeleted`. | — |
+| `library.FileImported` | Library | Compute CF score from `ReleaseName` (fall back to file name). Upsert `file_scores` with `Origin`. If cutoff met → publish `CutoffMet{Origin}`. If `Download` set: move the download `COMPLETED` → `IMPORTED` (once per download, however many files a pack had); if its mode is `DONT_SEED`, queue a job that removes the torrent (no data delete; Library moved it) and sets `removed_at`. `Replaces` is informational; cleanup of the old file happens on `FileDeleted`. | qBittorrent unreachable → the job retries. |
 | `library.FileDeleted` | Library | Drop the file's `file_scores` row (any `Reason`). | — |
-| `library.ImportFailed` | Library | Mark download `IMPORT_FAILED`, blocklist (`IMPORT_FAILED`), remove torrent with data, grab next cached release or search. | — |
+| `library.ImportFailed` | Library | `Retryable:false` only. Queue a job that drops the download like any rejection: remove torrent with data, state `IMPORT_FAILED` with `removed_at`, blocklist (`IMPORT_FAILED`), `ReleaseRejected`, grab next cached release or search. A download already removed is left alone. | qBittorrent unreachable → the job retries. |
 | `library.FileTranscoded` | Library | Set `file_scores.transcoded = true`; upgrades stop for that file. Its CF score is **not** recomputed from the new file. | — |
 
 ## External ports
@@ -293,8 +294,8 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 | POST | `/indexers/sync` | Pull the list from Prowlarr now; 502 `prowlarr-unavailable` / `prowlarr-unauthorized` on failure |
 | GET · PUT | `/indexer-options` | Sync interval, search timeout and result cache (apply to every indexer) |
 | GET · DELETE | `/blocklist` · `/blocklist/{id}` | Every entry with its title name, newest first, expired temporary ones included; remove (204) |
-| GET · PUT | `/download-options` | Settings → Downloads: `blockedFilesEnabled`, `blockedPatterns` (glob or `regex:`; must compile), `metadataTimeoutMinutes` (1–60), `stalledLimitMinutes` (30–4320). 400 on invalid values |
-| GET · PUT | `/settings` | Delay, settle window, seeding defaults. Quality fields so far: `defaultProfileId` (must exist), `defaultDelayMinutes` (0–1440), `settleWindowSeconds` (5–120), `trashSyncEnabled` |
+| GET · PUT | `/download-options` | Settings → Downloads: `blockedFilesEnabled`, `blockedPatterns` (glob or `regex:`; must compile), `metadataTimeoutMinutes` (1–60), `stalledLimitMinutes` (30–4320), and the global seeding settings `seedingMode` (`SEED_UNTIL_GOALS` \| `DONT_SEED`), `seedRatio` (0–100), `seedDays` (0–365). 400 on invalid values |
+| GET · PUT | `/settings` | Delay and settle window. Quality fields so far: `defaultProfileId` (must exist), `defaultDelayMinutes` (0–1440), `settleWindowSeconds` (5–120), `trashSyncEnabled` |
 | GET · PUT | `/search-options` | Settings → Downloads: `searchOnAdd` ("Search when a title is added", default on) |
 | GET · PUT | `/schedules` | Settings → General → Schedules: `rssIntervalMinutes` (10–120), `missingSweepDays` (1–7), `cutoffSweepDays` (1–30); the response adds the fixed `pendingCheckMinutes`. 400 on values out of bounds |
 
@@ -471,7 +472,8 @@ The check is on by default and can be turned off in settings.
   - Stalled (no progress) for longer than the stalled limit (setting, default 6 h) → `DownloadFailed`, **temporary** blocklist (`STALLED`, expires after 24 h), delete with data, fall back.
 - **SEED_UNTIL_GOALS:**
   - After `FileImported`, keep seeding.
-  - Every 5 min, check ratio and seeding time against the indexer's goals, else the global defaults (ratio 2.0 or 14 days, whichever first). When either goal is met: `Delete(deleteFiles=true)`. The library copy is a hardlink or copy, so it survives.
+  - Every 5 min (the `acquisition.seeding-goals` periodic job), check ratio and seeding time of each `IMPORTED` download against the indexer's goals, else the global goal (`acquisition.seedingGoal`, default ratio 2.0 or 14 days, whichever first). The indexer's ratio and days override the global ones separately. When either goal is met: `Delete(deleteFiles=true)` and set `removed_at`; the state stays `IMPORTED`. The library copy is a hardlink or copy, so it survives.
+  - The Downloads tab shows an `IMPORTED` download as Seeding while qBittorrent uploads it.
 - **DONT_SEED:** after `FileImported`, `Delete(deleteFiles=false)`. Library has already moved the files.
 - Downloads not grabbed by Magpie (other categories) are ignored.
 - The poll ticker only syncs, emits progress and enqueues one check job per download that needs action (metadata arrived, metadata timeout, completion, failure, stall). The job re-reads the state, so a repeated check changes nothing. A torrent missing from qBittorrent for over a minute is marked `REMOVED`.
