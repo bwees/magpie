@@ -12,12 +12,37 @@ import (
 // ControlPath is the control WebSocket, relative to the server URL.
 const ControlPath = "/api/transcode/agents/ws"
 
+// JobsPath holds the byte endpoints of every job, relative to the server URL.
+const JobsPath = "/api/transcode/agents/jobs"
+
+// SourcePath serves a job's source bytes with Range and If-Range.
+func SourcePath(job domain.JobID) string { return JobsPath + "/" + string(job) + "/source" }
+
+// OutputPath takes a job's output: HEAD for the committed offset, PUT to upload at an offset.
+func OutputPath(job domain.JobID) string { return JobsPath + "/" + string(job) + "/output" }
+
 // Auth headers sent on every agent request and on the WebSocket upgrade.
 const (
 	HeaderAuthorization = "Authorization"
 	HeaderAgentID       = "X-Magpie-Agent"
 	BearerPrefix        = "Bearer "
 )
+
+// Resumable upload headers on the output endpoint.
+const (
+	HeaderUploadOffset   = "Upload-Offset"
+	HeaderUploadLength   = "Upload-Length"
+	HeaderUploadComplete = "Upload-Complete"
+	HeaderContentDigest  = "Content-Digest"
+	// UploadCompleteTrue is the structured-field boolean true that marks the last chunk.
+	UploadCompleteTrue = "?1"
+	// DigestSHA256Prefix and DigestSuffix wrap the base64 SHA-256 of the whole output: sha-256=:<b64>:
+	DigestSHA256Prefix = "sha-256=:"
+	DigestSuffix       = ":"
+)
+
+// HeaderRetryAfter is set on a 503 when the server's transfer cap is full.
+const HeaderRetryAfter = "Retry-After"
 
 // Envelope is one text frame on the control WebSocket.
 type Envelope struct {
@@ -64,6 +89,9 @@ const (
 	VendorNVIDIA Vendor = "NVIDIA"
 	VendorIntel  Vendor = "INTEL"
 	VendorAMD    Vendor = "AMD"
+	// VendorCPU is the software encoders, offered only when the agent runs with MAGPIE_AGENT_CPU for
+	// testing without a GPU.
+	VendorCPU Vendor = "CPU"
 )
 
 // Capability is one tested device feature.
@@ -113,6 +141,9 @@ const (
 
 // ErrorSourceChanged is the JobResult.Error an agent reports when the source ETag changed under it.
 const ErrorSourceChanged = "SOURCE_CHANGED"
+
+// ErrorVerifyFailed is the JobResult.Error of an output that failed the agent's checks; Verify says which.
+const ErrorVerifyFailed = "VERIFY_FAILED"
 
 type Hello struct {
 	AgentID       domain.AgentID `json:"agentId"`
