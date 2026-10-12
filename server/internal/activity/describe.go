@@ -3,6 +3,7 @@ package activity
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -347,6 +348,9 @@ func init() {
 			d.Text = "Old file replaced"
 		}
 		return d
+	})
+	on(func(e libraryapi.FileRenamed) description {
+		return description{subject: titled(e.Title, episodeIDs(e.Episodes)...), Text: "Renamed to " + filepath.Base(e.NewPath), Detail: e.OldPath}
 	})
 	on(func(e libraryapi.ItemAvailable) description {
 		return description{subject: titled(e.Title, e.Episodes...), Text: "Available in Jellyfin"}

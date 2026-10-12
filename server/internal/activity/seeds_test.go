@@ -332,6 +332,22 @@ func TestEpisodeGroupChangeReordersRows(t *testing.T) {
 	}
 }
 
+func TestARenamedFileReadsOnTheTitleTimeline(t *testing.T) {
+	h := newHarness(t)
+	title, episodes := h.series([2]int{1, 1})
+	h.deliver(libraryapi.FileRenamed{
+		MediaFile: domain.NewID[domain.MediaFileID](), Title: title,
+		Episodes: []domain.EpisodeRef{{Episode: episodes[0], Season: 2, Number: 1}},
+		OldPath:  "/tv/Show/Season 01/Show S01E01.mkv", NewPath: "/tv/Show/Season 02/Show S02E01.mkv",
+	})
+
+	got := h.timeline(title)
+	if len(got) != 1 || got[0].Text != "Renamed to Show S02E01.mkv" || got[0].Detail != "/tv/Show/Season 01/Show S01E01.mkv" ||
+		!slices.Equal(got[0].Episodes, episodes) {
+		t.Errorf("timeline = %+v, want one rename entry for the episode", got)
+	}
+}
+
 func TestSeverity(t *testing.T) {
 	file := domain.NewID[domain.MediaFileID]()
 	title := domain.NewID[domain.TitleID]()
