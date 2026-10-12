@@ -114,6 +114,21 @@ func TestAScannedFolderIsReportedThenLinkedInPlace(t *testing.T) {
 	}
 }
 
+// A plain .mkv name says nothing about quality, so the picture width decides it, not the extension.
+func TestAScannedVideoWithAPlainNameTakesItsQualityFromItsWidth(t *testing.T) {
+	f := newImportFixture(t, oneDevice)
+	dir := filepath.Join(f.layout.movies, duneFolder)
+	f.libraryFile(t, filepath.Join(dir, "Dune (2021).mkv"), movieRuntime)
+	f.scan(t)
+
+	f.matchFolder(t, dir, f.movie.ID)
+
+	imported := f.imported(t)
+	if len(imported) != 1 || imported[0].Quality.Name != "HDTV-1080p" {
+		t.Fatalf("FileImported = %+v, want one HDTV-1080p file from its 1920-wide picture", imported)
+	}
+}
+
 func TestAScanSkipsHiddenAndImportedFoldersAndReadsEveryHint(t *testing.T) {
 	f := newImportFixture(t, oneDevice)
 	f.libraryFile(t, filepath.Join(f.layout.movies, ".magpie-staging", "x.mkv"), movieRuntime)

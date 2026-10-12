@@ -536,9 +536,10 @@ var widthQualities = []widthQuality{
 	{minWidth: 1, quality: parse.QualitySDTV},
 }
 
-// scannedQuality is the quality the file's name gives, else one guessed from its width.
+// scannedQuality is the quality the file's name gives, else one guessed from its width. The name is parsed
+// without its extension, which alone would give every .mkv the same quality.
 func scannedQuality(path string, kind domain.MediaKind, info api.MediaInfo) domain.Quality {
-	if r, err := parse.ParseFile(path, kind); err == nil && r.Quality.ID != int(parse.QualityUnknown) {
+	if r, err := parse.ParseFile(stem(path), kind); err == nil && r.Quality.ID != int(parse.QualityUnknown) {
 		return r.Quality
 	}
 	id := parse.QualityUnknown
