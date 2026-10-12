@@ -25,26 +25,31 @@ const (
 	closeReasonNoHello   = "first frame must be a valid HELLO for the connecting agent"
 	closeReasonReplaced  = "replaced by a newer connection"
 	closeReasonServerErr = "server error"
+	closeReasonStopping  = "server stopping"
+
+	TypeServerStopping problem.Type = "urn:magpie:problem:server-stopping"
 )
 
 var (
 	errSecretNotConfigured = problem.New(problem.TypeUnauthorized, http.StatusUnauthorized, "agents are refused until MAGPIE_AGENT_SECRET is set on the server")
 	errWrongSecret         = problem.New(problem.TypeUnauthorized, http.StatusUnauthorized, "wrong agent secret")
 	errBadAgentID          = problem.New(problem.TypeBadRequest, http.StatusBadRequest, agentproto.HeaderAgentID+" must be a ULID")
+	errServerStopping      = problem.New(TypeServerStopping, http.StatusServiceUnavailable, "the server is stopping; reconnect later")
 )
 
 // AgentSocket serves the control WebSocket agents dial.
 type AgentSocket struct {
-	service *AgentService
-	jobs    *JobService
-	hub     *AgentHub
-	wake    *Wake
-	secret  AgentSecret
-	timings Timings
+	service  *AgentService
+	jobs     *JobService
+	hub      *AgentHub
+	wake     *Wake
+	lifetime *Lifetime
+	secret   AgentSecret
+	timings  Timings
 }
 
-func NewAgentSocket(service *AgentService, jobs *JobService, hub *AgentHub, wake *Wake, secret AgentSecret, timings Timings) *AgentSocket {
-	return &AgentSocket{service: service, jobs: jobs, hub: hub, wake: wake, secret: secret, timings: timings}
+func NewAgentSocket(service *AgentService, jobs *JobService, hub *AgentHub, wake *Wake, lifetime *Lifetime, secret AgentSecret, timings Timings) *AgentSocket {
+	return &AgentSocket{service: service, jobs: jobs, hub: hub, wake: wake, lifetime: lifetime, secret: secret, timings: timings}
 }
 
 // authenticateAgent checks the shared secret and agent ID headers every agent request carries.
@@ -69,15 +74,27 @@ func (s *AgentSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, r, err)
 		return
 	}
+	if !s.lifetime.Serve(r.Context(), func(ctx context.Context) { s.serve(ctx, w, r, id) }) {
+		problem.Write(w, r, errServerStopping)
+	}
+}
+
+// serve runs one agent's socket until the agent leaves or ctx ends. Frames are read on a context that
+// outlives ctx, because coder/websocket drops the connection without a close frame when a read's context
+// ends; closeOnStop sends the close instead.
+func (s *AgentSocket) serve(ctx context.Context, w http.ResponseWriter, r *http.Request, id domain.AgentID) {
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
-		slog.WarnContext(r.Context(), "transcode: agent upgrade failed", "agent", id, "error", err)
+		slog.WarnContext(ctx, "transcode: agent upgrade failed", "agent", id, "error", err)
 		return
 	}
 	defer func() { _ = conn.CloseNow() }()
-	ctx := r.Context()
+	defer closeOnStop(ctx, conn)()
 
 	hello, err := s.readHello(ctx, conn, id)
+	if ctx.Err() != nil {
+		return
+	}
 	if err != nil {
 		slog.WarnContext(ctx, "transcode: rejecting agent", "agent", id, "error", err)
 		_ = conn.Close(websocket.StatusPolicyViolation, closeReasonNoHello)
@@ -109,7 +126,7 @@ func (s *AgentSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *AgentSocket) readHello(ctx context.Context, conn *websocket.Conn, id domain.AgentID) (agentproto.Hello, error) {
-	ctx, cancel := context.WithTimeout(ctx, s.timings.HelloTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.timings.HelloTimeout)
 	defer cancel()
 	var env agentproto.Envelope
 	if err := wsjson.Read(ctx, conn, &env); err != nil {
@@ -129,13 +146,21 @@ func (s *AgentSocket) readHello(ctx context.Context, conn *websocket.Conn, id do
 }
 
 func (s *AgentSocket) readLoop(ctx context.Context, id domain.AgentID, channel *controlChannel) {
+	frames := context.WithoutCancel(ctx)
 	for {
 		var env agentproto.Envelope
-		if err := wsjson.Read(ctx, channel.conn, &env); err != nil {
+		if err := wsjson.Read(frames, channel.conn, &env); err != nil {
 			slog.DebugContext(ctx, "transcode: agent socket closed", "agent", id, "error", err)
 			return
 		}
-		if err := s.handle(ctx, id, env); err != nil {
+		if ctx.Err() != nil {
+			return
+		}
+		err := s.handle(ctx, id, env)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
 			slog.ErrorContext(ctx, "transcode: handling agent frame", "agent", id, "type", env.Type, "error", err)
 			continue
 		}
@@ -213,6 +238,21 @@ func (c *controlChannel) write(ctx context.Context, env agentproto.Envelope) err
 	ctx, cancel := context.WithTimeout(ctx, frameWriteTimeout)
 	defer cancel()
 	return wsjson.Write(ctx, c.conn, env)
+}
+
+// closeOnStop closes the socket with a normal close frame once ctx ends. The returned func stops that,
+// or waits for a close already under way.
+func closeOnStop(ctx context.Context, conn *websocket.Conn) func() {
+	closed := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		defer close(closed)
+		_ = conn.Close(websocket.StatusNormalClosure, closeReasonStopping)
+	})
+	return func() {
+		if !stop() {
+			<-closed
+		}
+	}
 }
 
 // replaced closes in the background: the close handshake waits on a peer that may already be gone.

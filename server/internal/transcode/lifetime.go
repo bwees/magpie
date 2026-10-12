@@ -14,32 +14,60 @@ type Lifetime struct {
 	cancel context.CancelFunc
 
 	mu      sync.Mutex
-	running map[chan struct{}]struct{}
+	running tracked // work started with Go
+	serving tracked // connections held open with Serve
 }
+
+// tracked is a set of done channels, one per piece of work still running.
+type tracked map[chan struct{}]struct{}
 
 func NewLifetime() *Lifetime {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Lifetime{ctx: ctx, cancel: cancel, running: map[chan struct{}]struct{}{}}
+	return &Lifetime{ctx: ctx, cancel: cancel, running: tracked{}, serving: tracked{}}
 }
 
 // Go runs fn in the background with the lifetime's context. Once the lifetime has ended, fn doesn't run.
 func (l *Lifetime) Go(fn func(ctx context.Context)) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.ctx.Err() != nil {
+	done, ok := l.track(l.running)
+	if !ok {
 		return
 	}
-	done := make(chan struct{})
-	l.running[done] = struct{}{}
 	go func() {
-		defer l.finish(done)
+		defer l.finish(l.running, done)
 		fn(l.ctx)
 	}()
 }
 
-func (l *Lifetime) finish(done chan struct{}) {
+// Serve runs serve on the caller's goroutine with a context that also ends when the lifetime does. It is
+// for a connection that stays open until its peer leaves: Stop waits for serve to return, but Wait
+// doesn't. Once the lifetime has ended, serve doesn't run and Serve returns false.
+func (l *Lifetime) Serve(parent context.Context, serve func(ctx context.Context)) bool {
+	done, ok := l.track(l.serving)
+	if !ok {
+		return false
+	}
+	defer l.finish(l.serving, done)
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	defer context.AfterFunc(l.ctx, cancel)()
+	serve(ctx)
+	return true
+}
+
+func (l *Lifetime) track(set tracked) (chan struct{}, bool) {
 	l.mu.Lock()
-	delete(l.running, done)
+	defer l.mu.Unlock()
+	if l.ctx.Err() != nil {
+		return nil, false
+	}
+	done := make(chan struct{})
+	set[done] = struct{}{}
+	return done, true
+}
+
+func (l *Lifetime) finish(set tracked, done chan struct{}) {
+	l.mu.Lock()
+	delete(set, done)
 	l.mu.Unlock()
 	close(done)
 }
@@ -66,19 +94,24 @@ func (l *Lifetime) Bind(w http.ResponseWriter, r *http.Request) (context.Context
 	}
 }
 
-// Stop ends the lifetime and waits for the work started with Go.
+// Stop ends the lifetime and waits for the connections held with Serve and the work started with Go.
 func (l *Lifetime) Stop() {
 	l.mu.Lock()
 	l.cancel()
 	l.mu.Unlock()
-	l.Wait()
+	l.waitFor(l.serving)
+	l.waitFor(l.running)
 }
 
 // Wait waits until no work started with Go is running, without ending the lifetime. Tests use it to
 // settle.
 func (l *Lifetime) Wait() {
+	l.waitFor(l.running)
+}
+
+func (l *Lifetime) waitFor(set tracked) {
 	for {
-		done, ok := l.anyRunning()
+		done, ok := l.anyIn(set)
 		if !ok {
 			return
 		}
@@ -86,10 +119,10 @@ func (l *Lifetime) Wait() {
 	}
 }
 
-func (l *Lifetime) anyRunning() (chan struct{}, bool) {
+func (l *Lifetime) anyIn(set tracked) (chan struct{}, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for done := range l.running {
+	for done := range set {
 		return done, true
 	}
 	return nil, false

@@ -97,7 +97,7 @@ func newFixture(t *testing.T) *fixture {
 		Lifetime: lifetime, Wake: wake, Timings: DefaultTimings,
 	})
 	f.jobs.now = clock.Now
-	f.socket = NewAgentSocket(service, f.jobs, hub, wake, AgentSecret(testSecret), DefaultTimings)
+	f.socket = NewAgentSocket(service, f.jobs, hub, wake, lifetime, AgentSecret(testSecret), DefaultTimings)
 	f.transfers = NewTransfers(f.jobs, gate, AgentSecret(testSecret), lifetime)
 	controller := NewController(service, f.jobs, f.socket, f.transfers, testSecret)
 	f.server = httptest.NewServer(httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{controller}).Mux)

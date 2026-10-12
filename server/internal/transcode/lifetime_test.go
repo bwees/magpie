@@ -85,6 +85,7 @@ func TestStopBreaksOffAStalledDownload(t *testing.T) {
 
 	f.request(a.id, http.MethodGet, spec.Source.URL, nil, nil)
 	f.stalledIn(downloadWrite)
+	a.answersClose()
 	f.lifetime.Stop()
 
 	f.transferEnds(TransferHolder{Job: spec.Job, Direction: DirectionSource})
@@ -104,6 +105,7 @@ func TestStopBreaksOffAStalledUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.stalledIn(uploadRead)
+	a.answersClose()
 	f.lifetime.Stop()
 
 	f.transferEnds(TransferHolder{Job: spec.Job, Direction: DirectionOutput})

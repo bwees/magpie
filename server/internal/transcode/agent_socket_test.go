@@ -167,6 +167,12 @@ func (a *testAgent) expect(t agentproto.MessageType) agentproto.Envelope {
 	return env
 }
 
+// answersClose keeps reading in the background, as a real agent does, so it answers the server's close
+// at once instead of letting the close wait out its timeout. The agent can't expect frames after this.
+func (a *testAgent) answersClose() {
+	a.conn.CloseRead(context.Background())
+}
+
 func (a *testAgent) expectAck(of string) {
 	a.t.Helper()
 	if ack := decodeBody[agentproto.Ack](a.t, a.expect(agentproto.TypeAck)); ack.Of != of {
@@ -202,7 +208,7 @@ func TestWrongSecretIsRejectedWithoutCreatingAnAgent(t *testing.T) {
 
 func TestUnsetSecretRefusesEveryAgent(t *testing.T) {
 	f := newFixture(t)
-	server := httptest.NewServer(NewAgentSocket(f.service, f.jobs, NewAgentHub(), NewWake(), "", DefaultTimings))
+	server := httptest.NewServer(NewAgentSocket(f.service, f.jobs, NewAgentHub(), NewWake(), f.lifetime, "", DefaultTimings))
 	t.Cleanup(server.Close)
 
 	header := http.Header{}
@@ -275,6 +281,38 @@ func TestSchedulingRightAfterWelcomeReachesTheAgent(t *testing.T) {
 	}
 	if offer := f.offered(a); offer.Spec.Job != f.onlyJob(file).ID {
 		t.Fatalf("offered job %s, want the file's job", offer.Spec.Job)
+	}
+}
+
+func TestStopClosesAgentSocketsBeforeItReturns(t *testing.T) {
+	f := newFixture(t)
+	a, _ := f.connect(capableHello("gpu-a"))
+	closed := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), frameTimeout)
+		defer cancel()
+		_, _, err := a.conn.Read(ctx)
+		closed <- err
+	}()
+
+	f.lifetime.Stop()
+
+	if connected := f.hub.Connected(); len(connected) != 0 {
+		t.Fatalf("socket handlers of %v still run after Stop", connected)
+	}
+	if err := <-closed; websocket.CloseStatus(err) != websocket.StatusNormalClosure {
+		t.Fatalf("agent read error = %v, want a normal close", err)
+	}
+}
+
+func TestAgentSocketIsRefusedOnceStopped(t *testing.T) {
+	f := newFixture(t)
+	f.lifetime.Stop()
+
+	_, resp, err := f.dial(domain.NewID[domain.AgentID](), testSecret)
+
+	if err == nil || resp == nil || resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("dial error %v, response %v; want 503", err, resp)
 	}
 }
 

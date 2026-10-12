@@ -415,6 +415,7 @@ type WhisperParams struct {
 - **Disconnect:** WebSocket loss doesn't fail jobs on its own; only lease expiry does. After 3 missed heartbeats the agent is marked offline and `AgentOffline` is published. Reconnecting publishes `AgentOnline`.
   - A 5 s sweep finds agents not heard from for 3 × 10 s. `AgentOffline.Since` is the last heartbeat.
   - `AgentOnline` is published only when an agent goes from offline (or unknown) to online, on `Hello` or on a heartbeat. A quick reconnect within the 30 s window publishes nothing.
+- **Server stop:** the server closes every agent socket with a normal close (`1000`) and handles no frame after that. A socket dialled while the server stops gets `503`. The close waits at most 5 s for an agent that doesn't answer it. Agents reconnect with backoff; as with any disconnect, jobs keep their leases.
 - **Unhealthy device:** the same sweep sends `Retest{DeviceID}` once `retest_at` passes and moves `retest_at` another 10 minutes on, so a retest that never answers is asked for again.
 
 ### Capability tests
