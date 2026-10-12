@@ -430,6 +430,59 @@
 				],
 				"type": "object"
 			},
+			"CandidateResponse": {
+				"description": "CandidateResponse schema",
+				"properties": {
+					"acceptable": {
+						"type": "boolean"
+					},
+					"aiTranslated": {
+						"type": "boolean"
+					},
+					"fileId": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"forced": {
+						"type": "boolean"
+					},
+					"hashMatch": {
+						"type": "boolean"
+					},
+					"hearingImpaired": {
+						"type": "boolean"
+					},
+					"language": {
+						"type": "string"
+					},
+					"maxPoints": {
+						"type": "integer"
+					},
+					"points": {
+						"type": "integer"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"score": {
+						"type": "integer"
+					}
+				},
+				"required": [
+					"acceptable",
+					"aiTranslated",
+					"fileId",
+					"forced",
+					"hashMatch",
+					"hearingImpaired",
+					"language",
+					"maxPoints",
+					"points",
+					"releaseName",
+					"score"
+				],
+				"type": "object"
+			},
 			"CatalogSettingsResponse": {
 				"description": "CatalogSettingsResponse schema",
 				"properties": {
@@ -494,6 +547,39 @@
 					"prowlarr",
 					"qbittorrent",
 					"tmdb"
+				],
+				"type": "object"
+			},
+			"CoverageResponse": {
+				"properties": {
+					"forced": {
+						"type": "boolean"
+					},
+					"language": {
+						"type": "string"
+					},
+					"nextAttemptAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"waitingForQuota": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"forced",
+					"language",
+					"status",
+					"waitingForQuota"
 				],
 				"type": "object"
 			},
@@ -1121,6 +1207,27 @@
 				],
 				"type": "object"
 			},
+			"DownloadSubtitleRequest": {
+				"description": "DownloadSubtitleRequest schema",
+				"properties": {
+					"fileId": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"forced": {
+						"type": "boolean"
+					},
+					"language": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"fileId",
+					"forced",
+					"language"
+				],
+				"type": "object"
+			},
 			"EpisodeGroupChanged": {
 				"description": "EpisodeGroupChanged schema",
 				"properties": {
@@ -1480,6 +1587,32 @@
 				"required": [
 					"episodes",
 					"path"
+				],
+				"type": "object"
+			},
+			"FileSubtitlesResponse": {
+				"description": "FileSubtitlesResponse schema",
+				"properties": {
+					"coverage": {
+						"items": {
+							"$ref": "#/components/schemas/CoverageResponse"
+						},
+						"type": "array"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"subtitles": {
+						"items": {
+							"$ref": "#/components/schemas/SubtitleResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"coverage",
+					"mediaFile",
+					"subtitles"
 				],
 				"type": "object"
 			},
@@ -3400,6 +3533,39 @@
 				],
 				"type": "object"
 			},
+			"QuotaResponse": {
+				"description": "QuotaResponse schema",
+				"properties": {
+					"pausedUntil": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"problem": {
+						"type": "string"
+					},
+					"remaining": {
+						"nullable": true,
+						"type": "integer"
+					},
+					"resetAt": {
+						"format": "date-time",
+						"nullable": true,
+						"type": "string"
+					},
+					"vip": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"pausedUntil",
+					"problem",
+					"remaining",
+					"resetAt",
+					"vip"
+				],
+				"type": "object"
+			},
 			"RefreshTitleResponse": {
 				"description": "RefreshTitleResponse schema",
 				"properties": {
@@ -4667,6 +4833,97 @@
 					"language",
 					"mediaFile",
 					"reason"
+				],
+				"type": "object"
+			},
+			"SubtitleResponse": {
+				"properties": {
+					"addedAt": {
+						"format": "date-time",
+						"type": "string"
+					},
+					"forced": {
+						"type": "boolean"
+					},
+					"id": {
+						"type": "string"
+					},
+					"language": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"releaseName": {
+						"type": "string"
+					},
+					"score": {
+						"type": "integer"
+					},
+					"sdh": {
+						"type": "boolean"
+					},
+					"source": {
+						"type": "string"
+					},
+					"syncOffsetMs": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"synced": {
+						"type": "boolean"
+					},
+					"upgradeUntil": {
+						"format": "date-time",
+						"type": "string"
+					}
+				},
+				"required": [
+					"addedAt",
+					"forced",
+					"id",
+					"language",
+					"path",
+					"releaseName",
+					"sdh",
+					"source",
+					"synced"
+				],
+				"type": "object"
+			},
+			"SubtitleSettingsBody": {
+				"description": "SubtitleSettingsBody schema",
+				"properties": {
+					"autoSync": {
+						"type": "boolean"
+					},
+					"minScoreEpisode": {
+						"type": "integer"
+					},
+					"minScoreMovie": {
+						"type": "integer"
+					},
+					"upgradeCheckHours": {
+						"type": "integer"
+					},
+					"upgradeWindowDays": {
+						"type": "integer"
+					},
+					"whisperEnabled": {
+						"type": "boolean"
+					},
+					"whisperModel": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"autoSync",
+					"minScoreEpisode",
+					"minScoreMovie",
+					"upgradeCheckHours",
+					"upgradeWindowDays",
+					"whisperEnabled",
+					"whisperModel"
 				],
 				"type": "object"
 			},
@@ -13474,6 +13731,587 @@
 				]
 			}
 		},
+		"/api/subtitles/files/{mediaFileId}": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/subtitles.(*Controller).file`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getFileSubtitles",
+				"parameters": [
+					{
+						"description": "Media file ID",
+						"in": "path",
+						"name": "mediaFileId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/FileSubtitlesResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "A media file's subtitles and wanted-language coverage (admin)",
+				"tags": [
+					"api",
+					"subtitles"
+				]
+			}
+		},
+		"/api/subtitles/files/{mediaFileId}/candidates": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/subtitles.(*Controller).candidates`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "listSubtitleCandidates",
+				"parameters": [
+					{
+						"description": "Media file ID",
+						"in": "path",
+						"name": "mediaFileId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "ISO 639-1 language",
+						"in": "query",
+						"name": "language",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Forced (foreign parts only) subtitles",
+						"in": "query",
+						"name": "forced",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/CandidateResponse"
+									},
+									"type": "array"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Scored OpenSubtitles results for one language of the file, best first (admin)",
+				"tags": [
+					"api",
+					"subtitles"
+				]
+			}
+		},
+		"/api/subtitles/files/{mediaFileId}/download": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/subtitles.(*Controller).download`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "downloadSubtitle",
+				"parameters": [
+					{
+						"description": "Media file ID",
+						"in": "path",
+						"name": "mediaFileId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/DownloadSubtitleRequest"
+							}
+						}
+					},
+					"description": "Request body for subtitles.DownloadSubtitleRequest",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/FileSubtitlesResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Download a candidate, sync it and store it as the file's sidecar (admin)",
+				"tags": [
+					"api",
+					"subtitles"
+				]
+			}
+		},
+		"/api/subtitles/files/{mediaFileId}/search": {
+			"post": {
+				"description": "#### Controller: \n\n`magpie/internal/subtitles.(*Controller).search`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "searchFileSubtitles",
+				"parameters": [
+					{
+						"description": "Media file ID",
+						"in": "path",
+						"name": "mediaFileId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/FileSubtitlesResponse"
+								}
+							}
+						},
+						"description": "Accepted"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Search the file's missing languages now, skipping the backoff (admin)",
+				"tags": [
+					"api",
+					"subtitles"
+				]
+			}
+		},
+		"/api/subtitles/quota": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/subtitles.(*Controller).quota`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getSubtitleQuota",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QuotaResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "OpenSubtitles downloads left today (admin)",
+				"tags": [
+					"api",
+					"subtitles"
+				]
+			}
+		},
+		"/api/subtitles/settings": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/subtitles.(*Controller).settings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getSubtitleSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SubtitleSettingsBody"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Whisper, auto-sync, score thresholds and the upgrade window (admin)",
+				"tags": [
+					"api",
+					"subtitles"
+				]
+			},
+			"put": {
+				"description": "#### Controller: \n\n`magpie/internal/subtitles.(*Controller).setSettings`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "setSubtitleSettings",
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SubtitleSettingsBody"
+							}
+						}
+					},
+					"description": "Request body for subtitles.SubtitleSettingsBody",
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SubtitleSettingsBody"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Replace the subtitle settings (admin)",
+				"tags": [
+					"api",
+					"subtitles"
+				]
+			}
+		},
+		"/api/subtitles/{subtitleId}": {
+			"delete": {
+				"description": "#### Controller: \n\n`magpie/internal/subtitles.(*Controller).remove`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "deleteSubtitle",
+				"parameters": [
+					{
+						"description": "Subtitle ID",
+						"in": "path",
+						"name": "subtitleId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/unknown-interface"
+								}
+							}
+						},
+						"description": "No Content"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "Remove a sidecar subtitle (admin)",
+				"tags": [
+					"api",
+					"subtitles"
+				]
+			}
+		},
 		"/api/transcode/agents": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/transcode.(*Controller).listAgents`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -13912,6 +14750,9 @@
 		},
 		{
 			"name": "requests"
+		},
+		{
+			"name": "subtitles"
 		},
 		{
 			"name": "transcode"

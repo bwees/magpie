@@ -851,6 +851,68 @@ export type ApproveRequestRequest = {
 export type DeclineRequestRequest = {
     reason?: string;
 };
+export type CoverageResponse = {
+    forced: boolean;
+    language: string;
+    nextAttemptAt?: string;
+    reason?: string;
+    source?: string;
+    status: string;
+    waitingForQuota: boolean;
+};
+export type SubtitleResponse = {
+    addedAt: string;
+    forced: boolean;
+    id: string;
+    language: string;
+    path: string;
+    releaseName: string;
+    score?: number;
+    sdh: boolean;
+    source: string;
+    syncOffsetMs?: number;
+    synced: boolean;
+    upgradeUntil?: string;
+};
+export type FileSubtitlesResponse = {
+    coverage: CoverageResponse[];
+    mediaFile: string;
+    subtitles: SubtitleResponse[];
+};
+export type CandidateResponse = {
+    acceptable: boolean;
+    aiTranslated: boolean;
+    fileId: number;
+    forced: boolean;
+    hashMatch: boolean;
+    hearingImpaired: boolean;
+    language: string;
+    maxPoints: number;
+    points: number;
+    releaseName: string;
+    score: number;
+};
+export type DownloadSubtitleRequest = {
+    fileId: number;
+    forced: boolean;
+    language: string;
+};
+export type QuotaResponse = {
+    pausedUntil: string | null;
+    problem: string;
+    remaining: number | null;
+    resetAt: string | null;
+    vip: boolean;
+};
+export type SubtitleSettingsBody = {
+    autoSync: boolean;
+    minScoreEpisode: number;
+    minScoreMovie: number;
+    upgradeCheckHours: number;
+    upgradeWindowDays: number;
+    whisperEnabled: boolean;
+    whisperModel: string;
+};
 export type AgentCapabilityResponse = {
     capability: string;
     error: string;
@@ -3900,6 +3962,192 @@ export function retryRequest(id: string, { accept }: {
     }>(`/api/requests/${encodeURIComponent(id)}/retry`, {
         ...opts,
         method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * A media file's subtitles and wanted-language coverage (admin)
+ */
+export function getFileSubtitles(mediaFileId: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileSubtitlesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/subtitles/files/${encodeURIComponent(mediaFileId)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Scored OpenSubtitles results for one language of the file, best first (admin)
+ */
+export function listSubtitleCandidates(mediaFileId: string, language: string, { forced, accept }: {
+    forced?: boolean;
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CandidateResponse[];
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/subtitles/files/${encodeURIComponent(mediaFileId)}/candidates${QS.query(QS.explode({
+        language,
+        forced
+    }))}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Download a candidate, sync it and store it as the file's sidecar (admin)
+ */
+export function downloadSubtitle(mediaFileId: string, downloadSubtitleRequest: DownloadSubtitleRequest, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FileSubtitlesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/subtitles/files/${encodeURIComponent(mediaFileId)}/download`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: downloadSubtitleRequest,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Search the file's missing languages now, skipping the backoff (admin)
+ */
+export function searchFileSubtitles(mediaFileId: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 202;
+        data: FileSubtitlesResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/subtitles/files/${encodeURIComponent(mediaFileId)}/search`, {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * OpenSubtitles downloads left today (admin)
+ */
+export function getSubtitleQuota({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: QuotaResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/subtitles/quota", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Whisper, auto-sync, score thresholds and the upgrade window (admin)
+ */
+export function getSubtitleSettings({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SubtitleSettingsBody;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/subtitles/settings", {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
+ * Replace the subtitle settings (admin)
+ */
+export function setSubtitleSettings(subtitleSettingsBody: SubtitleSettingsBody, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: SubtitleSettingsBody;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/subtitles/settings", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: subtitleSettingsBody,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    })));
+}
+/**
+ * Remove a sidecar subtitle (admin)
+ */
+export function deleteSubtitle(subtitleId: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/subtitles/${encodeURIComponent(subtitleId)}`, {
+        ...opts,
+        method: "DELETE",
         headers: oazapfts.mergeHeaders(opts?.headers, {
             Accept: accept
         })
