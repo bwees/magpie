@@ -308,7 +308,7 @@ func (c *Controller) importManually(ctx fuego.ContextWithBody[ManualImportReques
 	}
 	mapping := make([]FileMapping, 0, len(body.Files))
 	for _, f := range body.Files {
-		mapping = append(mapping, FileMapping{Path: f.Path, Episodes: f.Episodes})
+		mapping = append(mapping, FileMapping(f))
 	}
 	v, err := c.library.ImportManually(ctx.Context(), domain.DownloadID(ctx.PathParam(pathDownloadID)), mapping)
 	if err != nil {

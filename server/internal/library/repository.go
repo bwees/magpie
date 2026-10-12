@@ -220,7 +220,7 @@ func (r *Repository) FilesForTitle(ctx context.Context, title domain.TitleID) ([
 }
 
 func (r *Repository) FileForEpisode(ctx context.Context, ep domain.EpisodeID) (api.MediaFile, error) {
-	files, err := r.files(ctx, "id IN (?)",r.db.Read(ctx).Model(&mediaFileEpisodeRow{}).Select("media_file_id").Where("episode_id = ?", ep))
+	files, err := r.files(ctx, "id IN (?)", r.db.Read(ctx).Model(&mediaFileEpisodeRow{}).Select("media_file_id").Where("episode_id = ?", ep))
 	if err != nil {
 		return api.MediaFile{}, err
 	}
