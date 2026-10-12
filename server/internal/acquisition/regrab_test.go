@@ -31,8 +31,34 @@ func (f searchFixture) libraryFile(name string, transcoded bool, hash string) li
 
 func (f searchFixture) regrab(t *testing.T) {
 	t.Helper()
-	action := requestsapi.IssueActionRequested{Issue: domain.NewID[domain.IssueID](), Title: f.title.ID, Action: requestsapi.IssueActionRegrab}
+	f.regrabIssue(t, domain.NewID[domain.IssueID]())
+}
+
+// regrabIssue delivers the issue's REGRAB in a fresh envelope, as a repeated action would arrive.
+func (f searchFixture) regrabIssue(t *testing.T, issue domain.IssueID, removed ...domain.DownloadID) {
+	t.Helper()
+	action := requestsapi.IssueActionRequested{Issue: issue, Title: f.title.ID, Action: requestsapi.IssueActionRegrab, RemovedDownloads: removed}
 	f.deliver(t, acquisition.NewIssueActionHandler(f.searches), bus.EventOf(action))
+}
+
+// runQueuedSearch runs the one queued search job and returns its snapshot once it completed.
+func (f searchFixture) runQueuedSearch(t *testing.T, completedBefore int) acquisition.SearchSnapshot {
+	t.Helper()
+	tasks := f.searchTasks()
+	if len(tasks) != 1 {
+		t.Fatalf("searches = %+v, want one queued", tasks)
+	}
+	f.jobs.drop(func(task backlite.Task) bool { _, ok := acquisition.SearchTaskOf(task); return ok })
+	if err := f.searches.RunSearchJob(context.Background(), tasks[0]); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t)
+	done := payload[api.SearchCompleted](t, f.events.waitFor(t, api.TypeSearchCompleted, completedBefore+1)[completedBefore])
+	snapshot, err := f.searches.Search(done.Search)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
 }
 
 func rejectionReasons(r api.ReleaseDecision) []api.RejectionReason {
@@ -88,6 +114,86 @@ func TestARegrabOfAFileWithoutAHashBlocksItsReleaseAtItsIndexer(t *testing.T) {
 	issues := slices.DeleteFunc(f.blocklist(t), func(e api.BlocklistEntry) bool { return e.Reason != api.BlocklistIssue })
 	if len(issues) != 1 || issues[0].ReleaseName != low1080p || issues[0].Indexer != "Fast" || issues[0].InfoHash != "" {
 		t.Errorf("ISSUE entries = %+v, want one by release name at Fast", issues)
+	}
+}
+
+func TestARegrabBlocksTheReleaseAtAnIndexerThatReportsNoHash(t *testing.T) {
+	f := newSearchFixture(t)
+	id := f.completedDownload(t, acceptedName)
+	file := f.libraryFile(acceptedName, false, magnetHash(acceptedName))
+	file.Download = &id
+	f.library.Put(librarytest.StoredFile{File: file})
+
+	f.regrab(t)
+	snapshot := f.runQueuedSearch(t, 1)
+
+	entries := slices.DeleteFunc(f.blocklist(t), func(e api.BlocklistEntry) bool { return e.Reason != api.BlocklistIssue })
+	if len(entries) != 1 || entries[0].InfoHash != magnetHash(acceptedName) || entries[0].Indexer != "Fast" {
+		t.Fatalf("ISSUE entries = %+v, want the hash and the source indexer", entries)
+	}
+	found := slices.IndexFunc(snapshot.Releases, func(r api.ReleaseDecision) bool { return r.Name == acceptedName })
+	if found < 0 {
+		t.Fatalf("releases = %+v, want %s offered again", snapshot.Releases, acceptedName)
+	}
+	if reasons := rejectionReasons(snapshot.Releases[found]); !slices.Contains(reasons, api.RejectBlocklisted) {
+		t.Errorf("%s rejected for %v, want BLOCKLISTED", acceptedName, reasons)
+	}
+}
+
+// Seed acquisition #41.
+func TestARegrabRunsOncePerIssue(t *testing.T) {
+	f := newSearchFixture(t)
+	f.searched(t, release(acceptedName))
+	f.libraryFile(low1080p, false, reportedHash)
+	issue := domain.NewID[domain.IssueID]()
+
+	f.regrabIssue(t, issue)
+	f.runQueuedSearch(t, 1)
+	f.regrabIssue(t, issue)
+
+	if entries := f.blocklist(t); len(entries) != 1 {
+		t.Errorf("blocklist = %+v, want one ISSUE entry", entries)
+	}
+	if tasks := f.searchTasks(); len(tasks) != 0 {
+		t.Errorf("searches after the repeat = %+v, want none", tasks)
+	}
+}
+
+// Seed acquisition #42.
+func TestARegrabDoesNotWaitForADownloadTheAdminRemoved(t *testing.T) {
+	f := newSearchFixture(t)
+	waiting := f.completedDownload(t, acceptedName)
+	f.deliverLibrary(t, manualImport(waiting))
+
+	f.regrabIssue(t, domain.NewID[domain.IssueID](), waiting)
+	snapshot := f.runQueuedSearch(t, 1)
+
+	if len(snapshot.Releases) == 0 {
+		t.Fatal("the REGRAB search found nothing")
+	}
+	for _, r := range snapshot.Releases {
+		if slices.Contains(rejectionReasons(r), api.RejectAlreadyQueued) {
+			t.Errorf("%s rejected ALREADY_QUEUED, want the removed download not to hold the items", r.Name)
+		}
+	}
+}
+
+// Seed acquisition #42, without RemovedDownloads.
+func TestARegrabStillWaitsForADownloadNobodyRemoved(t *testing.T) {
+	f := newSearchFixture(t)
+	waiting := f.completedDownload(t, acceptedName)
+	f.deliverLibrary(t, manualImport(waiting))
+
+	f.regrab(t)
+	snapshot := f.runQueuedSearch(t, 1)
+
+	if len(snapshot.Releases) == 0 {
+		t.Fatal("the REGRAB search found nothing")
+	}
+	for _, r := range snapshot.Releases {
+		if !slices.Contains(rejectionReasons(r), api.RejectAlreadyQueued) {
+			t.Errorf("%s rejected for %v, want ALREADY_QUEUED", r.Name, rejectionReasons(r))
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ package acquisition
 import (
 	"context"
 	"errors"
+	"time"
 
 	"magpie/internal/acquisition/api"
 	"magpie/internal/domain"
@@ -11,6 +12,7 @@ import (
 	requestsapi "magpie/internal/requests/api"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const handlerRegrabOnIssue = "acquisition.regrab-on-issue-action"
@@ -25,6 +27,10 @@ func (s *SearchService) Regrab(ctx context.Context, tx *gorm.DB, e requestsapi.I
 	if e.Action != requestsapi.IssueActionRegrab {
 		return nil
 	}
+	first, err := claimRegrab(tx, e.Issue, s.now().UTC())
+	if err != nil || !first {
+		return err
+	}
 	files, err := s.reportedFiles(ctx, e)
 	if err != nil {
 		return err
@@ -34,7 +40,7 @@ func (s *SearchService) Regrab(ctx context.Context, tx *gorm.DB, e requestsapi.I
 			return err
 		}
 	}
-	task := searchTask{Title: e.Title, Episodes: []domain.EpisodeID{}, Trigger: api.TriggerRegrab}
+	task := searchTask{Title: e.Title, Episodes: []domain.EpisodeID{}, Trigger: api.TriggerRegrab, Removed: e.RemovedDownloads}
 	if e.Episode != nil {
 		task.Episodes = append(task.Episodes, *e.Episode)
 	}
@@ -53,16 +59,17 @@ func (s *SearchService) reportedFiles(ctx context.Context, e requestsapi.IssueAc
 	return []libraryapi.MediaFile{f}, err
 }
 
-// blocklistReported blocks the file's source torrent by hash, else by release name and indexer when its
-// download is known. A scanned file with neither is only searched again.
+// blocklistReported blocks the file's source torrent by hash, and by release name and indexer when its
+// download is known, so an indexer that reports no hash can't offer it again. A scanned file with
+// neither is only searched again.
 func (s *SearchService) blocklistReported(tx *gorm.DB, f libraryapi.MediaFile) error {
-	entry := api.BlocklistEntry{Title: f.Title, InfoHash: f.InfoHash, ReleaseName: f.ReleaseName, Reason: api.BlocklistIssue, At: s.now().UTC()}
-	if entry.InfoHash == "" {
-		indexer, err := sourceIndexer(tx, f.Download)
-		if err != nil || indexer == "" || entry.ReleaseName == "" {
-			return err
-		}
-		entry.Indexer = indexer
+	indexer, err := sourceIndexer(tx, f.Download)
+	if err != nil {
+		return err
+	}
+	entry := api.BlocklistEntry{Title: f.Title, InfoHash: f.InfoHash, ReleaseName: f.ReleaseName, Indexer: indexer, Reason: api.BlocklistIssue, At: s.now().UTC()}
+	if entry.InfoHash == "" && (indexer == "" || entry.ReleaseName == "") {
+		return nil
 	}
 	blocked, err := issueBlocked(tx, entry)
 	if err != nil || blocked {
@@ -83,6 +90,19 @@ func sourceIndexer(tx *gorm.DB, id *domain.DownloadID) (string, error) {
 		return "", err
 	}
 	return names[0], nil
+}
+
+type issueRegrabRow struct {
+	IssueID   domain.IssueID `gorm:"primaryKey"`
+	HandledAt time.Time
+}
+
+func (issueRegrabRow) TableName() string { return "acquisition_issue_regrabs" }
+
+// claimRegrab records the issue's REGRAB and reports false when it already ran.
+func claimRegrab(tx *gorm.DB, issue domain.IssueID, at time.Time) (bool, error) {
+	result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&issueRegrabRow{IssueID: issue, HandledAt: at})
+	return result.RowsAffected > 0, result.Error
 }
 
 // issueBlocked reports whether the release already has an ISSUE entry, so a second REGRAB adds none.

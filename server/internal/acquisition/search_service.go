@@ -46,6 +46,8 @@ type SearchRequest struct {
 	Title    domain.TitleID
 	Episodes []domain.EpisodeID
 	Trigger  api.SearchTrigger
+	// Removed are downloads the user removed for this search; the specs don't count them as queued or recent.
+	Removed []domain.DownloadID
 }
 
 type SearchDeps struct {
@@ -276,6 +278,7 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 	if err != nil {
 		return nil, searchTarget{}, err
 	}
+	downloads = slices.DeleteFunc(downloads, func(d download) bool { return slices.Contains(req.Removed, d.ID) })
 	in.Queue, in.History = grabsOf(downloads, title, in.Profile, in.Now)
 	held, err := s.deps.Repo.PendingReleases(ctx, title.ID)
 	if err != nil {

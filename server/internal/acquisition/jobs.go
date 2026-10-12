@@ -88,6 +88,8 @@ type searchTask struct {
 	Title    domain.TitleID     `json:"title"`
 	Episodes []domain.EpisodeID `json:"episodes"`
 	Trigger  api.SearchTrigger  `json:"trigger"`
+	// Removed are downloads the user removed for this search, which may not be dropped yet.
+	Removed []domain.DownloadID `json:"removed,omitempty"`
 }
 
 func (searchTask) Config() backlite.QueueConfig {
