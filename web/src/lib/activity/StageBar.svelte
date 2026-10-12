@@ -1,12 +1,10 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { getLive } from '$lib/live/live-client.svelte';
 	import { cn } from '$lib/utils';
-	import { LoadStatus, SDK_SOURCE, type ActivitySource } from './activity-source';
+	import { LoadStatus } from './activity-source';
 	import {
 		STAGES,
 		STAGE_LABELS,
@@ -19,24 +17,10 @@
 		subsChipText,
 		transcodeChipText
 	} from './pipeline';
-	import { TitlePipeline } from './title-pipeline.svelte';
+	import type { TitlePipeline } from './title-pipeline.svelte';
 
-	let {
-		titleId,
-		source = SDK_SOURCE,
-		class: className
-	}: { titleId: string; source?: ActivitySource; class?: string } = $props();
-
-	const live = getLive();
-	const pipeline = $derived(new TitlePipeline(titleId, source));
-
-	$effect(() => {
-		const current = pipeline;
-		return untrack(() => {
-			void current.load();
-			return current.connect(live);
-		});
-	});
+	/** pipeline is loaded and followed by the page, which shares it with the episode rows. */
+	let { pipeline, class: className }: { pipeline: TitlePipeline; class?: string } = $props();
 
 	const summary = $derived(pipeline.summary);
 	const stage = $derived((summary?.row.stage as Stage | undefined) ?? Stage.REQUESTED);

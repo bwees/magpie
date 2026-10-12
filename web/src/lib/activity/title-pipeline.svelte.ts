@@ -13,7 +13,7 @@ import {
 	type ActivitySource,
 	type LiveEvents
 } from './activity-source';
-import { summarize, type PipelineSummary } from './pipeline';
+import { Stage, summarize, type PipelineSummary } from './pipeline';
 
 const PERCENT = 100;
 
@@ -27,6 +27,10 @@ export class TitlePipeline {
 	status = $state(LoadStatus.LOADING);
 	error = $state('');
 	summary: PipelineSummary | undefined = $derived(summarize(this.rows));
+	/** A series' rows by episode ID, for the episode tables. */
+	byEpisode: Record<string, PipelineRowResponse> = $derived(
+		Object.fromEntries(this.rows.flatMap((row) => (row.episodeId ? [[row.episodeId, row]] : [])))
+	);
 
 	readonly titleId: string;
 	readonly #source: ActivitySource;
@@ -37,6 +41,11 @@ export class TitlePipeline {
 	constructor(titleId: string, source: ActivitySource) {
 		this.titleId = titleId;
 		this.#source = source;
+	}
+
+	/** How many of the episodes Jellyfin has confirmed. */
+	availableCount(episodeIds: string[]): number {
+		return episodeIds.filter((id) => this.byEpisode[id]?.stage === Stage.AVAILABLE).length;
 	}
 
 	get empty(): boolean {

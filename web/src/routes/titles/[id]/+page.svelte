@@ -7,7 +7,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import { SDK_SOURCE } from '$lib/activity/activity-source';
 	import Timeline from '$lib/activity/Timeline.svelte';
+	import { TitlePipeline } from '$lib/activity/title-pipeline.svelte';
 	import EpisodesTab from '$lib/catalog/EpisodesTab.svelte';
 	import TitleHero from '$lib/catalog/TitleHero.svelte';
 	import TitleSettings from '$lib/catalog/TitleSettings.svelte';
@@ -21,6 +23,8 @@
 	const live = getLive();
 
 	const title = $derived(new TitlePage(page.params.id ?? ''));
+	/** The stage bar and the episode rows share one pipeline. */
+	const pipeline = $derived(new TitlePipeline(page.params.id ?? '', SDK_SOURCE));
 	/** The tab the user picked; until then the page opens on its default tab. */
 	let picked = $state<TitleTab | undefined>();
 	const defaultTab = $derived(
@@ -34,6 +38,14 @@
 			picked = undefined;
 			void current.load();
 			return current.watch(live);
+		});
+	});
+
+	$effect(() => {
+		const current = pipeline;
+		return untrack(() => {
+			void current.load();
+			return current.connect(live);
 		});
 	});
 
@@ -70,7 +82,7 @@
 	</section>
 {:else}
 	<div class="flex flex-col gap-6">
-		<TitleHero title={title.title} posterUrl={title.posterUrl} tint={title.tint} />
+		<TitleHero title={title.title} {pipeline} posterUrl={title.posterUrl} tint={title.tint} />
 
 		<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_340px]">
 			<Tabs.Root
@@ -88,7 +100,7 @@
 				</Tabs.List>
 				{#if title.isSeries}
 					<Tabs.Content value={TitleTab.EPISODES} class="pt-4">
-						<EpisodesTab page={title} />
+						<EpisodesTab page={title} {pipeline} />
 					</Tabs.Content>
 				{/if}
 				<Tabs.Content value={TitleTab.TIMELINE} class="pt-4 lg:hidden">

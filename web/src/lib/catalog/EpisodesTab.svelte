@@ -6,15 +6,21 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { LoadStatus } from '$lib/activity/activity-source';
+	import { STAGE_LABELS, Stage } from '$lib/activity/pipeline';
+	import type { TitlePipeline } from '$lib/activity/title-pipeline.svelte';
 	import type { EpisodeResponse, TitleResponse } from '$lib/sdk';
 	import { AutomaticSearch, type SearchTarget } from '$lib/search/automatic-search.svelte';
 	import { getSession } from '$lib/session/session.svelte';
 	import { airDateLabel, AVAILABLE_UNKNOWN, episodeCode, seasonLabel } from './episodes';
 	import type { TitlePage } from './title-page.svelte';
 
-	let { page }: { page: TitlePage } = $props();
+	let { page, pipeline }: { page: TitlePage; pipeline: TitlePipeline } = $props();
 
 	const SEARCH_LABEL = 'Search episode';
+	/** Shown for a released episode nobody wants, which has no pipeline row. */
+	const NO_STAGE = '—';
 
 	const session = getSession();
 	const automatic = new AutomaticSearch();
@@ -42,7 +48,9 @@
 						<div class="flex items-baseline gap-3">
 							<Card.Title class="text-base">{label}</Card.Title>
 							<span class="text-xs text-muted-foreground tabular-nums">
-								{AVAILABLE_UNKNOWN} / {season.episodes.length}
+								{pipeline.status === LoadStatus.READY
+									? pipeline.availableCount(season.episodes.map((episode) => episode.id))
+									: AVAILABLE_UNKNOWN} / {season.episodes.length}
 							</span>
 						</div>
 						<label class="flex items-center gap-2 text-xs text-muted-foreground">
@@ -72,11 +80,25 @@
 										>
 											{airDateLabel(episode.airDate)}
 										</Table.Cell>
-										<Table.Cell class="w-24 text-center">
-											{#if episode.released}
-												<Badge variant="secondary">Aired</Badge>
-											{:else}
+										<Table.Cell class="w-28 text-center">
+											{@const row = pipeline.byEpisode[episode.id]}
+											{#if pipeline.status === LoadStatus.LOADING}
+												<Skeleton class="mx-auto h-5 w-20" />
+											{:else if row}
+												<Badge
+													variant={row.failed
+														? 'destructive'
+														: row.stage === Stage.AVAILABLE
+															? 'secondary'
+															: 'default'}
+													title={row.detail || undefined}
+												>
+													{STAGE_LABELS[row.stage as Stage] ?? row.stage}
+												</Badge>
+											{:else if !episode.released}
 												<Badge variant="outline">Unaired</Badge>
+											{:else}
+												<span class="text-muted-foreground">{NO_STAGE}</span>
 											{/if}
 										</Table.Cell>
 										<Table.Cell>

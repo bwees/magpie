@@ -3,6 +3,7 @@
 	import type { TitleResponse } from '$lib/sdk';
 	import { ProfileOptions } from '$lib/settings/quality/profile-options.svelte';
 	import StageBar from '$lib/activity/StageBar.svelte';
+	import type { TitlePipeline } from '$lib/activity/title-pipeline.svelte';
 	import RequestedBy from '$lib/requests/RequestedBy.svelte';
 	import Search from '@lucide/svelte/icons/search';
 	import InteractiveSearchDialog from '$lib/search/InteractiveSearchDialog.svelte';
@@ -11,7 +12,12 @@
 	import PosterImage from './PosterImage.svelte';
 	import { Button } from '$lib/components/ui/button';
 
-	let { title, posterUrl, tint }: { title: TitleResponse; posterUrl?: string; tint?: string } =
+	let {
+		title,
+		pipeline,
+		posterUrl,
+		tint
+	}: { title: TitleResponse; pipeline: TitlePipeline; posterUrl?: string; tint?: string } =
 		$props();
 
 	/** A dark teal used until the poster colour is known. */
@@ -87,7 +93,7 @@
 		{/if}
 	</div>
 	<div class="px-4 pb-5 md:px-8 md:pb-6">
-		<StageBar titleId={title.id} class="text-white" />
+		<StageBar {pipeline} class="text-white" />
 	</div>
 </section>
 

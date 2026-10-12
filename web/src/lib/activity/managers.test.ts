@@ -84,6 +84,17 @@ function source(overrides: Partial<ActivitySource> = {}): ActivitySource {
 const settle = () => new Promise((resolve) => setTimeout(resolve));
 
 describe('TitlePipeline', () => {
+	it('gives each episode row its stage and counts the available ones', async () => {
+		const pipeline = vi.fn(async () => [
+			row({ episodeId: 'E1', season: 1, number: 1, stage: Stage.AVAILABLE }),
+			row({ episodeId: 'E2', season: 1, number: 2, stage: Stage.DOWNLOADING })
+		]);
+		const manager = new TitlePipeline(TITLE, source({ pipeline }));
+		await manager.load();
+		expect(manager.byEpisode['E2']?.stage).toBe(Stage.DOWNLOADING);
+		expect(manager.availableCount(['E1', 'E2', 'E3'])).toBe(1);
+	});
+
 	it('refetches only for its own pipeline updates', async () => {
 		const pipeline = vi.fn(async () => [row()]);
 		const live = new FakeLive();
