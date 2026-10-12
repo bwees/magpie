@@ -186,6 +186,18 @@ func TestLoginErrors(t *testing.T) {
 	}
 }
 
+func TestABuildWithoutTheAppKeyNeverCallsOut(t *testing.T) {
+	api := newRecordedAPI(t, map[string][]answer{})
+	c := NewClient(Config{BaseURL: api.server.URL, HTTP: api.server.Client()})
+	c.appKey = ""
+	if _, err := c.Search(context.Background(), subtitles.SearchQuery{Tmdb: 438631, Language: "en"}); !errors.Is(err, subtitles.ErrAuth) {
+		t.Errorf("Search = %v, want ErrAuth", err)
+	}
+	if n := len(api.requests()); n != 0 {
+		t.Errorf("%d requests, want none", n)
+	}
+}
+
 func TestSearchAnEpisode(t *testing.T) {
 	api := newRecordedAPI(t, map[string][]answer{pathSubtitles: {ok(fixtureSearchShow)}})
 	c, _ := newTestClient(api, testUsername, testPassword)

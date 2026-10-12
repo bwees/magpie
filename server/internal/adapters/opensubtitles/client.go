@@ -168,9 +168,6 @@ func (c *Client) Login(ctx context.Context) (subtitles.Token, error) {
 	if conn.Username == "" || conn.Password == "" {
 		return subtitles.Token{}, fmt.Errorf("%w: %s", subtitles.ErrAuth, noLogin)
 	}
-	if c.appKey == "" {
-		return subtitles.Token{}, fmt.Errorf("%w: %s", subtitles.ErrAuth, missingAppKey)
-	}
 	body, err := json.Marshal(loginRequest{Username: conn.Username, Password: conn.Password})
 	if err != nil {
 		return subtitles.Token{}, err
@@ -296,7 +293,11 @@ type quotaError struct {
 func (e *quotaError) Error() string { return subtitles.ErrQuotaExceeded.Error() }
 
 // call sends one API request and decodes a 200 answer into out. Other answers map to the port's errors.
+// A build without the app key never calls out.
 func (c *Client) call(ctx context.Context, method, rawURL, token string, body []byte, out any) error {
+	if c.appKey == "" {
+		return fmt.Errorf("%w: %s", subtitles.ErrAuth, missingAppKey)
+	}
 	if err := c.wait(ctx); err != nil {
 		return err
 	}
