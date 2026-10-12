@@ -181,15 +181,16 @@ type Hasher interface {
 type JellyfinLibrary interface {
 	// RefreshPath calls POST /Library/Media/Updated for one path.
 	RefreshPath(ctx context.Context, path string) error
-	// FindByPath returns the Jellyfin item for an exact file path, or ErrItemNotFound.
-	FindByPath(ctx context.Context, path string) (JellyfinItem, error)
+	// Items returns the movies and episodes among ids with their file paths (GET /Items?ids=).
+	// Jellyfin 12's /Items has no path filter, so a LibraryChanged item is resolved by ID, not by path.
+	Items(ctx context.Context, ids []string) ([]JellyfinItem, error)
 	// Changes streams LibraryChanged websocket messages (item IDs added/updated/removed).
 	Changes(ctx context.Context) (<-chan LibraryChange, error)
-	// ItemsSince lists items changed since t (GET /Items with minDateLastSaved), for reconcile.
+	// ItemsSince lists movies and episodes changed since t (GET /Items with minDateLastSaved), for reconcile.
 	ItemsSince(ctx context.Context, t time.Time) ([]JellyfinItem, error)
 }
 
-var ErrCrossDevice, ErrProbeFailed, ErrItemNotFound, ErrJellyfinUnavailable error
+var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 ```
 
 - `MediaInfo` (streams, duration, HDR format, bitrate, size) lives in `library/api`; `FileInfo`, `JellyfinItem` and `LibraryChange` are spelled out in `internal/library/ports.go`.

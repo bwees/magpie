@@ -61,20 +61,22 @@ type Hasher interface {
 type JellyfinLibrary interface {
 	// RefreshPath calls POST /Library/Media/Updated for one path.
 	RefreshPath(ctx context.Context, path string) error
-	// FindByPath returns the Jellyfin item for an exact file path, or ErrItemNotFound.
-	FindByPath(ctx context.Context, path string) (JellyfinItem, error)
+	// Items returns the movies and episodes among ids with their file paths (GET /Items?ids=).
+	// IDs of other items, or of items Jellyfin no longer has, are left out.
+	Items(ctx context.Context, ids []string) ([]JellyfinItem, error)
 	// Changes streams LibraryChanged websocket messages (item IDs added/updated/removed).
 	// The channel closes when ctx ends or the socket drops.
 	Changes(ctx context.Context) (<-chan LibraryChange, error)
-	// ItemsSince lists items changed since t (GET /Items with minDateLastSaved), for reconcile.
+	// ItemsSince lists the movies and episodes changed since t (GET /Items with minDateLastSaved), for
+	// reconcile. A zero t lists them all.
 	ItemsSince(ctx context.Context, t time.Time) ([]JellyfinItem, error)
 }
 
+// JellyfinItem is a movie or episode Jellyfin has, with the path of its file as Jellyfin sees it.
 type JellyfinItem struct {
-	ID        string
-	Path      string
-	Type      string // Jellyfin item type, e.g. Movie, Episode
-	DateSaved time.Time
+	ID   string
+	Path string
+	Type string // Jellyfin item type, e.g. Movie, Episode
 }
 
 // LibraryChange is one LibraryChanged message: Jellyfin item IDs by kind of change.
@@ -85,6 +87,5 @@ type LibraryChange struct {
 var (
 	ErrCrossDevice         = errors.New("filesystem: rename across devices")
 	ErrProbeFailed         = errors.New("ffprobe: could not read media")
-	ErrItemNotFound        = errors.New("jellyfin: no item for path")
 	ErrJellyfinUnavailable = errors.New("jellyfin: unavailable")
 )

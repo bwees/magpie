@@ -3,7 +3,6 @@ package fakes
 import (
 	"cmp"
 	"context"
-	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -14,20 +13,26 @@ import (
 
 const (
 	JellyfinLibraryRefreshPath scripted.Method = "JellyfinLibrary.RefreshPath"
-	JellyfinLibraryFindByPath  scripted.Method = "JellyfinLibrary.FindByPath"
+	JellyfinLibraryItems       scripted.Method = "JellyfinLibrary.Items"
 	JellyfinLibraryChanges     scripted.Method = "JellyfinLibrary.Changes"
 	JellyfinLibraryItemsSince  scripted.Method = "JellyfinLibrary.ItemsSince"
 
 	changesBuffer = 64
 )
 
-// JellyfinLibrary holds Jellyfin items by path and records refreshes. Tests push LibraryChanged messages
+// savedItem is a Jellyfin item with the time Jellyfin last saved it.
+type savedItem struct {
+	library.JellyfinItem
+	saved time.Time
+}
+
+// JellyfinLibrary holds Jellyfin items by ID and records refreshes. Tests push LibraryChanged messages
 // to every open Changes stream with PushChange.
 type JellyfinLibrary struct {
 	scripted.Script
 
 	mu        sync.Mutex
-	items     map[string]library.JellyfinItem
+	items     map[string]savedItem
 	refreshed []string
 	streams   map[chan library.LibraryChange]struct{}
 }
@@ -36,16 +41,16 @@ var _ library.JellyfinLibrary = (*JellyfinLibrary)(nil)
 
 func NewJellyfinLibrary() *JellyfinLibrary {
 	return &JellyfinLibrary{
-		items:   map[string]library.JellyfinItem{},
+		items:   map[string]savedItem{},
 		streams: map[chan library.LibraryChange]struct{}{},
 	}
 }
 
-// AddItem makes Jellyfin know an item at item.Path.
-func (j *JellyfinLibrary) AddItem(item library.JellyfinItem) {
+// AddItem makes Jellyfin know item, last saved at saved.
+func (j *JellyfinLibrary) AddItem(item library.JellyfinItem, saved time.Time) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	j.items[filepath.Clean(item.Path)] = item
+	j.items[item.ID] = savedItem{JellyfinItem: item, saved: saved}
 }
 
 // PushChange sends c to every open Changes stream. A stream whose buffer is full misses it, as a
@@ -58,6 +63,23 @@ func (j *JellyfinLibrary) PushChange(c library.LibraryChange) {
 		case stream <- c:
 		default:
 		}
+	}
+}
+
+// Streams reports how many Changes streams are open.
+func (j *JellyfinLibrary) Streams() int {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return len(j.streams)
+}
+
+// DropStreams closes every open Changes stream, as a dropped socket would.
+func (j *JellyfinLibrary) DropStreams() {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	for stream := range j.streams {
+		delete(j.streams, stream)
+		close(stream)
 	}
 }
 
@@ -78,19 +100,22 @@ func (j *JellyfinLibrary) RefreshPath(ctx context.Context, path string) error {
 	return nil
 }
 
-func (j *JellyfinLibrary) FindByPath(ctx context.Context, path string) (library.JellyfinItem, error) {
-	if err := j.Enter(ctx, JellyfinLibraryFindByPath); err != nil {
-		return library.JellyfinItem{}, err
+func (j *JellyfinLibrary) Items(ctx context.Context, ids []string) ([]library.JellyfinItem, error) {
+	if err := j.Enter(ctx, JellyfinLibraryItems); err != nil {
+		return nil, err
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	item, ok := j.items[filepath.Clean(path)]
-	if !ok {
-		return library.JellyfinItem{}, library.ErrItemNotFound
+	items := []library.JellyfinItem{}
+	for _, id := range ids {
+		if item, ok := j.items[id]; ok {
+			items = append(items, item.JellyfinItem)
+		}
 	}
-	return item, nil
+	return items, nil
 }
 
+// Changes streams pushed changes until ctx ends or DropStreams is called.
 func (j *JellyfinLibrary) Changes(ctx context.Context) (<-chan library.LibraryChange, error) {
 	if err := j.Enter(ctx, JellyfinLibraryChanges); err != nil {
 		return nil, err
@@ -103,8 +128,10 @@ func (j *JellyfinLibrary) Changes(ctx context.Context) (<-chan library.LibraryCh
 		<-ctx.Done()
 		j.mu.Lock()
 		defer j.mu.Unlock()
-		delete(j.streams, stream)
-		close(stream)
+		if _, open := j.streams[stream]; open {
+			delete(j.streams, stream)
+			close(stream)
+		}
 	}()
 	return stream, nil
 }
@@ -115,14 +142,18 @@ func (j *JellyfinLibrary) ItemsSince(ctx context.Context, t time.Time) ([]librar
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	items := []library.JellyfinItem{}
+	saved := []savedItem{}
 	for _, item := range j.items {
-		if item.DateSaved.After(t) {
-			items = append(items, item)
+		if item.saved.After(t) {
+			saved = append(saved, item)
 		}
 	}
-	slices.SortFunc(items, func(a, b library.JellyfinItem) int {
-		return cmp.Or(a.DateSaved.Compare(b.DateSaved), cmp.Compare(a.ID, b.ID))
+	slices.SortFunc(saved, func(a, b savedItem) int {
+		return cmp.Or(a.saved.Compare(b.saved), cmp.Compare(a.ID, b.ID))
 	})
+	items := make([]library.JellyfinItem, 0, len(saved))
+	for _, item := range saved {
+		items = append(items, item.JellyfinItem)
+	}
 	return items, nil
 }

@@ -134,16 +134,21 @@ func TestProberReturnsSetInfoAndFailsOtherwise(t *testing.T) {
 	}
 }
 
-func TestJellyfinLibraryFindsItemsAndStreamsChanges(t *testing.T) {
+func TestJellyfinLibraryListsItemsAndStreamsChanges(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	j := NewJellyfinLibrary()
-	j.AddItem(library.JellyfinItem{ID: "jf-1", Path: "/media/movie.mkv"})
+	saved := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	movie := library.JellyfinItem{ID: "jf-1", Path: "/media/movie.mkv", Type: "Movie"}
+	j.AddItem(movie, saved)
 
-	if item, err := j.FindByPath(ctx, "/media/movie.mkv"); err != nil || item.ID != "jf-1" {
-		t.Errorf("FindByPath = %+v, %v", item, err)
+	if items, err := j.Items(ctx, []string{"jf-1", "jf-unknown"}); err != nil || !slices.Equal(items, []library.JellyfinItem{movie}) {
+		t.Errorf("Items = %+v, %v", items, err)
 	}
-	if _, err := j.FindByPath(ctx, "/media/none.mkv"); !errors.Is(err, library.ErrItemNotFound) {
-		t.Errorf("unknown path err = %v", err)
+	if items, err := j.ItemsSince(ctx, saved.Add(-time.Minute)); err != nil || len(items) != 1 {
+		t.Errorf("ItemsSince(before) = %+v, %v", items, err)
+	}
+	if items, err := j.ItemsSince(ctx, saved); err != nil || len(items) != 0 {
+		t.Errorf("ItemsSince(saved) = %+v, %v; want none", items, err)
 	}
 
 	changes, err := j.Changes(ctx)
