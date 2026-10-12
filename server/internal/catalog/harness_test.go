@@ -140,10 +140,14 @@ func newHarness(t *testing.T) *harness {
 		catalog.NewMovieRefreshQueue(h.service),
 		catalog.NewSeriesRefreshQueue(h.service),
 		catalog.NewReleaseClockQueue(h.service),
+		catalog.MatchFolderQueue(h.service, h.tasks.later),
 	} {
 		h.queues[q.Config().Name] = q
 	}
-	h.server = httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{catalog.NewController(h.service, h.repo, h.tasks)})
+	h.server = httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{
+		catalog.NewController(h.service, h.repo, h.tasks),
+		catalog.NewScanReviewController(h.service),
+	})
 	h.tmdb.PutImage(posterPath, testJPEG(t, posterWidth, posterHeight))
 	h.tmdb.PutImage(backdropPath, testJPEG(t, posterHeight, posterWidth))
 	return h

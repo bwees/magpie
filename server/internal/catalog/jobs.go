@@ -3,11 +3,13 @@ package catalog
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
 	"magpie/internal/catalog/api"
 	"magpie/internal/domain"
+	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/settings"
 	requestsapi "magpie/internal/requests/api"
@@ -21,6 +23,7 @@ const (
 	movieRefreshQueueName  = "catalog.refresh-movies"
 	seriesRefreshQueueName = "catalog.refresh-series"
 	releaseClockQueueName  = "catalog.release-clock"
+	matchFolderQueueName   = "catalog.match-folder"
 
 	periodicNameSeparator = "."
 
@@ -32,6 +35,13 @@ const (
 // addTitleRetries is the wait before each retry of a TMDB failure while adding a Title. Once they run
 // out, TitleAddFailed is published.
 var addTitleRetries = []time.Duration{30 * time.Second, 2 * time.Minute, 10 * time.Minute}
+
+// A folder match waits for TMDB as long as it takes: from matchRetryFirst, doubling up to matchRetryMost.
+const (
+	matchRetryFirst  = 30 * time.Second
+	matchRetryMost   = time.Hour
+	matchRetryFactor = 2
+)
 
 var errNotInJob = errors.New("catalog: a delayed retry needs a running job")
 
@@ -74,6 +84,20 @@ func (releaseClockTask) Config() backlite.QueueConfig {
 	return backlite.QueueConfig{Name: releaseClockQueueName, MaxAttempts: queueAttempts, Backoff: queueBackoff}
 }
 
+type matchFolderTask struct {
+	Found libraryapi.FolderFound `json:"found"`
+	// Wait is how long to wait before retrying if TMDB fails again.
+	Wait time.Duration `json:"wait"`
+}
+
+func newMatchFolderTask(found libraryapi.FolderFound) matchFolderTask {
+	return matchFolderTask{Found: found, Wait: matchRetryFirst}
+}
+
+func (matchFolderTask) Config() backlite.QueueConfig {
+	return backlite.QueueConfig{Name: matchFolderQueueName, MaxAttempts: queueAttempts, Backoff: queueBackoff}
+}
+
 // delayedEnqueue adds a task that runs after wait.
 type delayedEnqueue func(ctx context.Context, task backlite.Task, wait time.Duration) error
 
@@ -109,6 +133,27 @@ func addTitle(ctx context.Context, s *Service, later delayedEnqueue, task addTit
 		return later(ctx, next, task.Retries[0])
 	}
 	return s.FailRequestedTitle(ctx, task.Request, err)
+}
+
+func newMatchFolderQueue(s *Service) backlite.Queue {
+	return matchFolderQueue(s, enqueueFromRunningJob)
+}
+
+func matchFolderQueue(s *Service, later delayedEnqueue) backlite.Queue {
+	return backlite.NewQueue(func(ctx context.Context, task matchFolderTask) error {
+		return matchFolder(ctx, s, later, task)
+	})
+}
+
+// matchFolder retries TMDB failures with a growing wait; the folder stays queued until TMDB answers.
+func matchFolder(ctx context.Context, s *Service, later delayedEnqueue, task matchFolderTask) error {
+	err := s.MatchFolder(ctx, task.Found)
+	if err == nil || ctx.Err() != nil || errors.Is(err, ErrTmdbNotFound) || !isTmdbError(err) {
+		return err
+	}
+	slog.WarnContext(ctx, "catalog: TMDB failed while matching a library folder; retrying", "folder", task.Found.Path, "retry_in", task.Wait, "error", err)
+	next := matchFolderTask{Found: task.Found, Wait: min(task.Wait*matchRetryFactor, matchRetryMost)}
+	return later(ctx, next, task.Wait)
 }
 
 func newRefreshTitleQueue(s *Service) backlite.Queue {

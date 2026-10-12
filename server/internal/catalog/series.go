@@ -280,35 +280,16 @@ func (s *Service) addRequestedSeries(ctx context.Context, req requestsapi.Reques
 			return err
 		}
 
-		now := s.now().UTC()
-		row := titleRow{
-			ID:                   string(domain.NewID[domain.TitleID]()),
-			Kind:                 string(domain.MediaKindSeries),
-			TmdbID:               int64(req.Tmdb),
-			ExternalIDSource:     ExternalIDSourceTMDB,
-			ProfileID:            string(req.Profile),
-			Monitored:            true,
-			MonitorFutureSeasons: req.Scope == requestsapi.ScopeAllSeasons,
-			Origin:               string(domain.OriginRequest),
-			RequestedBy:          ptr(string(req.User)),
-			RequestID:            ptr(string(req.Request)),
-			AddedAt:              now,
-		}
-		if err := applySeriesMeta(&row, snap.series, now); err != nil {
-			return err
-		}
-		if err := s.repo.createTitle(tx, row); err != nil {
-			return err
-		}
-		changes, err := s.applySeries(tx, row, snap, seriesUpdate{newSeason: requestedSeasons(req), releaseAired: true})
+		row := s.newSeriesRow(req.Tmdb)
+		row.ProfileID = string(req.Profile)
+		row.Monitored = true
+		row.MonitorFutureSeasons = req.Scope == requestsapi.ScopeAllSeasons
+		row.Origin = string(domain.OriginRequest)
+		row.RequestedBy = ptr(string(req.User))
+		row.RequestID = ptr(string(req.Request))
+		row, changes, err := s.createSeries(tx, row, snap, requestedSeasons(req))
 		if err != nil {
 			return err
-		}
-		if changes.anyReleased() {
-			row.Released, row.ReleasedAt = true, &now
-			if err := s.repo.saveTitle(tx, row); err != nil {
-				return err
-			}
 		}
 		added = ptr(domain.TitleID(row.ID))
 		return s.publish(tx, api.TitleAdded{
@@ -330,6 +311,40 @@ func (s *Service) addRequestedSeries(ctx context.Context, req requestsapi.Reques
 		slog.WarnContext(ctx, "caching title images failed; the refresh job retries", "title", *added, "error", err)
 	}
 	return nil
+}
+
+// newSeriesRow is a series row not yet stored; createSeries fills in TMDB's metadata.
+func (s *Service) newSeriesRow(tmdb domain.TmdbID) titleRow {
+	return titleRow{
+		ID:               string(domain.NewID[domain.TitleID]()),
+		Kind:             string(domain.MediaKindSeries),
+		TmdbID:           int64(tmdb),
+		ExternalIDSource: ExternalIDSourceTMDB,
+		AddedAt:          s.now().UTC(),
+	}
+}
+
+// createSeries stores a new series with TMDB's metadata and episodes. Seasons the policy picks start
+// monitored, and episodes that have aired are released at once.
+func (s *Service) createSeries(tx *gorm.DB, row titleRow, snap seriesSnapshot, policy seasonPolicy) (titleRow, seriesChanges, error) {
+	now := s.now().UTC()
+	if err := applySeriesMeta(&row, snap.series, now); err != nil {
+		return titleRow{}, seriesChanges{}, err
+	}
+	if err := s.repo.createTitle(tx, row); err != nil {
+		return titleRow{}, seriesChanges{}, err
+	}
+	changes, err := s.applySeries(tx, row, snap, seriesUpdate{newSeason: policy, releaseAired: true})
+	if err != nil {
+		return titleRow{}, seriesChanges{}, err
+	}
+	if changes.anyReleased() {
+		row.Released, row.ReleasedAt = true, &now
+		if err := s.repo.saveTitle(tx, row); err != nil {
+			return titleRow{}, seriesChanges{}, err
+		}
+	}
+	return row, changes, nil
 }
 
 // monitorSeriesForRequest monitors the requested seasons of a tracked series and their episodes.

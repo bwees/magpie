@@ -15,6 +15,8 @@ var (
 	NewSeriesRefreshPeriodic  = newSeriesRefreshPeriodic
 	AddTitleRetries           = addTitleRetries
 	RefreshPausedSetting      = refreshPaused
+	NewFolderFoundHandler     = newFolderFoundHandler
+	MatchFolderQueue          = matchFolderQueue
 )
 
 type (

@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 
+	libraryapi "magpie/internal/library/api"
 	platformapi "magpie/internal/platform/api"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/jobs"
@@ -14,7 +15,23 @@ import (
 const (
 	handlerRequestApproved = "catalog.add-title-on-request-approved"
 	handlerTmdbHealth      = "catalog.resume-refresh-on-tmdb-healthy"
+	handlerFolderFound     = "catalog.match-on-folder-found"
 )
+
+// newFolderFoundHandler queues matching a folder a library scan found; the match calls TMDB.
+func newFolderFoundHandler(queue jobs.Enqueuer) bus.Handler {
+	return bus.Handler{
+		Name:       handlerFolderFound,
+		EventTypes: []string{libraryapi.TypeFolderFound},
+		Handle: func(_ context.Context, tx *gorm.DB, ev bus.Event) error {
+			found, err := bus.Decode[libraryapi.FolderFound](ev)
+			if err != nil {
+				return err
+			}
+			return queue.EnqueueTx(tx, newMatchFolderTask(found))
+		},
+	}
+}
 
 // newRequestApprovedHandler monitors a tracked Title at once, or queues the TMDB fetch: handlers can't call
 // TMDB inside their transaction.

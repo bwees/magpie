@@ -621,6 +621,9 @@ func (s *Service) RemoveTitle(ctx context.Context, id domain.TitleID, deleteFile
 		if err := s.repo.deleteTitle(tx, id); err != nil {
 			return err
 		}
+		if err := s.repo.forgetScanMatches(tx, id); err != nil {
+			return err
+		}
 		return s.publish(tx, api.TitleRemoved{Title: id, DeleteFiles: deleteFiles})
 	})
 	if err != nil {
