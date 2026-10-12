@@ -1,5 +1,6 @@
-// Package jobs runs the transcode jobs the server offers: it accepts what fits the agent's slots and
-// scratch, fetches the source, encodes and checks the output, uploads it and reports the result.
+// Package jobs runs the jobs the server offers: it accepts what fits the agent's slots and scratch,
+// fetches the source, encodes and checks the output or transcribes it with Whisper, uploads the result
+// and reports it.
 // Spec: docs/spec/contexts/transcode.md#agent-side-job-run.
 package jobs
 
@@ -19,15 +20,17 @@ import (
 
 	"magpie/agent/encode"
 	"magpie/agent/transfer"
+	"magpie/agent/whisper"
 	"magpie/internal/domain"
 	"magpie/internal/transcode/api/agentproto"
 )
 
 const (
-	jobsDirName = "jobs"
-	metaName    = "job.json"
-	sourceName  = "source"
-	outputName  = "output.mkv"
+	jobsDirName  = "jobs"
+	metaName     = "job.json"
+	sourceName   = "source"
+	outputName   = "output.mkv"
+	subtitleName = "output.srt"
 
 	dirPerm  = 0o750
 	filePerm = 0o640
@@ -58,6 +61,7 @@ type Options struct {
 	ScratchDir  string
 	Transfers   *transfer.Client
 	Encoder     *encode.Encoder
+	Whisper     *whisper.Transcriber
 	ScratchFree func() (int64, error)
 	// DirectRead returns the input ffmpeg reads the source from in direct-read mode.
 	DirectRead    func(source agentproto.SourceRef) encode.Input
@@ -208,11 +212,22 @@ func (m *Manager) Offer(offer agentproto.JobOffer) (bool, agentproto.RejectReaso
 	return true, ""
 }
 
+// needs is the capability the job's device must have passed; ok is false for a spec the agent can't run.
+func needs(spec agentproto.JobSpec) (agentproto.Capability, bool) {
+	switch {
+	case spec.Kind == agentproto.KindTranscode && spec.Transcode != nil:
+		return encodeCapability[spec.Transcode.Codec], true
+	case spec.Kind == agentproto.KindWhisper && spec.Whisper != nil:
+		return agentproto.CapWhisperVulkan, true
+	}
+	return "", false
+}
+
 func (m *Manager) device(spec agentproto.JobSpec) (agentproto.DeviceReport, bool) {
-	if spec.Kind != agentproto.KindTranscode || spec.Transcode == nil {
+	needs, ok := needs(spec)
+	if !ok {
 		return agentproto.DeviceReport{}, false
 	}
-	needs := encodeCapability[spec.Transcode.Codec]
 	for _, d := range m.devices {
 		if d.DeviceID == spec.DeviceID && slices.ContainsFunc(d.Capabilities, func(r agentproto.CapabilityResult) bool { return r.Capability == needs && r.OK }) {
 			return d, true

@@ -11,6 +11,7 @@ import (
 
 	"magpie/agent/encode"
 	"magpie/agent/transfer"
+	"magpie/agent/whisper"
 	"magpie/internal/transcode/api/agentproto"
 )
 
@@ -57,6 +58,9 @@ func (m *Manager) process(ctx context.Context, j *job, device agentproto.DeviceR
 	if err != nil {
 		return agentproto.JobResult{}, err
 	}
+	if j.spec.Kind == agentproto.KindWhisper {
+		return m.transcribe(ctx, j, device, input, source)
+	}
 	output := filepath.Join(j.dir, outputName)
 	work := encode.Job{
 		Spec: j.spec, Device: device, Input: input, Source: source, Output: output,
@@ -93,6 +97,33 @@ func (m *Manager) process(ctx context.Context, j *job, device agentproto.DeviceR
 	}
 	result.Outcome = agentproto.OutcomeUploaded
 	return result, nil
+}
+
+// transcribe writes the source's subtitle with Whisper and uploads it. The server checks the SRT itself;
+// the report carries only its size and digest.
+func (m *Manager) transcribe(ctx context.Context, j *job, device agentproto.DeviceReport, input encode.Input, source encode.Media) (agentproto.JobResult, error) {
+	output := filepath.Join(j.dir, subtitleName)
+	work := whisper.Job{
+		Params: *j.spec.Whisper, Device: device, Input: input, Duration: source.Duration, Dir: j.dir, Output: output,
+		Progress: func(fraction float64) { j.set(agentproto.StageEncoding, fraction, 0, 0) },
+	}
+	if err := m.opts.Whisper.Transcribe(ctx, work); err != nil {
+		return agentproto.JobResult{}, err
+	}
+	var report agentproto.VerifyReport
+	info, err := os.Stat(output)
+	if err != nil {
+		return agentproto.JobResult{}, err
+	}
+	report.OutputSize = info.Size()
+	if report.SHA256, err = transfer.Digest(output); err != nil {
+		return agentproto.JobResult{}, err
+	}
+	j.set(agentproto.StageUploading, 0, 0, 0)
+	if _, err := m.opts.Transfers.Upload(ctx, j.spec.OutputURL, output, j.transferred(agentproto.StageUploading)); err != nil {
+		return agentproto.JobResult{}, err
+	}
+	return agentproto.JobResult{Job: j.spec.Job, Outcome: agentproto.OutcomeUploaded, Verify: report}, nil
 }
 
 // fetch downloads the source, or in direct-read mode takes the server's transfer slot and hands ffmpeg

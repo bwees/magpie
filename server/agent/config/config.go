@@ -21,8 +21,12 @@ const (
 	EnvScratchDir = "MAGPIE_SCRATCH_DIR"
 	// EnvCPU, set to true, offers the software encoders as a device, for testing without a GPU.
 	EnvCPU = "MAGPIE_AGENT_CPU"
+	// EnvWhisperModels is where whisper.cpp's models are kept; a missing one is downloaded on first use.
+	EnvWhisperModels = "MAGPIE_WHISPER_MODELS"
 
 	DefaultScratchDir = "/scratch"
+	// defaultWhisperModels sits in the scratch dir, the agent's persistent volume.
+	defaultWhisperModels = "whisper-models"
 
 	// AgentIDFile sits in the scratch dir, which is the agent's persistent volume.
 	AgentIDFile = ".magpie-agent-id"
@@ -52,7 +56,8 @@ type Config struct {
 	ScratchDir string
 	AgentID    domain.AgentID
 	// CPU offers the software encoders as a device.
-	CPU bool
+	CPU              bool
+	WhisperModelsDir string
 }
 
 // Load reads the environment, creates the scratch dir and loads or creates the agent ID in it.
@@ -86,7 +91,11 @@ func Load(getenv func(string) string, hostname func() (string, error)) (Config, 
 	if err != nil {
 		return Config{}, err
 	}
-	return Config{ServerURL: serverURL, Secret: secret, Name: name, ScratchDir: scratch, AgentID: id, CPU: cpu}, nil
+	models := getenv(EnvWhisperModels)
+	if models == "" {
+		models = filepath.Join(scratch, defaultWhisperModels)
+	}
+	return Config{ServerURL: serverURL, Secret: secret, Name: name, ScratchDir: scratch, AgentID: id, CPU: cpu, WhisperModelsDir: models}, nil
 }
 
 // LoadAgentID returns the ID stored in dir, creating one on first start so the agent keeps its identity

@@ -105,6 +105,23 @@ func hostWithGPUs() fstest.MapFS {
 	return host
 }
 
+func TestTheCPUDeviceRunsWhisperWhenWhisperCppRuns(t *testing.T) {
+	for _, whisperRuns := range []bool{true, false} {
+		p, _ := newTestProber(fstest.MapFS{},
+			rule{program: DefaultNvidiaSMI, fail: true, stderr: exec.ErrNotFound.Error()},
+			rule{program: DefaultWhisper, fail: !whisperRuns, stderr: "whisper-cli: not found\n"},
+		)
+		withSamplesDir(t, p)
+		p.CPU = true
+
+		reports := p.Probe(context.Background(), "")
+
+		if got := capability(t, reports[0], agentproto.CapWhisperVulkan); got.OK != whisperRuns {
+			t.Errorf("whisper.cpp runs = %v: Whisper = %+v", whisperRuns, got)
+		}
+	}
+}
+
 func TestTheCPUDeviceTestsOnlyTheSoftwareEncoders(t *testing.T) {
 	p, runner := newTestProber(fstest.MapFS{},
 		rule{program: DefaultNvidiaSMI, fail: true, stderr: exec.ErrNotFound.Error()},

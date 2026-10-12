@@ -16,6 +16,7 @@ import (
 	"magpie/agent/probe"
 	"magpie/agent/session"
 	"magpie/agent/transfer"
+	"magpie/agent/whisper"
 	"magpie/internal/transcode/api/agentproto"
 
 	"golang.org/x/sys/unix"
@@ -60,6 +61,7 @@ func main() {
 		ScratchDir:  cfg.ScratchDir,
 		Transfers:   transfers,
 		Encoder:     encode.New(),
+		Whisper:     whisper.New(whisper.NewModels(cfg.WhisperModelsDir)),
 		ScratchFree: scratchFree,
 		DirectRead: func(source agentproto.SourceRef) encode.Input {
 			return encode.HTTPInput(transfers.SourceURL(source.URL), authHeaders)

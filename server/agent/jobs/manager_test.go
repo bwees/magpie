@@ -174,12 +174,13 @@ func newFixture(t *testing.T, scratch string) *fixture {
 		ScratchDir:  scratch,
 		Transfers:   transfers,
 		Encoder:     &encode.Encoder{Runner: f.runner, FFmpeg: encode.DefaultFFmpeg, FFprobe: encode.DefaultFFprobe},
+		Whisper:     newTranscriber(t),
 		ScratchFree: func() (int64, error) { return f.free, nil },
 		DirectRead:  func(s agentproto.SourceRef) encode.Input { return encode.Input{Path: transfers.SourceURL(s.URL)} },
 	}, f.sender)
 	f.manager.SetDevices([]agentproto.DeviceReport{{
 		DeviceID: testDevice, Vendor: agentproto.VendorNVIDIA,
-		Capabilities: []agentproto.CapabilityResult{{Capability: agentproto.CapEncHEVC10, OK: true}},
+		Capabilities: []agentproto.CapabilityResult{{Capability: agentproto.CapEncHEVC10, OK: true}, {Capability: agentproto.CapWhisperVulkan, OK: true}},
 	}})
 	f.manager.Configure(agentproto.Welcome{Mode: agentproto.ModeDownloadFirst, Slots: map[string]int{testDevice: 1}})
 	ctx, cancel := context.WithCancel(context.Background())

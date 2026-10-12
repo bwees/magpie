@@ -422,7 +422,7 @@ The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `
 - **Encode** (`ENC_HEVC_10`, `ENC_AV1_10`): 30 frames of 720p `testsrc2` converted to 10-bit, through `hevc_nvenc`/`av1_nvenc`, `hevc_qsv`/`av1_qsv` (Intel) or `hevc_vaapi`/`av1_vaapi` (AMD) to the null muxer.
 - **Decode** (`DEC_H264_8`, `DEC_HEVC_10`): CPU-encoded sample clips decoded with `-hwaccel cuda|qsv|vaapi -hwaccel_output_format …`. ffmpeg falls back to the CPU and exits 0 when the hardware decode can't start, so a "Failed setup for format" warning also fails the test.
 - **Pipeline** (`PIPELINE_HEVC_10`): the HEVC 10-bit sample decoded, scaled (`scale_cuda`, `vpp_qsv`, `scale_vaapi`) and re-encoded without leaving the GPU.
-- **Whisper** (`WHISPER_VULKAN`): `whisper-cli` must run, and a Vulkan device must derive from the GPU (`-init_hw_device vulkan=vk@…`). Ticket 26 may add a model run.
+- **Whisper** (`WHISPER_VULKAN`): `whisper-cli` must run, and a Vulkan device must derive from the GPU (`-init_hw_device vulkan=vk@…`). There's no model run: models download on first use. The `MAGPIE_AGENT_CPU` device passes when `whisper-cli` runs, and transcribes without a GPU (`-ng`).
 - Each result's `Error` is the first line ffmpeg logged, without its `[component @ 0x…]` prefix (e.g. `OpenEncodeSessionEx failed: unsupported device (2): (no details)`). Each test times out after 1 minute.
 - A device is healthy when it passed at least one test; one that passed none is unhealthy and retested after 10 minutes.
 
@@ -469,9 +469,10 @@ The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `
 4. Upload (resumable), then send `JobResult{Outcome: UPLOADED}`. The agent forgets the job before the result goes out, so no later heartbeat lists it; a result that can't be sent is kept and sent again after the next heartbeat or reconnect.
 5. **Whisper:**
    - Extract `AudioStream` as 16 kHz mono PCM.
-   - Run whisper.cpp (Vulkan backend, Silero VAD) with `Language`.
+   - Run whisper.cpp (Vulkan backend, Silero VAD) with `Language` and `Model`, on the device's Vulkan index (`cuda:N` → N, `renderD128+N` → N). Progress is the end of the last printed segment over the source duration.
+   - Models are `ggml-<Model>.bin` plus the Silero model in `MAGPIE_WHISPER_MODELS` (default `<scratch>/whisper-models`). A missing one is downloaded from whisper.cpp's Hugging Face repos on first use; a file already there is used as is.
    - Add `StartOffsetSec` to every cue and write SRT.
-   - Upload as `job.srt`.
+   - Upload as `job.srt` through the same offset-PUT endpoints. `JobResult.Verify` carries only `OutputSize` and `SHA256`; the server checks the SRT itself.
 
 ## Behaviour
 

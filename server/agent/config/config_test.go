@@ -61,6 +61,18 @@ func TestLoadReadsTheCPUSwitch(t *testing.T) {
 	}
 }
 
+func TestWhisperModelsDefaultToTheScratchDir(t *testing.T) {
+	scratch := t.TempDir()
+	vars := map[string]string{EnvURL: testURL, EnvSecret: testSecret, EnvScratchDir: scratch}
+	if cfg, err := Load(envOf(vars), fixedHostname); err != nil || cfg.WhisperModelsDir != filepath.Join(scratch, defaultWhisperModels) {
+		t.Fatalf("config = %+v, %v; want the models in the scratch dir", cfg, err)
+	}
+	vars[EnvWhisperModels] = "/models"
+	if cfg, err := Load(envOf(vars), fixedHostname); err != nil || cfg.WhisperModelsDir != "/models" {
+		t.Fatalf("config = %+v, %v; want %s", cfg, err, vars[EnvWhisperModels])
+	}
+}
+
 func TestLoadRejectsNonHTTPURL(t *testing.T) {
 	_, err := Load(envOf(map[string]string{EnvURL: "ftp://magpie.lan", EnvSecret: testSecret, EnvScratchDir: t.TempDir()}), fixedHostname)
 

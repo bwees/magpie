@@ -121,7 +121,7 @@ func (p *Prober) Probe(ctx context.Context, deviceID string) []agentproto.Device
 
 func (p *Prober) test(ctx context.Context, device agentproto.DeviceReport, samples map[sample]result, whisperErr string) []agentproto.CapabilityResult {
 	if device.Vendor == agentproto.VendorCPU {
-		return p.testCPU(ctx)
+		return p.testCPU(ctx, whisperErr)
 	}
 	commands := commandsByVendor[device.Vendor]
 	results := make([]agentproto.CapabilityResult, 0, len(Capabilities))
@@ -149,17 +149,20 @@ func (p *Prober) test(ctx context.Context, device agentproto.DeviceReport, sampl
 	return results
 }
 
-// errCPUOnlyEncodes is the result of every test but the encodes on the CPU device: it decodes as the
-// fallback path does and has no Vulkan.
-const errCPUOnlyEncodes = "the CPU device only runs the software encoders"
+// errCPUOnlyEncodes is the result of the decode and pipeline tests on the CPU device: it decodes as the
+// fallback path does.
+const errCPUOnlyEncodes = "the CPU device only runs the software encoders and Whisper"
 
-// testCPU runs the software encoders on the same test clip the GPUs encode.
-func (p *Prober) testCPU(ctx context.Context) []agentproto.CapabilityResult {
+// testCPU runs the software encoders on the same test clip the GPUs encode. Whisper passes when
+// whisper.cpp runs, since it needs no GPU there.
+func (p *Prober) testCPU(ctx context.Context, whisperErr string) []agentproto.CapabilityResult {
 	results := make([]agentproto.CapabilityResult, 0, len(Capabilities))
 	for _, capability := range Capabilities {
 		outcome := result{err: errCPUOnlyEncodes}
 		if name, ok := cpuEncoders[capability]; ok {
 			outcome = p.check(ctx, cpuEncodeArgs(name))
+		} else if capability == agentproto.CapWhisperVulkan {
+			outcome = result{err: whisperErr}
 		}
 		results = append(results, agentproto.CapabilityResult{Capability: capability, OK: outcome.err == "", Error: outcome.err})
 	}
