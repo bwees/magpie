@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"time"
 
 	"magpie/internal/platform/config"
@@ -58,10 +57,16 @@ var ErrNotInWrite = errors.New("db: transaction did not come from DB.Write")
 
 // DB is the single writer connection plus a read-only pool. Every write goes through Write.
 type DB struct {
-	writer  *gorm.DB
-	reader  *gorm.DB
-	path    string
-	writeMu sync.Mutex
+	writer *gorm.DB
+	reader *gorm.DB
+	path   string
+	// writeTurn has one slot, held while a Write runs. A channel, unlike a mutex, lets a waiting
+	// Write give up when its ctx ends.
+	writeTurn chan struct{}
+}
+
+func newDB(writer *gorm.DB, path string) *DB {
+	return &DB{writer: writer, path: path, writeTurn: make(chan struct{}, 1)}
 }
 
 var Module = fx.Module("db",
@@ -109,7 +114,7 @@ func Open(ctx context.Context, path, backupDir string, sets []MigrationSet) (*DB
 	}
 	writerSQL.SetMaxOpenConns(1)
 
-	d := &DB{writer: writer, path: path}
+	d := newDB(writer, path)
 	if err := d.migrate(ctx, sets, existed, backupDir); err != nil {
 		return nil, errors.Join(fmt.Errorf("migrating %s: %w", path, err), closeGorm(writer))
 	}
@@ -136,10 +141,15 @@ func (d *DB) Read(ctx context.Context) *gorm.DB {
 }
 
 // Write runs fn in an immediate transaction on the writer. Hooks registered with AfterCommit run after
-// a successful commit and before the next write starts, so they see commits in order.
+// a successful commit and before the next write starts, so they see commits in order. A Write still
+// waiting for its turn when ctx ends returns ctx's error.
 func (d *DB) Write(ctx context.Context, fn func(tx *gorm.DB) error) error {
-	d.writeMu.Lock()
-	defer d.writeMu.Unlock()
+	select {
+	case d.writeTurn <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	defer func() { <-d.writeTurn }()
 
 	hooks := &commitHooks{}
 	if err := d.writer.WithContext(withCommitHooks(ctx, hooks)).Transaction(fn); err != nil {

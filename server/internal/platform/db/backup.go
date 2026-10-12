@@ -241,7 +241,7 @@ func snapshotFile(ctx context.Context, dbPath, backupDir string) error {
 	if err != nil {
 		return err
 	}
-	d := &DB{writer: current, path: dbPath}
+	d := newDB(current, dbPath)
 	_, snapErr := d.Snapshot(ctx, backupDir, BackupKindPreRestore, time.Now())
 	return errors.Join(snapErr, closeGorm(current))
 }
