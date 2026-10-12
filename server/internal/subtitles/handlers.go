@@ -17,12 +17,14 @@ const (
 	handlerLanguagesChanged = "subtitles.recompute-on-languages-changed"
 )
 
-// newLibraryHandler takes every library file event in one handler, so a file's import, transcode and
-// deletion are handled in order.
+// newLibraryHandler takes every library file event in one handler, so a file's import, transcode, renames
+// and deletion are handled in order.
 func newLibraryHandler(s *Service) bus.Handler {
 	return bus.Handler{
-		Name:       handlerLibrary,
-		EventTypes: []string{libraryapi.TypeFileImported, libraryapi.TypeFileTranscoded, libraryapi.TypeFileDeleted},
+		Name: handlerLibrary,
+		EventTypes: []string{
+			libraryapi.TypeFileImported, libraryapi.TypeFileTranscoded, libraryapi.TypeFileRenamed, libraryapi.TypeFileDeleted,
+		},
 		Handle: func(ctx context.Context, tx *gorm.DB, ev bus.Event) error {
 			switch ev.Type {
 			case libraryapi.TypeFileImported:
@@ -37,6 +39,12 @@ func newLibraryHandler(s *Service) bus.Handler {
 					return err
 				}
 				return s.recordTranscode(ctx, tx, e)
+			case libraryapi.TypeFileRenamed:
+				e, err := bus.Decode[libraryapi.FileRenamed](ev)
+				if err != nil {
+					return err
+				}
+				return s.followRename(tx, e)
 			default:
 				e, err := bus.Decode[libraryapi.FileDeleted](ev)
 				if err != nil {

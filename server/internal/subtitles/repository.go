@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"magpie/internal/domain"
+	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/db"
 	"magpie/internal/subtitles/api"
 
@@ -344,6 +345,19 @@ func deleteFile(tx *gorm.DB, file domain.MediaFileID) ([]string, error) {
 		}
 	}
 	return paths, nil
+}
+
+// moveSidecars repoints a file's subtitles from each old path to its new one. Paths the file doesn't use
+// are skipped, so a repeat changes nothing.
+func moveSidecars(tx *gorm.DB, file domain.MediaFileID, moves []libraryapi.SidecarMove) error {
+	for _, m := range moves {
+		err := tx.Model(&subtitleRow{}).Where("media_file_id = ? AND path = ?", file, m.OldPath).
+			Update("path", m.NewPath).Error
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // pathInUse reports whether any stored subtitle still points at path.

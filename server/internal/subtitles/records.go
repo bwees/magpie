@@ -140,6 +140,11 @@ func (s *Service) forgetFile(tx *gorm.DB, e libraryapi.FileDeleted) error {
 	return s.deps.Jobs.EnqueueTx(tx, removeSidecarsTask{Paths: paths})
 }
 
+// followRename points the file's stored sidecars at the paths Library moved them to.
+func (s *Service) followRename(tx *gorm.DB, e libraryapi.FileRenamed) error {
+	return moveSidecars(tx, e.MediaFile, e.Sidecars)
+}
+
 // rerun drops a file's provider and Whisper subtitles, blocklists the provider's files for it and searches again.
 func (s *Service) rerun(ctx context.Context, tx *gorm.DB, e requestsapi.IssueActionRequested) error {
 	if e.Action != requestsapi.IssueActionRerunSubtitles {

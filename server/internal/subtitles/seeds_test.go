@@ -439,6 +439,50 @@ func TestManualDownloadAndDelete(t *testing.T) {
 	}
 }
 
+// Seed 18.
+func TestFileRenamedMovesStoredSidecarPaths(t *testing.T) {
+	h := newHarness(t, english, spanish)
+	const (
+		oldEnglish = "/tv/Show (2011)/Season 01/Show S01E02.en.srt"
+		oldSpanish = "/tv/Show (2011)/Season 01/Show S01E02.es.srt"
+		newVideo   = "/tv/Show (2011)/Season 02/Show S02E01.mkv"
+		newEnglish = "/tv/Show (2011)/Season 02/Show S02E01.en.srt"
+		newSpanish = "/tv/Show (2011)/Season 02/Show S02E01.es.srt"
+	)
+	file := h.episodeFile()
+	h.os.AddCandidates(h.episodeQuery(spanish), perfectEpisode(11, spanish))
+	h.os.SetContent(11, srt)
+	h.imported(file, libraryapi.Sidecar{Path: oldEnglish, Language: english})
+	h.runDue()
+	sidecarPaths := func() []string {
+		var paths []string
+		for _, sub := range h.view(file.ID).Subtitles {
+			paths = append(paths, sub.Path)
+		}
+		slices.Sort(paths)
+		return paths
+	}
+	if got, want := sidecarPaths(), []string{oldEnglish, oldSpanish}; !slices.Equal(got, want) {
+		t.Fatalf("sidecar paths before the rename = %v, want %v", got, want)
+	}
+	renamed := libraryapi.FileRenamed{
+		MediaFile: file.ID, Title: file.Title, OldPath: file.Path, NewPath: newVideo,
+		Episodes: []domain.EpisodeRef{{Episode: h.episode.ID, Season: 2, Number: 1}},
+		Sidecars: []libraryapi.SidecarMove{
+			{OldPath: oldEnglish, NewPath: newEnglish},
+			{OldPath: oldSpanish, NewPath: newSpanish},
+			{OldPath: "/tv/Show (2011)/Season 01/Show S01E02.nfo", NewPath: "/tv/Show (2011)/Season 02/Show S02E01.nfo"},
+		},
+	}
+
+	h.handle(subtitles.NewLibraryHandler(h.service), renamed)
+	h.handle(subtitles.NewLibraryHandler(h.service), renamed)
+
+	if got, want := sidecarPaths(), []string{newEnglish, newSpanish}; !slices.Equal(got, want) {
+		t.Errorf("sidecar paths = %v, want %v", got, want)
+	}
+}
+
 func TestRedeliveredImportChangesNothing(t *testing.T) {
 	h := newHarness(t, english)
 	file := h.episodeFile(englishText())

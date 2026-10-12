@@ -5,7 +5,7 @@ Makes sure every media file has subtitles in the user's wanted languages: embedd
 - **Depends on (Readers):** `catalog.Reader` (title, original language, wanted languages), `library.Reader` (path, OSHash, release name, embedded streams)
 - **Publishes:** `SubtitleAdded`, `SubtitleMissing`, `CoverageSettled`
 - **Sends command:** `transcode.RunAgentJob{Kind: WHISPER}`
-- **Consumes:** `library.FileImported`, `library.FileTranscoded`, `library.FileDeleted`, `requests.IssueActionRequested` (RERUN_SUBTITLES), `transcode.WhisperCompleted`, `transcode.JobFailed`, `catalog.LanguagesChanged`
+- **Consumes:** `library.FileImported`, `library.FileTranscoded`, `library.FileDeleted`, `library.FileRenamed`, `requests.IssueActionRequested` (RERUN_SUBTITLES), `transcode.WhisperCompleted`, `transcode.JobFailed`, `catalog.LanguagesChanged`
 
 Decisions: [07](../../../.scratch/v1-spec/issues/07-subtitles.md), [16](../../../.scratch/v1-spec/issues/16-subtitle-design.md), [24](../../../.scratch/v1-spec/issues/24-scheduling.md).
 
@@ -107,6 +107,7 @@ type CoverageSettled struct {
 | `library.FileImported` | Record EMBEDDED tracks from `MediaInfo`, record `Sidecars` as RELEASE, and create `wanted` rows for uncovered languages (wanted list from `catalog.Reader.WantedLanguages`). Queue a search job. `Replaces` is ignored; the old file is cleaned up on its `FileDeleted`. | media file ID | Search errors leave rows PENDING with backoff. |
 | `library.FileTranscoded` | Re-read embedded streams; drop EMBEDDED rows for tracks the transcode removed; create `wanted` rows if a wanted language is now uncovered | event ID | none |
 | `library.FileDeleted` (any `Reason`) | Delete the file's subtitle rows and its sidecar files, except sidecar paths that now belong to another live media file (an upgrade that kept the same basename) | media file ID | A missing sidecar counts as deleted |
+| `library.FileRenamed` | Rewrite the stored path of each of the file's subtitles found at a sidecar's `OldPath` to its `NewPath`. A sidecar it doesn't store is ignored | event ID; a row already at its new path isn't touched | none |
 | `requests.IssueActionRequested{RERUN_SUBTITLES}` | Delete PROVIDER/WHISPER subtitles for the file and blocklist their provider file IDs for this file, then re-run the search | issue ID | none |
 | `catalog.LanguagesChanged` | Recompute `wanted` for affected files (one title, or all titles if global) | event ID | Done in batches via a backlite job |
 | `transcode.WhisperCompleted` | Move the staged SRT to the sidecar path; source WHISPER, not synced; publish `SubtitleAdded` | job ID | If the staged file is missing, treat as `JobFailed` |
@@ -189,7 +190,8 @@ All routes are admin only.
 
 **Upgrades:** a PROVIDER subtitle with score < max − 3 gets `upgrade_until = added_at + 7 days`. The 6-hourly sweep re-searches it and replaces it only with a candidate scoring ≥ old + 1 point. The replacement publishes `SubtitleAdded{Replaces: true}`.
 
-**Sidecar naming:** `<video basename>.<iso639-1>.srt`, plus `.forced` or `.sdh` before the extension. Library moves sidecars when it renames videos; Subtitles writes and deletes them.
+**Sidecar naming:** `<video basename>.<iso639-1>.srt`, plus `.forced` or `.sdh` before the extension. Library moves sidecars when it renames videos and reports them in `FileRenamed`; Subtitles writes and deletes them.
+- The `FileImported`/`FileTranscoded`/`FileDeleted`/`FileRenamed` handler is one handler, so a file's events are handled in order.
 
 **Not in v1:** OCR of image subtitles, providers other than OpenSubtitles, translation.
 
@@ -212,3 +214,4 @@ All routes are admin only.
 15. **Given** wanted [en, es], **when** English is found on OpenSubtitles and Spanish ends MISSING, **then** `CoverageSettled{Satisfied: [en], Missing: [es]}` is published once; a later Whisper job for a new language publishes it again only when that job ends.
 16. **Given** `LanguagesChanged{Title: T}` adding `ja`, **then** `wanted` rows for `ja` are created for T's files and searches are queued; files of other titles are untouched.
 17. **Given** a Whisper job, **then** `RunAgentJob.Model` equals the configured model (default `large-v3-turbo`).
+18. **Given** a file with a RELEASE `.en.srt` and a PROVIDER `.es.srt`, **when** `FileRenamed` lists both sidecars and an `.nfo` Subtitles doesn't store, **then** both rows point at their new paths and nothing else changes; a redelivered `FileRenamed` changes nothing.
