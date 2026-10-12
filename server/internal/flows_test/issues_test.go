@@ -1,7 +1,6 @@
 package flows_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"slices"
@@ -17,12 +16,10 @@ import (
 	"magpie/internal/domain"
 	libraryapi "magpie/internal/library/api"
 	librarytest "magpie/internal/library/api/contracttest"
-	"magpie/internal/platform/bus"
 	"magpie/internal/requests"
 	requestsapi "magpie/internal/requests/api"
 
 	"go.uber.org/fx"
-	"gorm.io/gorm"
 )
 
 const (
@@ -59,41 +56,6 @@ func newIssueFlow(t *testing.T) *issueFlow {
 	return &issueFlow{harness: h, title: title}
 }
 
-func decodeBody[T any](t *testing.T, code int, raw []byte, want int) T {
-	t.Helper()
-	if code != want {
-		t.Fatalf("status %d, want %d: %s", code, want, raw)
-	}
-	var v T
-	if err := json.Unmarshal(raw, &v); err != nil {
-		t.Fatal(err)
-	}
-	return v
-}
-
-// eventually polls check until it holds or the handlers had their time.
-func eventually(t *testing.T, what string, check func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(waitForHandler)
-	for time.Now().Before(deadline) {
-		if check() {
-			return
-		}
-		time.Sleep(pollEvery)
-	}
-	t.Fatalf("never: %s", what)
-}
-
-func (f *issueFlow) outbox(eventType string) []string {
-	f.t.Helper()
-	var payloads []string
-	err := f.DB.Read(context.Background()).Table("platform_outbox").Where("type = ?", eventType).Pluck("payload", &payloads).Error
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	return payloads
-}
-
 // Flow 6: an admin's REGRAB blocklists the reported file's release, even a transcoded one, and searches
 // again; the import that replaces it resolves the issue and clears the attention item.
 func TestIssueRegrabBlocklistsSearchesAndResolvesOnImport(t *testing.T) {
@@ -126,14 +88,10 @@ func TestIssueRegrabBlocklistsSearchesAndResolvesOnImport(t *testing.T) {
 		})
 	})
 
-	imported := libraryapi.FileImported{
+	f.publish(libraryapi.FileImported{
 		MediaFile: domain.NewID[domain.MediaFileID](), Title: f.title.ID, Episodes: []domain.EpisodeRef{},
 		ReleaseName: "Issue.Flow.2024.2160p.WEB-DL-GRP", Origin: domain.OriginDownload,
-	}
-	err := f.DB.Write(context.Background(), func(tx *gorm.DB) error { return f.Bus.Publish(tx, bus.EventOf(imported)) })
-	if err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	eventually(t, "the import resolves the issue", func() bool {
 		rec := f.get(issuesPath + "/" + string(issue.ID))

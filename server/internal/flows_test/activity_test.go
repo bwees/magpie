@@ -14,8 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const pollEvery = 20 * time.Millisecond
-
 func TestActivityProjectsPublishedEvents(t *testing.T) {
 	var reader activityapi.Reader
 	h := boot(t, fx.Populate(&reader))
