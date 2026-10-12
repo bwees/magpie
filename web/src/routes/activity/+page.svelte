@@ -8,6 +8,7 @@
 	import ImportsTab from '$lib/library/ImportsTab.svelte';
 	import { ImportsManager } from '$lib/library/imports-manager.svelte';
 	import AgentsTab from '$lib/transcode/AgentsTab.svelte';
+	import GpuJobsTab from '$lib/transcode/GpuJobsTab.svelte';
 	import { ACTIVITY_TABS, ActivityTab, TAB_LABELS } from '$lib/activity/activity-tabs';
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { NAV_ITEMS } from '$lib/navigation/nav';
@@ -57,6 +58,8 @@
 				<HistoryTab />
 			{:else if value === ActivityTab.AGENTS}
 				<AgentsTab />
+			{:else if value === ActivityTab.GPU_JOBS}
+				<GpuJobsTab />
 			{:else}
 				<p class="py-8 text-center text-sm text-muted-foreground">Nothing here yet.</p>
 			{/if}
