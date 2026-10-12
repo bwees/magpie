@@ -112,6 +112,9 @@ export function coverageLabel(c: CoverageResponse): string {
 	if (c.status === CoverageStatus.PENDING && c.waitingForQuota) {
 		return 'Waiting for quota';
 	}
+	if (c.status === CoverageStatus.PENDING && c.waitingForWhisper) {
+		return 'Generating with Whisper';
+	}
 	const status = COVERAGE_LABELS[c.status] ?? c.status;
 	if (c.status === CoverageStatus.SATISFIED && c.source) {
 		return `${status} · ${SOURCE_LABELS[c.source] ?? c.source}`;

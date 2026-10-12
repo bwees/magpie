@@ -21,6 +21,7 @@ function job(id: string, change: Partial<JobResponse> = {}): JobResponse {
 		fileName: 'Dune (2021).mkv',
 		origin: 'DOWNLOAD',
 		targetCodec: 'HEVC_10',
+		language: '',
 		agent: null,
 		agentName: '',
 		attempt: 1,
@@ -182,10 +183,13 @@ describe('GpuJobsManager', () => {
 
 describe('gpu job labels', () => {
 	it('names the kind with its target', () => {
-		expect(kindLabel({ kind: 'TRANSCODE', targetCodec: 'HEVC_10' })).toBe(
+		expect(kindLabel({ kind: 'TRANSCODE', targetCodec: 'HEVC_10', language: '' })).toBe(
 			'Transcode · HEVC 10-bit'
 		);
-		expect(kindLabel({ kind: 'WHISPER', targetCodec: '' })).toBe('Whisper');
+		expect(kindLabel({ kind: 'WHISPER', targetCodec: '', language: 'en' })).toBe(
+			'Whisper · English'
+		);
+		expect(kindLabel({ kind: 'WHISPER', targetCodec: '', language: '' })).toBe('Whisper');
 	});
 
 	it('adds the episode to the title', () => {

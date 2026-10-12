@@ -1,5 +1,6 @@
 import type { JobResponse } from '$lib/sdk';
 import { formatEta, formatSpeed } from '$lib/downloads/downloads';
+import { languageName } from '$lib/subtitles/subtitles';
 
 /** Mirrors the Go `api.JobState` values. */
 export enum JobState {
@@ -37,6 +38,7 @@ export enum JobEvent {
 	FAILED = 'transcode.JobFailed',
 	VERIFIED = 'transcode.TranscodeVerified',
 	SKIPPED = 'transcode.TranscodeSkipped',
+	WHISPER_COMPLETED = 'transcode.WhisperCompleted',
 	FILE_TRANSCODED = 'library.FileTranscoded'
 }
 
@@ -83,11 +85,14 @@ const KIND_LABELS: Record<string, string> = {
 	[JobKind.WHISPER]: 'Whisper'
 };
 
-/** "Transcode · HEVC 10-bit". */
-export function kindLabel(job: Pick<JobResponse, 'kind' | 'targetCodec'>): string {
+/** "Transcode · HEVC 10-bit", or "Whisper · English". */
+export function kindLabel(job: Pick<JobResponse, 'kind' | 'targetCodec' | 'language'>): string {
 	const kind = KIND_LABELS[job.kind] ?? job.kind;
-	const target = TARGET_LABELS[job.targetCodec];
-	return target ? `${kind} · ${target}` : kind;
+	const detail =
+		job.kind === JobKind.WHISPER
+			? job.language && languageName(job.language)
+			: TARGET_LABELS[job.targetCodec];
+	return detail ? `${kind} · ${detail}` : kind;
 }
 
 /** The title with the episode, or the file name when the title is gone. */

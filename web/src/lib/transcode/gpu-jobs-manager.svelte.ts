@@ -48,6 +48,7 @@ const RELOAD_ON: JobEvent[] = [
 	JobEvent.FAILED,
 	JobEvent.VERIFIED,
 	JobEvent.SKIPPED,
+	JobEvent.WHISPER_COMPLETED,
 	JobEvent.FILE_TRANSCODED
 ];
 

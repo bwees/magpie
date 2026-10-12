@@ -45,16 +45,31 @@ const COVERAGE: CoverageResponse[] = [
 		forced: false,
 		status: CoverageStatus.SATISFIED,
 		source: SubtitleSource.PROVIDER,
-		waitingForQuota: false
+		waitingForQuota: false,
+		waitingForWhisper: false
 	},
 	{
 		language: 'es',
 		forced: false,
 		status: CoverageStatus.MISSING,
 		reason: MissingReason.NO_MATCH,
-		waitingForQuota: false
+		waitingForQuota: false,
+		waitingForWhisper: false
 	},
-	{ language: 'es', forced: true, status: CoverageStatus.PENDING, waitingForQuota: true }
+	{
+		language: 'es',
+		forced: true,
+		status: CoverageStatus.PENDING,
+		waitingForQuota: true,
+		waitingForWhisper: false
+	},
+	{
+		language: 'ja',
+		forced: false,
+		status: CoverageStatus.PENDING,
+		waitingForQuota: false,
+		waitingForWhisper: true
+	}
 ];
 
 const STATE: FileSubtitlesResponse = { mediaFile: FILE, subtitles: [PROVIDER], coverage: COVERAGE };
@@ -95,9 +110,10 @@ describe('subtitle labels', () => {
 		expect(COVERAGE.map(coverageLabel)).toEqual([
 			'Found · OpenSubtitles',
 			'Missing · no good match',
-			'Waiting for quota'
+			'Waiting for quota',
+			'Generating with Whisper'
 		]);
-		expect(wantedLanguages(COVERAGE)).toEqual(['en', 'es']);
+		expect(wantedLanguages(COVERAGE)).toEqual(['en', 'es', 'ja']);
 	});
 
 	it('labels the quota badge', () => {
@@ -115,7 +131,7 @@ describe('FileSubtitles', () => {
 		const subs = new FileSubtitles(FILE, api, n);
 		await subs.load();
 		expect(subs.status).toBe(LoadStatus.READY);
-		expect(subs.languages).toEqual(['en', 'es']);
+		expect(subs.languages).toEqual(['en', 'es', 'ja']);
 
 		subs.openPicker('es', true);
 		await vi.waitFor(() => expect(subs.candidatesStatus).toBe(LoadStatus.READY));
