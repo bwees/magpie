@@ -40,7 +40,7 @@ Decisions:
 | `agent_devices` | `agent_id`, `device_id` (e.g. `cuda:0`, `/dev/dri/renderD128`), `vendor`, `name`, `driver`, `max_sessions` (NVIDIA GeForce 12, others unset), `healthy`, `retest_at` (set while unhealthy), `tested_at` |
 | `device_capabilities` | `agent_id`, `device_id`, `capability` (`ENC_HEVC_10`, `ENC_AV1_10`, `DEC_H264_8`, … `WHISPER_VULKAN`), `ok`, `error`, `tested_at` |
 | `eligible_files` | `media_file_id`, `title_id`, `origin` (`DOWNLOAD` \| `LIBRARY_SCAN` \| `MIGRATION`, from `CutoffMet.Origin`), `cutoff_met_at` |
-| `jobs` | `id`, `kind` (`TRANSCODE` \| `WHISPER`), `media_file_id`, `title_id`, `origin`, `state`, `priority`, `attempt`, `not_before`, `target_codec`, `max_rate_kbps`, `hdr10`, `agent_id`, `device_id`, `offered_at`, `lease_expires_at`, `prefetch`, `last_agent_id`, `avoid_agent_id`, `avoid_until`, `source_etag`, `transfer_etag`, `source_size`, `staging_path`, `spec` (JSON `JobSpec`), `result` (JSON `JobResult`), `output_sha256`, `output_size`, `progress`, `error`, `excluded_agents` |
+| `jobs` | `id`, `kind` (`TRANSCODE` \| `WHISPER`), `media_file_id`, `title_id`, `origin`, `state`, `priority`, `attempt`, `not_before`, `target_codec`, `max_rate_kbps`, `hdr10`, `language` and `whisper_model` (`WHISPER` only), `agent_id`, `device_id`, `offered_at`, `lease_expires_at`, `prefetch`, `last_agent_id`, `avoid_agent_id`, `avoid_until`, `source_etag`, `transfer_etag`, `source_size`, `staging_path`, `spec` (JSON `JobSpec`), `result` (JSON `JobResult`), `output_sha256`, `output_size`, `progress`, `error`, `excluded_agents` |
 | `job_attempts` | `job_id`, `attempt`, `agent_id`, `outcome`, `error`, `started_at`, `ended_at` |
 | `exclusions` | `scope` (`TITLE` \| `ROOT_FOLDER`), `ref` |
 | `skips` | `media_file_id`, `reason`, `policy_hash`. A file isn't re-evaluated until the policy changes. |
@@ -50,7 +50,7 @@ Decisions:
 - The agent settings (`transfer_cap`, `default_slots_per_gpu`) live in the platform settings store under the key `transcode.agents`, not in `transcode_settings`.
 - Until ticket 25 adds the Transcode settings page, the policy (target, preset, caps, `min_saving_pct`, `vmaf_samples`) is the settings-store key `transcode.policy` with the defaults below; `Target()` reads it.
 - A job keeps two ETags: `source_etag` is Library's `ProcessingSource.ETag` at offer time, which `TranscodeVerified.SourceETag` carries for Library's own re-check; `transfer_etag` is the strong HTTP ETag from `FileStat` (`"<inode>-<size>-<mtime_ns>"`) that `SourceRef.ETag`, `ResumableJob.SourceETag` and the server's verification compare.
-- `staging_path` (`<StagingDir>/<job>.mkv`) is fixed at offer time, so a cancel can remove the staged file after Library forgot the media file.
+- `staging_path` (`<StagingDir>/<job>.mkv`, or `<job>.srt` for Whisper) is fixed at offer time, so a cancel can remove the staged file after Library forgot the media file.
 - `excluded_agents` gains an agent once it has two `FAILED` attempts at the job; lost leases don't count, since they are usually restarts the agent may resume from.
 
 The calibration table (`preset × encoder → params`) ships as a versioned file in the server binary and isn't user data.
@@ -152,7 +152,8 @@ type JobFailed struct {
 	Kind      JobKind
 	MediaFile domain.MediaFileID
 	Reason    string
-	Final     bool // true when retries are exhausted
+	Final     bool            // true when retries are exhausted
+	Language  domain.Language // WHISPER jobs: the language asked for; empty for TRANSCODE
 }
 type WhisperCompleted struct {
 	Job        domain.JobID
@@ -198,7 +199,7 @@ type RunAgentJob struct {
 | `library.FileDeleted` (any `Reason`, incl. `UPGRADED`) | Cancel non-terminal jobs for the file (send `Cancel` to the agent). Delete staging. Remove from `eligible_files`. | Cancelling a terminal job is a no-op. |
 | `catalog.TitleRemoved` | Same as `FileDeleted` for every file of the title. Remove the exclusion. | Same. |
 | `catalog.LanguagesChanged` | Drop the cached `KeepAudio`/`KeepSubs` of `QUEUED` jobs for the affected title(s); they are recomputed at offer time. Running and finished jobs are not redone. | Idempotent by nature. |
-| `transcode.RunAgentJob{Kind: WHISPER, MediaFile, Language, Model}` | Queue a `WHISPER` job at Whisper priority. | Dedupe on (`media_file_id`, `language`, non-terminal). |
+| `transcode.RunAgentJob{Kind: WHISPER, MediaFile, Language, Model}` | Queue a `WHISPER` job at Whisper priority, with the file's origin and title. Every Whisper job ends in `WhisperCompleted` or a final `JobFailed`; an admin cancel counts as a final `JobFailed`. | Dedupe on (`media_file_id`, `language`, non-terminal). |
 
 ## External ports
 
@@ -228,7 +229,7 @@ Admin UI (session auth, Admin role):
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/transcode/jobs?state=&kind=&limit=` | `{jobs, counts, backlog}`: jobs agents hold, then queued ones in offer order, then finished ones newest first (default limit 200); `counts` per state over every job; `backlog` the queued jobs of `LIBRARY_SCAN`/`MIGRATION` files. Each job carries its title name, episode label, file name, origin, target, agent name, attempt of `maxAttempts`, progress, `prefetched` and error. `400` on an unknown state or kind |
+| GET | `/api/transcode/jobs?state=&kind=&limit=` | `{jobs, counts, backlog}`: jobs agents hold, then queued ones in offer order, then finished ones newest first (default limit 200); `counts` per state over every job; `backlog` the queued jobs of `LIBRARY_SCAN`/`MIGRATION` files. Each job carries its title name, episode label, file name, origin, target (empty for Whisper), language (Whisper only), agent name, attempt of `maxAttempts`, progress, `prefetched` and error. `400` on an unknown state or kind |
 | POST | `/api/transcode/jobs/{id}/cancel` | Cancel an unfinished job; `409` once finished, `404` unknown |
 | POST | `/api/transcode/jobs/{id}/retry` | Re-queue a `FAILED` / `NOT_WORTH_IT` job at attempt 1, forgetting its attempts, exclusions and skip; `409` in any other state |
 | GET | `/api/transcode/agents` | Agents, devices, capabilities |
@@ -394,7 +395,7 @@ type TranscodeParams struct {
 }
 type WhisperParams struct {
 	Language       domain.Language
-	AudioStream    int    // source index of the original-language track
+	AudioStream    int    // source index of the first track in Language, else the default track, else the first
 	StartOffsetSec float64 // audio start_time − video start_time; added to every cue
 	Model          string // from RunAgentJob.Model: large-v3-turbo (default) | large-v3 | medium | small
 }
@@ -555,7 +556,7 @@ These checks run as the backlite job `transcode.verify-upload`, queued in the tr
 2. ffprobe on the staged file: codec and bit depth as specified, duration within ±1 s of the source.
 3. The source ETag now (from `FileStat` on the `library.Reader` path) equals the leased `source_etag`. A mismatch fails with `SOURCE_CHANGED`: no retry, the job is re-evaluated later if `CutoffMet` arrives again.
 4. Publish `TranscodeVerified`. Library re-checks the ETag, swaps atomically, and publishes `FileTranscoded` (job → `SWAPPED`) or `TranscodeSwapRejected` (job → `FAILED`, see consumed events).
-5. Whisper: the staged SRT parses and has ≥ 1 cue. Then publish `WhisperCompleted` and mark the job `COMPLETED`.
+5. Whisper: the upload digest matches, and the staged SRT parses and has ≥ 1 cue. Then publish `WhisperCompleted` and mark the job `COMPLETED`; the staged file stays for Subtitles to move. An invalid or empty SRT fails the job without a retry (Whisper would hear the same audio again). A file without audio fails at offer time.
 
 ### Retries
 

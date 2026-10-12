@@ -90,7 +90,8 @@ type JobFailed struct {
 	Kind      JobKind            `json:"kind"`
 	MediaFile domain.MediaFileID `json:"mediaFile"`
 	Reason    string             `json:"reason"`
-	Final     bool               `json:"final"` // true when retries are exhausted
+	Final     bool               `json:"final"`    // true when retries are exhausted
+	Language  domain.Language    `json:"language"` // WHISPER jobs; empty for TRANSCODE
 }
 
 // WhisperCompleted is durable. Subtitles moves the staged SRT to its sidecar path.

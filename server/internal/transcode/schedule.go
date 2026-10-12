@@ -166,7 +166,7 @@ func (s *JobService) queued(ctx context.Context) ([]QueuedJob, map[domain.JobID]
 		}
 		job := QueuedJob{
 			ID:             row.ID,
-			Needs:          targetVideos[row.TargetCodec].needs,
+			Needs:          row.needs(),
 			ExcludedAgents: excluded,
 			SourceSize:     row.SourceSize,
 			LastAgent:      row.LastAgentID,
@@ -203,13 +203,8 @@ func (s *JobService) offer(ctx context.Context, row jobRow, offer Offer, agent a
 	if !ok {
 		return errUnknownDevice
 	}
-	params, err := transcodeParams(policy, row.plan(), agentproto.Vendor(device.Vendor), source.MediaInfo)
-	if err != nil {
-		return err
-	}
 	spec := agentproto.JobSpec{
 		Job:      row.ID,
-		Kind:     agentproto.KindTranscode,
 		DeviceID: device.ID,
 		Source: agentproto.SourceRef{
 			URL:       agentproto.SourcePath(row.ID),
@@ -217,9 +212,21 @@ func (s *JobService) offer(ctx context.Context, row jobRow, offer Offer, agent a
 			ETag:      info.ETag(),
 			Container: source.MediaInfo.Container,
 		},
-		Transcode:  &params,
 		OutputURL:  agentproto.OutputPath(row.ID),
-		OutputName: stagedName(row.ID),
+		OutputName: stagedName(row.ID, row.Kind),
+	}
+	if row.Kind == api.JobKindWhisper {
+		params, ok := whisperParams(row, source.MediaInfo)
+		if !ok {
+			return s.failQueued(ctx, row, final(ReasonNoAudio))
+		}
+		spec.Kind, spec.Whisper = agentproto.KindWhisper, &params
+	} else {
+		params, err := transcodeParams(policy, row.plan(), agentproto.Vendor(device.Vendor), source.MediaInfo)
+		if err != nil {
+			return err
+		}
+		spec.Kind, spec.Transcode = agentproto.KindTranscode, &params
 	}
 	encoded, err := encodeJSON(spec)
 	if err != nil {
@@ -232,7 +239,7 @@ func (s *JobService) offer(ctx context.Context, row jobRow, offer Offer, agent a
 		offered, err = moveJob(tx, row.ID, []api.JobState{api.StateQueued}, map[string]any{
 			"state": api.StateOffered, "agent_id": offer.Slot.Agent, "device_id": device.ID, "offered_at": now,
 			"lease_expires_at": lease, "prefetch": offer.Prefetch, "spec": encoded, "source_etag": source.ETag,
-			"transfer_etag": spec.Source.ETag, "source_size": info.Size, "staging_path": stagedPath(source.StagingDir, row.ID),
+			"transfer_etag": spec.Source.ETag, "source_size": info.Size, "staging_path": stagedPath(source.StagingDir, row.ID, row.Kind),
 			"updated_at": now,
 		})
 		return err

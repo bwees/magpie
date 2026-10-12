@@ -178,7 +178,7 @@ type Event struct {
 | `transcode.JobProgressed` *(ephemeral)* | Transcode | job, stage, progress | live gateway |
 | `transcode.TranscodeVerified` | Transcode | job, mediaFile, stagedPath, sha256, sourceETag, stats | Library → swap file |
 | `transcode.TranscodeSkipped` | Transcode | mediaFile, reason (not worth it, DV, under cap, low bitrate…) | Activity |
-| `transcode.JobFailed` | Transcode | job, kind, mediaFile, reason, final | Subtitles (Whisper jobs); Activity → notify + attention when final |
+| `transcode.JobFailed` | Transcode | job, kind, mediaFile, reason, final, language (Whisper) | Subtitles (Whisper jobs); Activity → notify + attention when final |
 | `transcode.WhisperCompleted` | Transcode | job, mediaFile, language, stagedPath | Subtitles → store sidecar |
 | `transcode.AgentOnline` / `AgentOffline` | Transcode | agent | Activity → notify / attention on offline, clear on online |
 | `activity.NotificationCreated` | Activity | notification, user, kind, title, link | live gateway (to that user only) |

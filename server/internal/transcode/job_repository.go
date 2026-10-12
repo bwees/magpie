@@ -64,7 +64,9 @@ type jobRow struct {
 	NotBefore      *time.Time
 	TargetCodec    api.TargetCodec
 	MaxRateKbps    int
-	HDR10          bool `gorm:"column:hdr10"`
+	HDR10          bool            `gorm:"column:hdr10"`
+	Language       domain.Language // WHISPER jobs only, like WhisperModel
+	WhisperModel   string
 	AgentID        *domain.AgentID
 	DeviceID       *string
 	OfferedAt      *time.Time
@@ -346,6 +348,14 @@ func openJobFor(tx *gorm.DB, file domain.MediaFileID, kind api.JobKind) (jobRow,
 		return jobRow{}, false, err
 	}
 	return rows[0], true, nil
+}
+
+// openWhisperJob reports whether the file already has an unfinished Whisper job for the language.
+func openWhisperJob(tx *gorm.DB, file domain.MediaFileID, language domain.Language) (bool, error) {
+	var n int64
+	err := tx.Model(&jobRow{}).Where("media_file_id = ? AND kind = ? AND language = ? AND state IN ?", file, api.JobKindWhisper, language, openStates).
+		Count(&n).Error
+	return n > 0, err
 }
 
 func openJobsWhere(tx *gorm.DB, where string, args ...any) ([]jobRow, error) {

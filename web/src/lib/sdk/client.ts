@@ -1024,6 +1024,7 @@ export type JobResponse = {
     finishedAt: string | null;
     id: string;
     kind: string;
+    language: string;
     maxAttempts: number;
     mediaFile: string;
     notBefore: string | null;
@@ -1258,6 +1259,7 @@ export type JobFailed = {
     final: boolean;
     job: string;
     kind: string;
+    language: string;
     mediaFile: string;
     reason: string;
 };

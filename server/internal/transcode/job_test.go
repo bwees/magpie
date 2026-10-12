@@ -260,7 +260,7 @@ func TestVerifiedUploadPublishesTranscodeVerified(t *testing.T) {
 		got.Stats.OldSize != file.Size || got.Stats.VideoCodec != api.VideoCodecHEVC || got.Stats.Agent != a.id {
 		t.Fatalf("TranscodeVerified = %+v", got)
 	}
-	if staged != stagedPath(f.root+"/.magpie-staging", spec.Job) {
+	if staged != stagedPath(f.root+"/.magpie-staging", spec.Job, api.JobKindTranscode) {
 		t.Fatalf("staged at %s, want the library's staging dir", staged)
 	}
 	if job := f.job(spec.Job); job.State != api.StateVerified {

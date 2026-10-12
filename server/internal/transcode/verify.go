@@ -39,9 +39,16 @@ func newVerifyQueue(s *JobService) backlite.Queue {
 	})
 }
 
-// Verify checks an uploaded output before Library may swap it in: the digest the agent reported, the
-// codec, bit depth and duration ffprobe reads, and that the source is still the one leased. Then it
-// publishes TranscodeVerified.
+// verdict is where a job that passed the server's checks goes next, and what it publishes.
+type verdict struct {
+	state api.JobState
+	event domain.Message
+}
+
+// Verify checks an uploaded output. A transcode must match the digest the agent reported, have the
+// codec, bit depth and duration ffprobe reads, and come from the source still leased; it then publishes
+// TranscodeVerified for Library to swap in. A Whisper subtitle must parse with at least one cue; it then
+// publishes WhisperCompleted and the job is done.
 func (s *JobService) Verify(ctx context.Context, id domain.JobID) error {
 	row, err := jobIn(s.deps.DB.Read(ctx), id)
 	if errors.Is(err, ErrJobNotFound) || (err == nil && row.State != api.StateVerifying) {
@@ -50,7 +57,7 @@ func (s *JobService) Verify(ctx context.Context, id domain.JobID) error {
 	if err != nil {
 		return err
 	}
-	verified, f, err := s.check(ctx, row)
+	next, f, err := s.check(ctx, row)
 	if err != nil {
 		return err
 	}
@@ -58,19 +65,30 @@ func (s *JobService) Verify(ctx context.Context, id domain.JobID) error {
 		if f != nil {
 			return s.failAttempt(tx, row, *f)
 		}
-		moved, err := moveJob(tx, row.ID, []api.JobState{api.StateVerifying}, map[string]any{
-			"state": api.StateVerified, "progress": 1, "updated_at": s.now(),
-		})
+		now := s.now()
+		changes := map[string]any{"state": next.state, "progress": 1, "updated_at": now}
+		if next.state == api.StateCompleted {
+			changes["finished_at"] = now
+		}
+		moved, err := moveJob(tx, row.ID, []api.JobState{api.StateVerifying}, changes)
 		if err != nil || !moved {
 			return err
 		}
-		return s.deps.Bus.Publish(tx, bus.EventOf(verified))
+		return s.deps.Bus.Publish(tx, bus.EventOf(next.event))
 	})
 }
 
-// check returns the event to publish, or the failure that ends the attempt. err is for trouble a retry
-// of the task may get past.
-func (s *JobService) check(ctx context.Context, row jobRow) (api.TranscodeVerified, *failure, error) {
+// check returns where the job goes next, or the failure that ends the attempt. err is for trouble a
+// retry of the task may get past.
+func (s *JobService) check(ctx context.Context, row jobRow) (verdict, *failure, error) {
+	if row.Kind == api.JobKindWhisper {
+		return s.checkWhisper(row)
+	}
+	verified, f, err := s.checkTranscode(ctx, row)
+	return verdict{state: api.StateVerified, event: verified}, f, err
+}
+
+func (s *JobService) checkTranscode(ctx context.Context, row jobRow) (api.TranscodeVerified, *failure, error) {
 	fail := func(f failure) (api.TranscodeVerified, *failure, error) { return api.TranscodeVerified{}, &f, nil }
 	result, err := row.result()
 	if err != nil {

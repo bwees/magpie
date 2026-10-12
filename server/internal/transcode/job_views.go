@@ -25,6 +25,7 @@ type JobView struct {
 	FileName    string
 	Origin      domain.Origin
 	TargetCodec api.TargetCodec
+	Language    domain.Language // WHISPER jobs
 	Agent       *domain.AgentID
 	AgentName   string
 	Attempt     int
@@ -61,7 +62,7 @@ func (s *JobService) Jobs(ctx context.Context, filter JobFilter) (JobList, error
 		return JobList{}, err
 	}
 	var backlog int64
-	err = s.deps.DB.Read(ctx).Model(&jobRow{}).Where("state = ? AND origin <> ?", api.StateQueued, domain.OriginDownload).Count(&backlog).Error
+	err = s.deps.DB.Read(ctx).Model(&jobRow{}).Where("state = ? AND kind = ? AND origin <> ?", api.StateQueued, api.JobKindTranscode, domain.OriginDownload).Count(&backlog).Error
 	if err != nil {
 		return JobList{}, err
 	}
@@ -111,7 +112,7 @@ func displayedAgent(row jobRow) *domain.AgentID {
 func (s *JobService) view(ctx context.Context, row jobRow, names map[domain.TitleID]string, hostnames map[domain.AgentID]string) (JobView, error) {
 	view := JobView{
 		ID: row.ID, Kind: row.Kind, State: row.State, MediaFile: row.MediaFileID, Title: row.TitleID, Origin: row.Origin,
-		TargetCodec: row.TargetCodec, Agent: displayedAgent(row), Attempt: row.Attempt, Progress: row.Progress, Prefetched: row.Prefetch,
+		TargetCodec: row.TargetCodec, Language: row.Language, Agent: displayedAgent(row), Attempt: row.Attempt, Progress: row.Progress, Prefetched: row.Prefetch,
 		Error: row.Error, QueuedAt: row.QueuedAt, NotBefore: row.NotBefore, FinishedAt: row.FinishedAt,
 	}
 	if view.Agent != nil {

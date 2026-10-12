@@ -142,6 +142,50 @@ func (s *JobService) QueueOnCutoff(ctx context.Context, tx *gorm.DB, met acquisi
 
 const emptyAgents = "[]"
 
+// QueueWhisper queues a Whisper job for the file and language unless one is already open. It runs
+// ahead of every transcode.
+func (s *JobService) QueueWhisper(ctx context.Context, tx *gorm.DB, run api.RunAgentJob) error {
+	if run.Kind != api.JobKindWhisper {
+		slog.WarnContext(ctx, "transcode: ignoring an agent job of an unknown kind", "kind", run.Kind, "file", run.MediaFile)
+		return nil
+	}
+	if open, err := openWhisperJob(tx, run.MediaFile, run.Language); err != nil || open {
+		return err
+	}
+	file, err := s.deps.Library.File(ctx, run.MediaFile)
+	if errors.Is(err, libraryapi.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	now := s.now()
+	row := jobRow{
+		ID:             domain.NewID[domain.JobID](),
+		Kind:           api.JobKindWhisper,
+		MediaFileID:    run.MediaFile,
+		TitleID:        file.Title,
+		Origin:         file.Origin,
+		State:          api.StateQueued,
+		Priority:       priorityWhisper,
+		Attempt:        1,
+		Language:       run.Language,
+		WhisperModel:   run.Model,
+		ExcludedAgents: emptyAgents,
+		SourceSize:     file.Size,
+		QueuedAt:       now,
+		UpdatedAt:      now,
+	}
+	if err := tx.Create(&row).Error; err != nil {
+		return err
+	}
+	queued := api.JobQueued{Job: row.ID, Kind: row.Kind, MediaFile: row.MediaFileID, Title: row.TitleID, Origin: row.Origin}
+	if err := s.deps.Bus.Publish(tx, bus.EventOf(queued)); err != nil {
+		return err
+	}
+	return s.kickAfterCommit(tx)
+}
+
 func (s *JobService) skip(tx *gorm.DB, file domain.MediaFileID, reason api.SkipReason, detail string, policy Policy) error {
 	row := skipRow{MediaFileID: file, Reason: reason, Detail: detail, PolicyHash: policy.Hash(), SkippedAt: s.now()}
 	if err := saveSkip(tx, row); err != nil {
@@ -303,8 +347,10 @@ func (s *JobService) Result(ctx context.Context, agent domain.AgentID, result ag
 }
 
 func (s *JobService) uploaded(tx *gorm.DB, row jobRow, result agentproto.JobResult) error {
-	if f, ok := judge(result.Verify); !ok {
-		return s.failAttempt(tx, row, f)
+	if row.Kind == api.JobKindTranscode {
+		if f, ok := judge(result.Verify); !ok {
+			return s.failAttempt(tx, row, f)
+		}
 	}
 	if row.OutputSHA256 == "" {
 		return s.failAttempt(tx, row, retryable(ReasonUploadMissing))
@@ -398,7 +444,7 @@ func (s *JobService) failAttempt(tx *gorm.DB, row jobRow, f failure) error {
 	if err != nil || !moved {
 		return err
 	}
-	failed := api.JobFailed{Job: row.ID, Kind: row.Kind, MediaFile: row.MediaFileID, Reason: f.reason, Final: last}
+	failed := api.JobFailed{Job: row.ID, Kind: row.Kind, MediaFile: row.MediaFileID, Reason: f.reason, Final: last, Language: row.Language}
 	if err := s.deps.Bus.Publish(tx, bus.EventOf(failed)); err != nil {
 		return err
 	}
@@ -460,7 +506,8 @@ func (s *JobService) sendCancel(ctx context.Context, agent domain.AgentID, job d
 	}
 }
 
-// Cancel stops an unfinished job: the agent drops it and its staged output is removed.
+// Cancel stops an unfinished job: the agent drops it and its staged output is removed. Subtitles waits
+// for a reply to every Whisper job it asked for, so a cancelled one ends as a final JobFailed.
 func (s *JobService) Cancel(ctx context.Context, id domain.JobID, reason string) error {
 	return s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
 		row, err := jobIn(tx, id)
@@ -470,7 +517,11 @@ func (s *JobService) Cancel(ctx context.Context, id domain.JobID, reason string)
 		if !slices.Contains(openStates, row.State) {
 			return ErrJobFinished
 		}
-		return s.cancelTx(tx, row, reason)
+		if err := s.cancelTx(tx, row, reason); err != nil || row.Kind != api.JobKindWhisper {
+			return err
+		}
+		failed := api.JobFailed{Job: row.ID, Kind: row.Kind, MediaFile: row.MediaFileID, Reason: reason, Final: true, Language: row.Language}
+		return s.deps.Bus.Publish(tx, bus.EventOf(failed))
 	})
 }
 
@@ -545,8 +596,10 @@ func (s *JobService) Retry(ctx context.Context, id domain.JobID) error {
 		if err := tx.Where("job_id = ?", id).Delete(&attemptRow{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("media_file_id = ?", row.MediaFileID).Delete(&skipRow{}).Error; err != nil {
-			return err
+		if row.Kind == api.JobKindTranscode {
+			if err := tx.Where("media_file_id = ?", row.MediaFileID).Delete(&skipRow{}).Error; err != nil {
+				return err
+			}
 		}
 		_, err = moveJob(tx, id, retryable, clearAssignment(map[string]any{
 			"state": api.StateQueued, "attempt": 1, "excluded_agents": emptyAgents, "not_before": nil,
@@ -690,12 +743,16 @@ func (s *JobService) SourceOf(ctx context.Context, row jobRow) (libraryapi.Proce
 	return s.deps.Library.SourceForProcessing(ctx, row.MediaFileID)
 }
 
-func stagedName(job domain.JobID) string {
-	return fmt.Sprintf("%s%s", job, stagedExtension)
+// stagedExtensions is the file type each kind of job uploads.
+var stagedExtensions = map[api.JobKind]string{
+	api.JobKindTranscode: ".mkv",
+	api.JobKindWhisper:   ".srt",
 }
 
-const stagedExtension = ".mkv"
+func stagedName(job domain.JobID, kind api.JobKind) string {
+	return fmt.Sprintf("%s%s", job, stagedExtensions[kind])
+}
 
-func stagedPath(stagingDir string, job domain.JobID) string {
-	return filepath.Join(stagingDir, stagedName(job))
+func stagedPath(stagingDir string, job domain.JobID, kind api.JobKind) string {
+	return filepath.Join(stagingDir, stagedName(job, kind))
 }

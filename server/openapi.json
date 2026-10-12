@@ -2456,6 +2456,9 @@
 					"kind": {
 						"type": "string"
 					},
+					"language": {
+						"type": "string"
+					},
 					"mediaFile": {
 						"type": "string"
 					},
@@ -2467,6 +2470,7 @@
 					"final",
 					"job",
 					"kind",
+					"language",
 					"mediaFile",
 					"reason"
 				],
@@ -2593,6 +2597,9 @@
 					"kind": {
 						"type": "string"
 					},
+					"language": {
+						"type": "string"
+					},
 					"maxAttempts": {
 						"type": "integer"
 					},
@@ -2641,6 +2648,7 @@
 					"finishedAt",
 					"id",
 					"kind",
+					"language",
 					"maxAttempts",
 					"mediaFile",
 					"notBefore",

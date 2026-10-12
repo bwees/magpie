@@ -96,7 +96,8 @@ type JobResponse struct {
 	Episodes    string          `json:"episodes" validate:"required"` // S01E02; empty for a movie
 	FileName    string          `json:"fileName" validate:"required"`
 	Origin      domain.Origin   `json:"origin" validate:"required"`      // DOWNLOAD | LIBRARY_SCAN | MIGRATION
-	TargetCodec api.TargetCodec `json:"targetCodec" validate:"required"` // HEVC_10 | AV1_10
+	TargetCodec api.TargetCodec `json:"targetCodec" validate:"required"` // HEVC_10 | AV1_10; empty for Whisper
+	Language    domain.Language `json:"language" validate:"required"`    // the subtitle Whisper writes; empty for a transcode
 	Agent       *string         `json:"agent"`                           // running it, or the last attempt's
 	AgentName   string          `json:"agentName" validate:"required"`
 	Attempt     int             `json:"attempt" validate:"required"`
@@ -406,7 +407,7 @@ func jobResponse(v JobView) JobResponse {
 	return JobResponse{
 		ID: string(v.ID), Kind: v.Kind, State: v.State, MediaFile: string(v.MediaFile), Title: string(v.Title),
 		TitleName: v.TitleName, Episodes: v.Episodes, FileName: v.FileName, Origin: v.Origin, TargetCodec: v.TargetCodec,
-		Agent: agent, AgentName: v.AgentName, Attempt: v.Attempt, MaxAttempts: MaxAttempts, Progress: v.Progress,
+		Language: v.Language, Agent: agent, AgentName: v.AgentName, Attempt: v.Attempt, MaxAttempts: MaxAttempts, Progress: v.Progress,
 		Prefetched: v.Prefetched, Error: v.Error, QueuedAt: v.QueuedAt, NotBefore: v.NotBefore, FinishedAt: v.FinishedAt,
 	}
 }

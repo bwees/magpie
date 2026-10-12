@@ -7,6 +7,7 @@ import (
 	catalogapi "magpie/internal/catalog/api"
 	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
+	"magpie/internal/transcode/api"
 
 	"gorm.io/gorm"
 )
@@ -17,6 +18,7 @@ const (
 	handlerSwapRejected = "transcode.fail-on-swap-rejected"
 	handlerFileDeleted  = "transcode.cancel-on-file-deleted"
 	handlerTitleRemoved = "transcode.cancel-on-title-removed"
+	handlerRunAgentJob  = "transcode.queue-agent-job"
 )
 
 func handle[T any](name, eventType string, fn func(ctx context.Context, tx *gorm.DB, payload T) error) bus.Handler {
@@ -35,6 +37,10 @@ func handle[T any](name, eventType string, fn func(ctx context.Context, tx *gorm
 
 func newCutoffMetHandler(s *JobService) bus.Handler {
 	return handle(handlerCutoffMet, acquisitionapi.TypeCutoffMet, s.QueueOnCutoff)
+}
+
+func newRunAgentJobHandler(s *JobService) bus.Handler {
+	return handle(handlerRunAgentJob, api.TypeRunAgentJob, s.QueueWhisper)
 }
 
 func newFileTranscodedHandler(s *JobService) bus.Handler {

@@ -52,6 +52,9 @@ const (
 	ReasonFileDeleted    = "The file was deleted"
 	ReasonUpgraded       = "The file was replaced by an upgrade"
 	ReasonTitleRemoved   = "The title was removed"
+	ReasonNoAudio        = "The file has no audio for Whisper"
+	ReasonBadSubtitle    = "Whisper's subtitle isn't valid SRT"
+	ReasonNoCues         = "Whisper heard no speech"
 )
 
 // failure is why an attempt ended without a usable output.
