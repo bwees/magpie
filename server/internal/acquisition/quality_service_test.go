@@ -11,6 +11,9 @@ import (
 	"magpie/internal/domain"
 	"magpie/internal/platform/parse"
 	"magpie/internal/platform/settings"
+
+	"github.com/mikestefanello/backlite"
+	"gorm.io/gorm"
 )
 
 const webTierTrashScore = 1700
@@ -18,7 +21,22 @@ const webTierTrashScore = 1700
 func newQualityService(t *testing.T) *QualityService {
 	t.Helper()
 	d := openQualityDB(t)
-	return NewQualityService(d, NewQualityRepository(d), settings.NewStore(d))
+	return NewQualityService(d, NewQualityRepository(d), settings.NewStore(d), &queuedTasks{})
+}
+
+// queuedTasks keeps what a service queued, for tests that don't run the jobs.
+type queuedTasks struct {
+	tasks []backlite.Task
+}
+
+func (q *queuedTasks) Enqueue(_ context.Context, task backlite.Task) error {
+	q.tasks = append(q.tasks, task)
+	return nil
+}
+
+func (q *queuedTasks) EnqueueTx(_ *gorm.DB, task backlite.Task) error {
+	q.tasks = append(q.tasks, task)
+	return nil
 }
 
 func names(summaries []api.ProfileSummary) []string {

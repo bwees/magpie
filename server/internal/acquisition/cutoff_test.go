@@ -3,6 +3,8 @@ package acquisition_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"testing"
 
 	"magpie/internal/acquisition"
@@ -12,6 +14,8 @@ import (
 	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/parse"
+
+	"github.com/mikestefanello/backlite"
 )
 
 const (
@@ -221,6 +225,75 @@ func TestAnUpgradeLeavesOnlyTheNewFileScored(t *testing.T) {
 	}
 	if status, err := f.cutoffStatus(t, upgrade.MediaFile); err != nil || !status.CutoffMet {
 		t.Errorf("new file status = %+v, %v; want it scored and meeting the cutoff", status, err)
+	}
+}
+
+// rescore runs the queued rescore jobs.
+func (f searchFixture) rescore(t *testing.T) []domain.ProfileID {
+	t.Helper()
+	var profiles []domain.ProfileID
+	for _, task := range f.jobs.queued() {
+		if profile, ok := acquisition.RescoreOf(task); ok {
+			profiles = append(profiles, profile)
+			if err := f.cutoff.Rescore(context.Background(), profile); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	f.jobs.drop(func(task backlite.Task) bool { _, ok := acquisition.RescoreOf(task); return ok })
+	return profiles
+}
+
+// Seed acquisition #16.
+func TestLoweringTheCutoffMeetsItForFilesAtUpgradeUntil(t *testing.T) {
+	s := newSeriesFixture(t)
+	profile := s.useScoredProfile(t, cutoffAt2160p)
+	reachesUpgradeUntil := map[domain.MediaFileID]bool{}
+	for i, group := range []string{"HIGH", "LOW", "HIGH", "LOW", "HIGH"} {
+		name := fmt.Sprintf("Severance.S01E%02d.1080p.WEB-DL.DDP5.1.H.264-%s", i+1, group)
+		file := s.fileImported(name, parse.QualityWEBDL1080p, domain.OriginDownload)
+		s.deliverScores(t, file)
+		reachesUpgradeUntil[file.MediaFile] = group == "HIGH"
+	}
+	if met := s.cutoffMet(t); len(met) != 0 {
+		t.Fatalf("CutoffMet = %+v below a 2160p cutoff, want none", met)
+	}
+
+	profile.Cutoff = cutoffAt1080p
+	if _, err := s.quality.UpdateProfile(context.Background(), profile); err != nil {
+		t.Fatal(err)
+	}
+	if profiles := s.rescore(t); !slices.Equal(profiles, []domain.ProfileID{profile.ID}) {
+		t.Fatalf("rescored %v, want the edited profile", profiles)
+	}
+
+	met := s.cutoffMet(t)
+	if len(met) != 3 {
+		t.Fatalf("CutoffMet = %+v, want the three files at CF 2300", met)
+	}
+	for _, m := range met {
+		if !reachesUpgradeUntil[m.File] {
+			t.Errorf("CutoffMet for %s, which is below upgrade-until", m.File)
+		}
+	}
+	s.rescore(t)
+	if again := s.cutoffMet(t); len(again) != len(met) {
+		t.Errorf("a second rescore published %d more", len(again)-len(met))
+	}
+}
+
+func TestEditingACustomFormatRescoresEveryFile(t *testing.T) {
+	f := newSearchFixture(t)
+	f.useScoredProfile(t, cutoffAt2160p)
+	formats, err := f.quality.Formats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.quality.UpdateFormat(context.Background(), formats[0]); err != nil {
+		t.Fatal(err)
+	}
+	if profiles := f.rescore(t); !slices.Contains(profiles, "") {
+		t.Errorf("rescored %v, want every file", profiles)
 	}
 }
 

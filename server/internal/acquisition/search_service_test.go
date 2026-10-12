@@ -133,7 +133,8 @@ func newSearchFixture(t *testing.T) searchFixture {
 	store := settings.NewStore(d)
 	repo := acquisition.NewRepository(d)
 	quality := acquisition.NewQualityRepository(d)
-	qualityService := acquisition.NewQualityService(d, quality, store)
+	jobs := &recordingQueue{}
+	qualityService := acquisition.NewQualityService(d, quality, store, jobs)
 	if err := qualityService.SeedPresets(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func newSearchFixture(t *testing.T) searchFixture {
 		qbit:    fakes.NewQBittorrent(),
 		events:  newRecorder(b),
 		title:   title,
-		jobs:    &recordingQueue{},
+		jobs:    jobs,
 	}
 	f.service = acquisition.NewService(repo, f.prowlarr, store)
 	registry := acquisition.NewSearchRegistry()

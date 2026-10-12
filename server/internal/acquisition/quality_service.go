@@ -11,10 +11,12 @@ import (
 	"magpie/internal/acquisition/api"
 	"magpie/internal/domain"
 	"magpie/internal/platform/db"
+	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/parse"
 	"magpie/internal/platform/settings"
 
 	"github.com/dlclark/regexp2/v2"
+	"github.com/mikestefanello/backlite"
 	"gorm.io/gorm"
 )
 
@@ -36,16 +38,21 @@ var (
 var propersModes = []api.PropersMode{api.PropersPreferAndUpgrade, api.PropersDoNotUpgrade, api.PropersDoNotPrefer}
 
 // QualityService owns quality profiles, custom formats, the first-run presets and the quality settings.
+// A change that can alter file scores queues a rescore of the files it touches.
 type QualityService struct {
 	db    *db.DB
 	repo  *QualityRepository
 	store *settings.Store
+	jobs  jobs.Enqueuer
 	now   func() time.Time
 }
 
-func NewQualityService(d *db.DB, repo *QualityRepository, store *settings.Store) *QualityService {
-	return &QualityService{db: d, repo: repo, store: store, now: time.Now}
+func NewQualityService(d *db.DB, repo *QualityRepository, store *settings.Store, q jobs.Enqueuer) *QualityService {
+	return &QualityService{db: d, repo: repo, store: store, jobs: q, now: time.Now}
 }
+
+// rescoreEveryFile follows a custom format change, which can change scores under every profile.
+var rescoreEveryFile = rescoreTask{}
 
 // Qualities is Radarr's quality catalogue, which Magpie uses for movies and TV.
 func (s *QualityService) Qualities() []domain.Quality {
@@ -85,7 +92,10 @@ func (s *QualityService) UpdateProfile(ctx context.Context, p api.Profile) (api.
 			return err
 		}
 		p.Preset, p.TrashProfileID, p.TrashScoreSet = stored.Preset, stored.TrashProfileID, stored.TrashScoreSet
-		return s.saveValidProfile(tx, &p)
+		if err := s.saveValidProfile(tx, &p); err != nil {
+			return err
+		}
+		return s.jobs.EnqueueTx(tx, rescoreTask{Profile: p.ID})
 	})
 	if err != nil {
 		return api.Profile{}, err
@@ -207,7 +217,12 @@ func (s *QualityService) DeleteProfile(ctx context.Context, id domain.ProfileID)
 	if id == defaultProfile {
 		return ErrDefaultProfile
 	}
-	return s.db.Write(ctx, func(tx *gorm.DB) error { return deleteProfile(tx, id) })
+	return s.db.Write(ctx, func(tx *gorm.DB) error {
+		if err := deleteProfile(tx, id); err != nil {
+			return err
+		}
+		return s.jobs.EnqueueTx(tx, rescoreTask{Profile: id})
+	})
 }
 
 // CreateFromPreset builds a resolution preset and attaches the TRaSH scores of its formats that
@@ -299,10 +314,11 @@ func (s *QualityService) UpdateFormat(ctx context.Context, f CustomFormat) (Cust
 		return CustomFormat{}, err
 	}
 	f.TrashID, f.TrashScores = stored.TrashID, stored.TrashScores
-	return s.writeFormat(ctx, f)
+	return s.writeFormat(ctx, f, rescoreEveryFile)
 }
 
-func (s *QualityService) writeFormat(ctx context.Context, f CustomFormat) (CustomFormat, error) {
+// writeFormat saves a valid format and queues followUps in the same transaction.
+func (s *QualityService) writeFormat(ctx context.Context, f CustomFormat, followUps ...backlite.Task) (CustomFormat, error) {
 	f.Name = strings.TrimSpace(f.Name)
 	if f.Name == "" {
 		return CustomFormat{}, fmt.Errorf("%w: name is empty", ErrInvalidFormat)
@@ -318,7 +334,15 @@ func (s *QualityService) writeFormat(ctx context.Context, f CustomFormat) (Custo
 		if taken {
 			return fmt.Errorf("%w: custom format %q", ErrNameTaken, f.Name)
 		}
-		return saveFormat(tx, f, s.now())
+		if err := saveFormat(tx, f, s.now()); err != nil {
+			return err
+		}
+		for _, task := range followUps {
+			if err := s.jobs.EnqueueTx(tx, task); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return CustomFormat{}, err
@@ -327,7 +351,12 @@ func (s *QualityService) writeFormat(ctx context.Context, f CustomFormat) (Custo
 }
 
 func (s *QualityService) DeleteFormat(ctx context.Context, id api.CustomFormatID) error {
-	return s.db.Write(ctx, func(tx *gorm.DB) error { return deleteFormat(tx, id) })
+	return s.db.Write(ctx, func(tx *gorm.DB) error {
+		if err := deleteFormat(tx, id); err != nil {
+			return err
+		}
+		return s.jobs.EnqueueTx(tx, rescoreEveryFile)
+	})
 }
 
 // BlockTerm creates a format matching release names that contain term, literally and ignoring case,
@@ -362,7 +391,7 @@ func (s *QualityService) BlockTerm(ctx context.Context, term string) (CustomForm
 				return err
 			}
 		}
-		return nil
+		return s.jobs.EnqueueTx(tx, rescoreEveryFile)
 	})
 	if err != nil {
 		return CustomFormat{}, err

@@ -42,11 +42,12 @@ type TrashSyncService struct {
 	repo   *QualityRepository
 	store  *settings.Store
 	guides TrashGuides
+	jobs   jobs.Enqueuer
 	now    func() time.Time
 }
 
-func NewTrashSyncService(d *db.DB, repo *QualityRepository, store *settings.Store, guides TrashGuides) *TrashSyncService {
-	return &TrashSyncService{db: d, repo: repo, store: store, guides: guides, now: time.Now}
+func NewTrashSyncService(d *db.DB, repo *QualityRepository, store *settings.Store, guides TrashGuides, q jobs.Enqueuer) *TrashSyncService {
+	return &TrashSyncService{db: d, repo: repo, store: store, guides: guides, jobs: q, now: time.Now}
 }
 
 func (s *TrashSyncService) Status(ctx context.Context) (TrashSyncState, error) {
@@ -73,7 +74,12 @@ func (s *TrashSyncService) Sync(ctx context.Context) error {
 	attempt := s.now()
 	guides, err := s.fetch(ctx)
 	if err == nil {
-		err = s.db.Write(ctx, func(tx *gorm.DB) error { return applyTrashGuides(tx, guides, attempt) })
+		err = s.db.Write(ctx, func(tx *gorm.DB) error {
+			if err := applyTrashGuides(tx, guides, attempt); err != nil {
+				return err
+			}
+			return s.jobs.EnqueueTx(tx, rescoreEveryFile)
+		})
 	}
 	return s.record(ctx, attempt, err)
 }

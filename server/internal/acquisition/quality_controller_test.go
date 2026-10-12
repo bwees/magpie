@@ -76,12 +76,13 @@ func serveQuality(t *testing.T, principal *domain.Principal) (http.Handler, *rec
 	d := dbtest.Open(t, acquisition.Migrations())
 	repo := acquisition.NewQualityRepository(d)
 	store := settings.NewStore(d)
-	quality := acquisition.NewQualityService(d, repo, store)
+	rescores := &recordingQueue{}
+	quality := acquisition.NewQualityService(d, repo, store, rescores)
 	if err := quality.SeedPresets(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	queue := &recordingQueue{}
-	trash := acquisition.NewTrashSyncService(d, repo, store, fakes.NewTrashGuides())
+	trash := acquisition.NewTrashSyncService(d, repo, store, fakes.NewTrashGuides(), rescores)
 	controller := acquisition.NewQualityController(quality, trash, queue)
 	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{controller}).Mux
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
