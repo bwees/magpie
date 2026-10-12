@@ -30,7 +30,7 @@ Set on the container. Everything else lives in SQLite and is edited in the UI ([
 
 ### Schedules (advanced, collapsed)
 
-All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row is owned by the context that runs the loop.
+All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row is owned by the context that runs the loop. Acquisition's RSS, pending and sweep rows are `GET · PUT /api/acquisition/schedules`; the sweeps' searches are queued 4 s apart.
 
 | Loop | Owner | Default | Bounds |
 |---|---|---|---|
@@ -38,8 +38,8 @@ All from [ticket 24](../../.scratch/v1-spec/issues/24-scheduling.md). Each row i
 | qBittorrent poll | Acquisition | 2 s active / 15 s idle | 1–10 s / 5–60 s |
 | Pending (delay) queue check | Acquisition | 1 min | fixed |
 | Seeding goal check | Acquisition | 5 min | 1–60 min |
-| Missing backlog sweep | Acquisition | daily, spread | daily–weekly |
-| Cutoff-unmet sweep | Acquisition | weekly, spread | daily–monthly |
+| Missing backlog sweep | Acquisition | daily, spread | 1–7 days |
+| Cutoff-unmet sweep | Acquisition | weekly, spread | 1–30 days |
 | Prowlarr indexer list refresh | Acquisition | 1 h | 15 min–24 h |
 | TRaSH sync | Acquisition | daily | daily, or off (the TRaSH Guides sync switch under Quality); a weekly option isn't built yet |
 | TMDB refresh | Catalog | continuing series daily; ended series and movies weekly; images < 5 months | images must stay < 6 months (TMDB terms) |
@@ -87,7 +87,7 @@ Owner: **Acquisition**. Decided in [ticket 10](../../.scratch/v1-spec/issues/10-
 | Custom formats (Advanced) | TRaSH-linked set | regexes compile with `regexp2`, 100 ms match timeout |
 | "Block term" quick action | none | creates a CF scored −10000 |
 | TRaSH Guides sync | on, daily; **Sync now** queues one | user score overrides kept across syncs; the first-run quality step starts the first sync |
-| Delay before grabbing (default delay profile) | 0 min | 0–1440. Bypass if cutoff met with max CF score. |
+| Delay before grabbing (default delay profile) | 0 min | 0–1440. Bypassed when the release meets the cutoff or reaches the profile's maximum attainable CF score. |
 | Search settle window | 30 s | 5–120 s |
 | Movie availability rule | search only after TMDB digital/physical release date; with neither, theatrical + 90 days | fixed rule, owner Catalog ([ticket 31](../../.scratch/v1-spec/issues/31-import-wizard-and-model-gaps.md)) |
 
@@ -119,7 +119,7 @@ Owner: **Acquisition**. Decided in [ticket 11](../../.scratch/v1-spec/issues/11-
 | Magnet metadata timeout | 5 min (then temporary blocklist for 24 h) | 1–60 min |
 | Stalled download limit | 6 h (then `DownloadFailed`, temporary blocklist for 24 h, grab next) | 30 min–72 h |
 | Global seeding goal | ratio 2.0 or 14 days, whichever first | ratio 0–100, days 0–365 |
-| Search when a title is added | on | |
+| Search when a title is added | on | `GET · PUT /api/acquisition/search-options`; saves on change. Requested and manually added titles only. |
 
 ## Subtitles
 

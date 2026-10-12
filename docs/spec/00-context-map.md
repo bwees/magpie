@@ -154,7 +154,7 @@ type Event struct {
 | `requests.IssueResolved` | Requests | issue, reporter, by | Activity → notify reporter, clear attention |
 | `acquisition.SearchStarted` | Acquisition | search, title, episodes, trigger | Activity → timeline/pipeline |
 | `acquisition.SearchResultsReceived` *(ephemeral)* | Acquisition | search, indexer, status, releases[] | live gateway (topic `search:<id>`) |
-| `acquisition.SearchCompleted` | Acquisition | search, title, counts, failed indexers, outcome `GRABBED` \| `NOTHING_ACCEPTED` \| `PENDING_DELAY` | Activity |
+| `acquisition.SearchCompleted` | Acquisition | search, title, counts, failed indexers, outcome `GRABBED` \| `NOTHING_ACCEPTED` \| `PENDING_DELAY` \| `RELEASES_FOUND` (interactive only) | Activity |
 | `acquisition.ReleaseGrabbed` | Acquisition | download, release, indexer, infoHash, title, episodes, quality, cfScore | Activity |
 | `acquisition.ReleaseRejected` | Acquisition | release, infoHash, reason, blockedFile?, next? | Activity → timeline |
 | `acquisition.DownloadProgressed` *(ephemeral)* | Acquisition | download, state, progress, speed, eta | live gateway |

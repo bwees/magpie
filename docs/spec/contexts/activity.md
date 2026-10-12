@@ -185,7 +185,7 @@ Every durable event other contexts and the platform publish is handled by the ha
 | `catalog.TitleAdded`, `MonitoringChanged` (+) | Create rows: `wanted=true`, everything else empty |
 | `catalog.MonitoringChanged` (−) | `wanted=false` (row kept, shown as unmonitored) |
 | `acquisition.SearchStarted` | `search=RUNNING` |
-| `acquisition.SearchCompleted` | `Outcome = NOTHING_ACCEPTED` → `search=NOTHING_ACCEPTED`; `GRABBED` or `PENDING_DELAY` → `search` cleared (detail "Waiting for a better release" when pending) |
+| `acquisition.SearchCompleted` | `Outcome = NOTHING_ACCEPTED` → `search=NOTHING_ACCEPTED`; `GRABBED`, `PENDING_DELAY` or `RELEASES_FOUND` → `search` cleared (detail "Waiting for a better release" when pending) |
 | `acquisition.ReleaseRejected` | Detail "Rejected: <reason>", search stays `RUNNING` |
 | `acquisition.ReleaseGrabbed` | `download=ACTIVE` |
 | `acquisition.DownloadFailed` | `download=FAILED` |

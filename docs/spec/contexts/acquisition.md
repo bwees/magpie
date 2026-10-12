@@ -37,7 +37,8 @@ Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md
 | `trash_profiles` | `trash_id`, `app`, `name`, `profile` (JSON: the guide profile), `synced_at`: the guide profiles of the last TRaSH sync |
 | `indexers` | `prowlarr_id`, `name`, `privacy` (`PUBLIC` \| `SEMI_PRIVATE` \| `PRIVATE`), `caps` (JSON: search modes, ID params, categories), `status` (`OK` \| `FAILING` \| `GONE`), `last_error`, `failing_since?`, `average_response_ms`, `priority` (default 25), `min_seeders` (default 1), `seeding_mode_override` (`USE_GLOBAL` \| `SEED_UNTIL_GOALS` \| `DONT_SEED`, default `USE_GLOBAL`), `seed_ratio?`, `seed_days?` (null = the global goal), `last_ok_at?`, `synced_at` |
 | `searches` | `id`, `title_id`, `episode_ids`, `trigger` (`RSS` \| `AUTO` \| `USER_AUTO` \| `INTERACTIVE` \| `REGRAB`), `started_at`, `completed_at`, counts. Results are not persisted. |
-| `pending_releases` | `id`, `title_id`, `episode_ids`, release snapshot, `publish_at`, `reason` (delay) |
+| `pending_releases` | `id`, `title_id`, `episode_ids`, `release_key` (indexer + guid, unique per title), `indexer_id`, release snapshot (the Torznab item), `trigger` (`AUTO` \| `RSS` \| `REGRAB`), `publish_at`, `reason` (`DELAYED` \| `PENDING`), `added_at` |
+| `search_jobs` | `key` = `(title, episodes, trigger)`, `queued_at`: a queued search job; a second one with the key isn't queued. The job deletes its key when it starts. |
 | `blocklist` | `title_id`, `info_hash`, `release_name`, `indexer`, `reason` (`BLOCKED_FILE` \| `METADATA_TIMEOUT` \| `STALLED` \| `IMPORT_FAILED` \| `DOWNLOAD_FAILED` \| `USER` \| `ISSUE` \| `MIGRATED`), `at`, `expires_at?` (null = permanent) |
 | `downloads` | `id`, `info_hash`, `qbit_hash`, `title_id`, `episode_ids`, `release_name`, `release_id` (the search's release ID), `indexer_id`, `indexer` (name), `quality` (JSON), `cf_score`, `size_bytes`, `state`, `progress`, `seeding_mode`, `trigger`, `override`, `failure` (why it was dropped), `goal_ratio?`, `goal_time?`, `grabbed_at`, `completed_at?`, `removed_at?`, `search_id?` |
 | `file_scores` | `media_file_id`, `title_id`, `episode_ids`, `quality_id`, `cf_score`, `profile_id` (the Title's profile at the last evaluation), `cutoff_met bool`, `transcoded bool`, `origin` (Acquisition's own view of library files; built from `FileImported`/`FileTranscoded`/`FileDeleted`) |
@@ -129,7 +130,7 @@ type SearchCompleted struct {
     Title           domain.TitleID
     Accepted, Total int
     FailedIndexers  []string
-    Outcome         SearchOutcome      // GRABBED | NOTHING_ACCEPTED | PENDING_DELAY (interactive searches: NOTHING_ACCEPTED or GRABBED after a user grab)
+    Outcome         SearchOutcome      // GRABBED | NOTHING_ACCEPTED | PENDING_DELAY | RELEASES_FOUND (interactive searches: GRABBED after a user grab, else RELEASES_FOUND when any release was accepted, else NOTHING_ACCEPTED)
     Grabbed         *domain.DownloadID // set when Outcome = GRABBED
 }
 
@@ -200,7 +201,7 @@ Idempotency: every handler records `event.ID` in `processed_events` within the s
 
 | Event | From | Reaction | Failure handling |
 |---|---|---|---|
-| `catalog.TitleAdded` | Catalog | `Origin` = REQUEST or MANUAL: for each monitored item whose release date has passed (`catalog.Reader`), enqueue AUTO search; others wait for `WantedReleased`. `Origin` = LIBRARY_SCAN or MIGRATION: no immediate search; once Library has linked the files (`FileImported` with that origin), the normal missing (daily) and cutoff-unmet (weekly) sweeps apply. | Search job retries with backoff; Prowlarr down → `SearchCompleted` with all indexers failed. |
+| `catalog.TitleAdded` | Catalog | `Origin` = REQUEST or MANUAL, with "Search when a title is added" on: one AUTO search for the monitored items whose release date has passed (`catalog.Reader.Wanted`); others wait for `WantedReleased`. `Origin` = LIBRARY_SCAN or MIGRATION: no immediate search; once Library has linked the files (`FileImported` with that origin), the normal missing (daily) and cutoff-unmet (weekly) sweeps apply. | Search job retries with backoff; Prowlarr down → `SearchCompleted` with all indexers failed. |
 | `catalog.MonitoringChanged` | Catalog | Newly monitored and released → enqueue AUTO search. Unmonitored → drop matching pending releases. | — |
 | `catalog.ProfileChanged` | Catalog | Re-evaluate cutoff for the Title's `file_scores` against the new profile; publish `CutoffMet` for files that newly meet it. Files below the new cutoff become eligible for upgrade (unless transcoded). | — |
 | `catalog.EpisodesAnnounced` | Catalog | No search. Episodes become eligible for RSS matching once released. | — |
@@ -279,7 +280,7 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/searches` | Start a search `{title, episodes?, interactive}` → `201` with the search state below and its `searchId`. Results arrive over the live WebSocket. Only `interactive: true` is accepted until automatic search lands (400 otherwise). |
+| POST | `/searches` | Start a search `{title, episodes?, interactive}` → `201` with the search state below and its `searchId`. Results arrive over the live WebSocket. `interactive: false` runs a USER_AUTO search (the title page's Search button and the episode-row search icon): it grabs on its own and ignores the delay. |
 | GET | `/searches/{id}` | The cached state for reconnect/refresh: indexers with `PENDING`/`DONE`/`FAILED`/`SKIPPED` and message, releases in arrival order with current ranks, `completed`, `cancelled`, and the profile's buckets (allowed items in order, quality IDs, `meetsCutoff` on the cutoff item and those above it) and penalized formats (scored below 0). 404 `search-not-found` once expired. |
 | POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results → 202 `{status, download?, blockedFile?, next?}`. `status`: `CHECKING` (a magnet waits for its file list), `DOWNLOADING`, or `REJECTED` (a .torrent held a Blocked file; `next` is the fallback grab). 404 `release-not-found`; 409 `release-rejected` for a rejected release without `override`, `release-already-grabbed` for a release tried before in this search; 502 `release-unavailable` (Prowlarr couldn't fetch it), `qbittorrent-unavailable`, `qbittorrent-unsupported` (below 5.2) |
 | DELETE | `/searches/{id}` | Cancel in-flight indexer queries; indexers still asked report `FAILED` ("Search cancelled") and `SearchCompleted` follows. Results stay cached. |
@@ -293,7 +294,9 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 | GET · PUT | `/indexer-options` | Sync interval, search timeout and result cache (apply to every indexer) |
 | GET · DELETE | `/blocklist` · `/blocklist/{id}` | Every entry with its title name, newest first, expired temporary ones included; remove (204) |
 | GET · PUT | `/download-options` | Settings → Downloads: `blockedFilesEnabled`, `blockedPatterns` (glob or `regex:`; must compile), `metadataTimeoutMinutes` (1–60), `stalledLimitMinutes` (30–4320). 400 on invalid values |
-| GET · PUT | `/settings` | Delay, settle window, seeding defaults, search-on-add. Quality fields so far: `defaultProfileId` (must exist), `defaultDelayMinutes` (0–1440), `settleWindowSeconds` (5–120), `trashSyncEnabled` |
+| GET · PUT | `/settings` | Delay, settle window, seeding defaults. Quality fields so far: `defaultProfileId` (must exist), `defaultDelayMinutes` (0–1440), `settleWindowSeconds` (5–120), `trashSyncEnabled` |
+| GET · PUT | `/search-options` | Settings → Downloads: `searchOnAdd` ("Search when a title is added", default on) |
+| GET · PUT | `/schedules` | Settings → General → Schedules: `rssIntervalMinutes` (10–120), `missingSweepDays` (1–7), `cutoffSweepDays` (1–30); the response adds the fixed `pendingCheckMinutes`. 400 on values out of bounds |
 
 ## Behaviour
 
@@ -382,7 +385,7 @@ How the specs read their inputs:
 - MaximumSize reads `acquisition.maximumSize` (bytes, 0 = no cap; no UI yet). NotSample rejects a release named "sample" under 70 MB. RawDisk rejects `BDMV` / `VIDEO_TS` in the name.
 - AlreadyImported matches the info hash against the title's library files (`library.Reader`). The upgrade, Repack, Proper and SameEpisodesGrab specs score each library file the release would replace by its original release name, else its path, with the library's quality.
 - BlockedIndexer rejects releases from an indexer that was `FAILING` when the search started.
-- Queue reads the title's downloads still in qBittorrent (awaiting metadata, downloading or completed); History reads its grabs from the last 12 h. Failed downloads count for neither. Each is scored against the search's profile by its release name and stored quality. Pending reads pending releases once automatic search exists; until then it never rejects.
+- Queue reads the title's downloads still in qBittorrent (awaiting metadata, downloading or completed); History reads its grabs from the last 12 h. Failed downloads count for neither. Each is scored against the search's profile by its release name and stored quality. Pending reads the title's `pending_releases`; like Delay it lets a release that bypasses the delay through.
 - FreeSpace asks qBittorrent for the download disk's free space once per search and rejects a release that would leave less than 100 MB. Unknown free space skips the check.
 - Every rejection carries a message for the dialog, such as "WEBDL-720p isn't wanted by 1080p".
 
@@ -412,20 +415,24 @@ A file with `transcoded = true` is never upgraded automatically; only REGRAB or 
   - INTERACTIVE: the search dialog.
   - RSS: every 15 min per indexer.
   - REGRAB: issue action.
-- **Automatic grab and the settle window:**
-  - Wait until every indexer answered or 30 s passed (setting), then grab the top accepted release.
-  - Grab early when the top release meets the quality cutoff with the profile's **maximum attainable CF score**, because nothing can beat it.
-  - Grab each item once per batch; a pack covers its episodes.
+- **Automatic grab and the settle window** (AUTO, USER_AUTO, REGRAB and RSS):
+  - Wait until every indexer answered or 30 s passed (setting), then grab the top accepted release. When the window passes with nothing accepted, the next accepted answer or the last indexer settles it.
+  - Grab early when the top release meets the quality cutoff with the profile's **maximum attainable CF score**, because nothing can beat it. The maximum attainable score is the sum of the profile's positive format scores, an upper bound, so an early grab never passes over a better release.
+  - Grab each item once per batch; a pack covers its episodes. After the best release, the best one covering only items no grab covers yet is taken, and so on. Each grab goes through `DownloadService`'s blocked-file check and fallback.
+  - The grab runs as a job (`acquisition.automatic-grab`) once the search settles. `SearchCompleted` waits for it, so its outcome says `GRABBED` or `PENDING_DELAY`.
+  - RSS and the pending queue decide their releases as quiet batches: a `searches` row, no `SearchStarted`/`SearchCompleted`; only their grabs (`ReleaseGrabbed{Trigger}`) show.
 - **Interactive:**
   - Nothing is grabbed automatically. The user grabs any accepted release.
   - A rejected one can be grabbed with `override=true`. Override skips the decision engine, but the blocked-file check still runs.
 - **Delay profiles:**
   - Wait N minutes from the indexer's publish time for a better release (default 0 = off; the 30 s settle window still applies).
-  - Bypassed when the release meets cutoff, or its CF score ≥ the bypass threshold.
+  - Bypassed when the release meets cutoff, or its CF score ≥ the bypass threshold (the maximum attainable CF score, when the profile scores anything).
   - User-invoked searches ignore the delay.
-  - The pending queue is checked every minute; when the oldest pending release for an item passes the delay, the best pending one is grabbed.
-- **RSS:** feed items are parsed and matched to monitored, released, wanted items via `catalog.Reader` (title, aliases, year, S/E numbering after episode group). They then go through the same engine.
-- **Backlog sweeps:** missing items daily, cutoff-unmet items weekly. Both are spread out so each indexer gets at most one query per 2 s.
+  - A release rejected only by Delay or Pending is stored in `pending_releases` for items no grab covers; a grab drops the held releases of the items it covers.
+  - The pending queue is checked every minute; when the oldest pending release for an item passes the delay, every pending release covering that item is decided again without the delay and the best is grabbed. Unmonitoring an item or removing the title drops its pending releases.
+- **RSS:** every indexer's feed (movie and TV categories) is read as its own job. Items are parsed and matched to monitored titles that want something (`catalog.Reader.Wanted`) by cleaned title, original title and aliases, and the year for movies. They then go through the same engine with the RSS trigger, which checks S/E numbering after the episode group, monitoring and release dates.
+- **Backlog sweeps:** missing items daily, cutoff-unmet items weekly (files below cutoff, not transcoded, profile allows upgrades). One AUTO search per movie or per season, queued 4 s apart (two query tiers × 2 s), so each indexer gets at most one query per 2 s on average.
+- **Search jobs** are keyed by `(title, episodes, trigger)` in `search_jobs`: a redelivered `TitleAdded`, `WantedReleased` or `MonitoringChanged`, or a sweep, never queues a second job while one with the key waits. A job whose title or episodes are gone ends quietly.
 
 ### Grab and blocked-file policy
 
@@ -536,7 +543,7 @@ The check is on by default and can be turned off in settings.
 29. **Scan origin:** given `TitleAdded{Origin: LIBRARY_SCAN}` for a released movie, then no search is enqueued. Given `FileImported{Origin: LIBRARY_SCAN}` below cutoff, then the title appears in the next cutoff-unmet sweep and `CutoffMet` carries `Origin: LIBRARY_SCAN` when met.
 30. **Upgrade cleanup:** given `FileImported{Replaces: F1}` for F2 and then `FileDeleted{File: F1, Reason: UPGRADED}`, then `file_scores` has F2 and not F1; redelivering `FileDeleted` changes nothing.
 31. **Resolution preset:** given the `1080p` preset, when `FileImported` brings Bluray 1080p with CF 0, then `CutoffMet` is published; a WEB 2160p release is rejected `QUALITY_NOT_ALLOWED`; between two 1080p releases with CF 1700 (WEB) and 300 (Bluray) the WEB one ranks first.
-32. **SearchCompleted outcome:** given an AUTO search with no accepted releases, then `SearchCompleted{Outcome: NOTHING_ACCEPTED}`; given a delay profile holding the best release, then `Outcome: PENDING_DELAY`; given a grab, then `Outcome: GRABBED` with `Grabbed` set.
+32. **SearchCompleted outcome:** given an AUTO search with no accepted releases, then `SearchCompleted{Outcome: NOTHING_ACCEPTED}`; given a delay profile holding the best release, then `Outcome: PENDING_DELAY`; given a grab, then `Outcome: GRABBED` with `Grabbed` set. Given an interactive search with an accepted release and no grab, then `Outcome: RELEASES_FOUND`.
 33. **ProfileChanged:** given a Title moved from profile `2160p` to `1080p` with a WEB 1080p file, when `ProfileChanged` arrives, then `CutoffMet` is published once.
 34. **Indexer sync:**
     - Given Prowlarr lists a new indexer, when the sync runs, then it is stored with priority 25, minimum seeders 1, override `USE_GLOBAL`, status `OK` and its caps.

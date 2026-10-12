@@ -120,8 +120,8 @@ web/                           SvelteKit SPA
 | Seeding goals | Acquisition | ticker | 5 min |
 | RSS sync per indexer | Acquisition | backlite periodic | 15 min |
 | Prowlarr indexer list | Acquisition | backlite periodic | 1 h + at startup + on demand |
-| Missing backlog sweep | Acquisition | backlite periodic | daily, spread across the day |
-| Cutoff-unmet sweep | Acquisition | backlite periodic | weekly, spread |
+| Missing backlog sweep | Acquisition | backlite periodic | daily; its searches queued 4 s apart |
+| Cutoff-unmet sweep | Acquisition | backlite periodic | weekly; its searches queued 4 s apart |
 | TRaSH sync | Acquisition | backlite periodic | daily |
 | TMDB refresh | Catalog | backlite periodic | continuing series daily; ended series and movies weekly; images before 5 months |
 | Release-date check (`WantedReleased`) | Catalog | backlite periodic | hourly |
