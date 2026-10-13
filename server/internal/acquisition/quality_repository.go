@@ -2,10 +2,13 @@ package acquisition
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"magpie/internal/acquisition/api"
+	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/parse"
@@ -134,6 +137,31 @@ func (r *QualityRepository) DefaultProfile(ctx context.Context) (domain.ProfileI
 // ScoringProfile loads a profile with every custom format compiled, ready for Evaluate.
 func (r *QualityRepository) ScoringProfile(ctx context.Context, id domain.ProfileID) (ScoringProfile, error) {
 	return loadScoringProfile(r.db.Read(ctx), id)
+}
+
+// TitleProfile is the profile a title is searched and scored under.
+func (r *QualityRepository) TitleProfile(ctx context.Context, title catalogapi.Title) (ScoringProfile, error) {
+	return loadTitleProfile(ctx, r.db.Read(ctx), title)
+}
+
+// loadTitleProfile falls back to the default profile for a title without one, or whose profile is gone.
+func loadTitleProfile(ctx context.Context, conn *gorm.DB, title catalogapi.Title) (ScoringProfile, error) {
+	if title.Profile != "" {
+		profile, err := loadScoringProfile(conn, title.Profile)
+		if !errors.Is(err, api.ErrNotFound) {
+			return profile, err
+		}
+		slog.WarnContext(ctx, "the title's quality profile is gone; using the default profile", "title", title.ID, "profile", title.Profile)
+	}
+	fallback, err := DefaultProfileKey.GetTx(conn)
+	if err != nil {
+		return ScoringProfile{}, err
+	}
+	profile, err := loadScoringProfile(conn, fallback)
+	if errors.Is(err, api.ErrNotFound) {
+		return ScoringProfile{}, fmt.Errorf("%w: title %s has neither its profile %q nor the default %q", err, title.ID, title.Profile, fallback)
+	}
+	return profile, err
 }
 
 func loadScoringProfile(conn *gorm.DB, id domain.ProfileID) (ScoringProfile, error) {

@@ -16,6 +16,7 @@ var (
 	AddTitleRetries           = addTitleRetries
 	RefreshPausedSetting      = refreshPaused
 	NewFolderFoundHandler     = newFolderFoundHandler
+	NewProfileDeletedHandler  = newProfileDeletedHandler
 	MatchFolderQueue          = matchFolderQueue
 )
 

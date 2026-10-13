@@ -12,6 +12,7 @@ import (
 	"magpie/internal/acquisition"
 	"magpie/internal/acquisition/fakes"
 	"magpie/internal/domain"
+	"magpie/internal/platform/bus"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/db/dbtest"
 	"magpie/internal/platform/httpserver"
@@ -77,7 +78,7 @@ func serveQuality(t *testing.T, principal *domain.Principal) (http.Handler, *rec
 	repo := acquisition.NewQualityRepository(d)
 	store := settings.NewStore(d)
 	rescores := &recordingQueue{}
-	quality := acquisition.NewQualityService(d, repo, store, rescores)
+	quality := acquisition.NewQualityService(d, repo, store, rescores, bus.New())
 	if err := quality.SeedPresets(context.Background()); err != nil {
 		t.Fatal(err)
 	}

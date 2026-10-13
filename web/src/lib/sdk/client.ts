@@ -1611,6 +1611,10 @@ export type ProfileChanged = {
     title: string;
     to: string;
 };
+export type ProfileDeleted = {
+    profile: string;
+    replacedBy: string;
+};
 export type ProjectionUpdated = {
     projection: string;
     title: string | null;

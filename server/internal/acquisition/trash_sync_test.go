@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"magpie/internal/acquisition/api"
+	"magpie/internal/platform/bus"
 	"magpie/internal/platform/settings"
 )
 
@@ -75,7 +76,7 @@ func newTrashFixture(t *testing.T) trashFixture {
 	)
 	return trashFixture{
 		guides:  guides,
-		quality: NewQualityService(d, repo, store, &queuedTasks{}),
+		quality: NewQualityService(d, repo, store, &queuedTasks{}, bus.New()),
 		sync:    NewTrashSyncService(d, repo, store, guides, &queuedTasks{}),
 	}
 }

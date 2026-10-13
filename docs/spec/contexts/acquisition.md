@@ -3,7 +3,7 @@
 Finds, ranks, grabs and downloads the right release for each wanted movie or episode, and decides when a file is good enough.
 
 - **Depends on (Readers):** `catalog.Reader`, `library.Reader`
-- **Publishes:** `SearchStarted`, `SearchResultsReceived` *(ephemeral)*, `SearchCompleted`, `ReleaseGrabbed`, `ReleaseRejected`, `DownloadProgressed` *(ephemeral)*, `DownloadCompleted`, `DownloadFailed`, `DownloadRemoved`, `CutoffMet`
+- **Publishes:** `SearchStarted`, `SearchResultsReceived` *(ephemeral)*, `SearchCompleted`, `ReleaseGrabbed`, `ReleaseRejected`, `DownloadProgressed` *(ephemeral)*, `DownloadCompleted`, `DownloadFailed`, `DownloadRemoved`, `CutoffMet`, `ProfileDeleted`
 - **Consumes:**
   - From Catalog: `TitleAdded`, `MonitoringChanged`, `ProfileChanged`, `EpisodesAnnounced`, `WantedReleased`, `TitleRemoved`.
   - From Requests: `IssueActionRequested` (REGRAB).
@@ -202,6 +202,12 @@ type CutoffMet struct {
     CFScore  int
     Origin   domain.Origin // copied from FileImported: DOWNLOAD | LIBRARY_SCAN | MIGRATION
 }
+
+// ProfileDeleted: published in the delete's transaction. Catalog moves the profile's Titles to ReplacedBy.
+type ProfileDeleted struct {
+    Profile    domain.ProfileID
+    ReplacedBy domain.ProfileID // the default profile when the profile was deleted
+}
 ```
 
 ## Events and commands consumed
@@ -290,13 +296,13 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/searches` | Start a search `{title, episodes?, interactive}` → `201` with the search state below and its `searchId`. Results arrive over the live WebSocket. `interactive: false` runs a USER_AUTO search (the title page's Search button and the episode-row search icon): it grabs on its own and ignores the delay. |
+| POST | `/searches` | Start a search `{title, episodes?, interactive}` → `201` with the search state below and its `searchId`. Results arrive over the live WebSocket. `interactive: false` runs a USER_AUTO search (the title page's Search button and the episode-row search icon): it grabs on its own and ignores the delay. 404 `title-not-found` for an unknown title; 400 for an episode not in the title; 404 `profile-not-found` when neither the title's profile nor the default profile exists. |
 | GET | `/searches/{id}` | The cached state for reconnect/refresh: indexers with `PENDING`/`DONE`/`FAILED`/`SKIPPED` and message, releases in arrival order with current ranks, `completed`, `cancelled`, and the profile's buckets (allowed items in order, quality IDs, `meetsCutoff` on the cutoff item and those above it) and penalized formats (scored below 0). 404 `search-not-found` once expired. |
 | POST | `/searches/{id}/grab` | Grab `{releaseId, override?}` from the cached results → 202 `{status, download?, blockedFile?, next?}`. `status`: `CHECKING` (a magnet waits for its file list), `DOWNLOADING`, or `REJECTED` (a .torrent held a Blocked file; `next` is the fallback grab). 404 `release-not-found`; 409 `release-rejected` for a rejected release without `override`, `release-already-grabbed` for a release tried before in this search; 502 `release-unavailable` (Prowlarr couldn't fetch it), `qbittorrent-unavailable`, `qbittorrent-unsupported` (below 5.2) |
 | DELETE | `/searches/{id}` | Cancel in-flight indexer queries; indexers still asked report `FAILED` ("Search cancelled") and `SearchCompleted` follows. Results stay cached. |
 | GET | `/downloads` · DELETE `/downloads/{id}?deleteData=` | Queue view: downloads not yet removed, newest first, with title name and the last polled state, progress, speed, ETA and ratio. Remove (204) deletes the torrent, with its data when `deleteData`, and blocklists nothing |
 | GET | `/qualities` | Radarr's 30 qualities |
-| GET/POST/PUT/DELETE | `/profiles`, `/custom-formats` | Profile and CF CRUD; `POST /profiles/from-preset {preset}`. `GET /profiles` is open to every signed-in user (profile pickers); the rest is admin-only. Deleting the default profile is a 409. |
+| GET/POST/PUT/DELETE | `/profiles`, `/custom-formats` | Profile and CF CRUD; `POST /profiles/from-preset {preset}`. `GET /profiles` is open to every signed-in user (profile pickers); the rest is admin-only. Deleting the default profile is a 409. Deleting another publishes `ProfileDeleted{ReplacedBy: default}`, and Catalog moves its Titles to the default profile. |
 | POST | `/custom-formats/block-term` | `{term}` → a format matching release names that contain the term (literal, any case), scored −10000 in every profile |
 | POST · GET | `/trash/sync` · `/trash/status` · `/trash/profiles` | Queue a TRaSH sync (202, runs as a job); last attempt, last success and error; guide profiles as of the last sync |
 | GET · PUT | `/indexers` · `/indexers/{id}` | List (from Prowlarr, gone ones left out, with the last sync error and Prowlarr's URL) and per-indexer settings |
@@ -355,6 +361,7 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
   - Source preference inside the group comes from TRaSH custom-format scores during selection (ranking: CF score breaks the tie inside a group).
   - No lower-resolution stopgap. Imported Sonarr/Radarr profiles keep their own structure.
   - The first start creates all three and makes `1080p` the default profile for new requests. Later starts don't recreate deleted presets.
+- **A Title's profile:** every search (interactive, automatic, RSS, pending and REGRAB) and every file score uses the Title's profile. A Title without one, or whose profile is gone, uses the default profile, and a gone profile logs a warning. Deleting a profile moves its Titles to the default profile (`ProfileDeleted`); the fallback covers Titles an older release left on a deleted profile.
   - Group members: every quality at the resolution with source WEB-DL, WEBRip, HDTV or Bluray, without BR-DISK and Raw-HD (Remux included). Sizes: min = the lowest TRaSH minimum of the members across the movie and series tables (720p 10, 1080p 12.5, 2160p 25 MB/min), preferred 1999, max 2000. Upgrade-until 0, increment 1, propers `PREFER_AND_UPGRADE`.
   - Preset formats, by TRaSH name, at TRaSH's default scores: Remux Tier 01–03, WEB Tier 01–03, WEB Scene, Repack/Proper, Repack2, Repack3, BR-DISK, LQ, LQ (Release Title), 3D, Extras, Upscaled, Bad Dual Groups; plus HD Bluray Tier 01–03 and x265 (HD) for 720p/1080p, UHD Bluray Tier 01–03 for 2160p. They are attached when the preset is created and on every sync.
 - **Sizes:** MB per minute × runtime (from `catalog.Reader`), set per profile item. Runtime 0 → rejected with `UNKNOWN_RUNTIME`, except episodes airing in the last 24 h.
@@ -608,3 +615,7 @@ The check is on by default and can be turned off in settings.
 49. **Ended season fallback:** given an ended three-episode season 1 and an indexer offering only S01E01, when an AUTO search of the season accepts nothing, then three AUTO searches of one episode each are queued 4 s apart. Given a season pack is offered, it is grabbed and no episode search is queued.
 50. **Per-season queries:** given a series with seasons 1 and 2, a USER_AUTO search of the whole series queries each indexer once per season, never without a season.
 51. **Clocks across restarts and queueing:** given a download stalled at 40 % for 5 h, when the server restarts, then it fails 1 h 1 min later. A magnet qBittorrent keeps `queuedDL` for twice the metadata timeout is left alone, then times out 5 min after qBittorrent starts fetching it; a download kept queued past the stalled limit isn't dropped.
+52. **Deleted profile:**
+    - Given the `2160p` preset and `1080p` as default, when `2160p` is deleted, then `ProfileDeleted{Profile: 2160p, ReplacedBy: 1080p}` is published; deleting the default publishes nothing.
+    - Given a Title whose profile doesn't exist, then an interactive search, an RSS grab and a file score all use the default profile.
+    - Given neither the Title's profile nor the default exists, then `POST /searches` is a 404 `profile-not-found`.

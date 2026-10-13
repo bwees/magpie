@@ -4,7 +4,7 @@ Knows what exists (from TMDB) and what is wanted: Titles, seasons, episodes, the
 
 - **Depends on (Readers):** none.
 - **Publishes:** `TitleAdded`, `TitleAddFailed`, `MonitoringChanged`, `ProfileChanged`, `LanguagesChanged`, `ScanFolderMatched`, `EpisodesAnnounced`, `WantedReleased`, `EpisodeGroupChanged`, `TitleRemoved`.
-- **Consumes:** `requests.RequestApproved`, `library.FolderFound`, `platform.ServiceHealthChanged` (TMDB healthy → resume refresh).
+- **Consumes:** `requests.RequestApproved`, `library.FolderFound`, `acquisition.ProfileDeleted`, `platform.ServiceHealthChanged` (TMDB healthy → resume refresh).
 - **Importer entrypoint:** `api.Importer` (migration job only, see [11-migration.md](../11-migration.md)).
 
 ## Owns / Must not
@@ -232,6 +232,7 @@ type TitleRemoved struct {
 |---|---|---|---|---|
 | `requests.RequestApproved` | Requests | Title not tracked: fetch from TMDB, create it with the request's profile, and monitor the scope: the movie, all seasons plus future seasons, or only the chosen seasons. Then publish `TitleAdded{RequestID, Origin: REQUEST}`. Title tracked: monitor the requested seasons (or the movie) and publish `MonitoringChanged{RequestID}`; the existing profile is kept. | Event ID in `processed_events`; natural key `(kind, tmdbId)` prevents duplicate Titles; `requestId` on the Title makes a repeated request a no-op | The handler queues a backlite job for the TMDB fetch (handlers can't do network I/O). TMDB error → retry 3× after 30 s, 2 min, 10 min, then `TitleAddFailed`; a `404` fails at once |
 | `library.FolderFound` | Library (scan) | Match the folder to TMDB: a `[tmdbid-N]` tag (or `TmdbHint`) is exact; otherwise search TMDB by parsed title + year. One candidate with score ≥ 0.9 → match. Anything else → a `catalog_scan_review` row; the admin picks a candidate or ignores the folder. On a match: create the Title if new (default profile, monitored) and publish `TitleAdded{Origin: LIBRARY_SCAN, ScanFolder}`; then, new or existing, publish `ScanFolderMatched{Folder, Title}`. | Event ID; `(kind, tmdbId)`; review rows unique per `folderPath` | TMDB unavailable → retry with backoff; stays queued |
+| `acquisition.ProfileDeleted` | Acquisition | Move every Title on `Profile` to `ReplacedBy` through the same update as `PATCH profileId`, so each moved Title publishes `ProfileChanged{From: Profile, To: ReplacedBy}`. | Event ID; a redelivery finds no Title left on `Profile` and publishes nothing | Retry with backoff; all Titles move in one transaction |
 
 Migration writes go through `api.Importer.ImportTitles` (not an event). It applies the same creation rules with `Origin: MIGRATION` and publishes `TitleAdded{Origin: MIGRATION}`. TVDB/IMDb IDs it supplies are stored only when TMDB has none (`externalIdSource = IMPORT`). Aliases it supplies (Sonarr's alternate titles, opt-in) are kept in `importedAliases` and read with TMDB's, so a refresh doesn't drop them. Source keys are kept in `catalog_import_sources`, so a re-run returns the same IDs; a title its `(kind, tmdbId)` already names is reused unchanged.
 
@@ -389,3 +390,4 @@ Adding a Title from the top-bar search goes through Requests (`POST /api/request
 18. **Given** `FolderFound{Folder: ".../Dune"}` with no tag and two TMDB candidates scoring < 0.9, **then** one `catalog_scan_review` row exists and no event is published; **when** the admin matches it, **then** `ScanFolderMatched` is published.
 19. **Given** an existing Title and a `FolderFound` that matches it exactly, **then** no `TitleAdded` is published but `ScanFolderMatched` is.
 20. **Given** global languages [en, es], **when** a Title override [ja, en] is set, **then** `WantedLanguages(title)` returns [ja, en], `GlobalLanguages` still returns [en, es], and `LanguagesChanged{Title}` is published; clearing the override returns the global list again.
+21. **Given** Titles A on profile P and B on Q, **when** `ProfileDeleted{Profile: P, ReplacedBy: R}` is delivered twice, **then** A is on R, B stays on Q, and one `ProfileChanged{Title: A, From: P, To: R}` is published.

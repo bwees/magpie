@@ -4534,6 +4534,22 @@
 				],
 				"type": "object"
 			},
+			"ProfileDeleted": {
+				"description": "ProfileDeleted schema",
+				"properties": {
+					"profile": {
+						"type": "string"
+					},
+					"replacedBy": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"profile",
+					"replacedBy"
+				],
+				"type": "object"
+			},
 			"ProfileItemRequest": {
 				"properties": {
 					"allowed": {

@@ -7,6 +7,8 @@ import (
 
 	"magpie/internal/acquisition"
 	"magpie/internal/acquisition/api"
+	catalogapi "magpie/internal/catalog/api"
+	catalogtest "magpie/internal/catalog/api/contracttest"
 	"magpie/internal/domain"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/httpserver"
@@ -116,6 +118,7 @@ func TestSearchEndpointProblems(t *testing.T) {
 	}{
 		{"automatic search of an unknown title", http.MethodPost, "/api/acquisition/searches", `{"title":"missing","interactive":false}`, http.StatusNotFound, acquisition.TypeTitleNotFound},
 		{"unknown title", http.MethodPost, "/api/acquisition/searches", startBody("missing"), http.StatusNotFound, acquisition.TypeTitleNotFound},
+		{"unknown episode", http.MethodPost, "/api/acquisition/searches", `{"title":"` + string(f.title.ID) + `","episodes":["missing"],"interactive":true}`, http.StatusBadRequest, problem.TypeBadRequest},
 		{"unknown search", http.MethodGet, "/api/acquisition/searches/missing", "", http.StatusNotFound, acquisition.TypeSearchNotFound},
 		{"rejected without override", http.MethodPost, grab, `{"releaseId":"` + string(rejected) + `","override":false}`, http.StatusConflict, acquisition.TypeReleaseRejected},
 		{"unknown release", http.MethodPost, grab, `{"releaseId":"missing","override":true}`, http.StatusNotFound, acquisition.TypeReleaseNotFound},
@@ -135,5 +138,19 @@ func TestSearchEndpointProblems(t *testing.T) {
 		if got := decode[problemBody](t, rec); got.Type != string(tc.problemType) {
 			t.Errorf("%s type = %q, want %q", tc.name, got.Type, tc.problemType)
 		}
+	}
+}
+
+func TestATitleRemovedWhileASearchStartsIsATitleNotFound(t *testing.T) {
+	f := newSearchFixture(t)
+	f.catalog.FailNext(catalogtest.ReaderWantedLanguages, catalogapi.ErrNotFound)
+
+	rec := do(serveSearches(f, admin()), http.MethodPost, "/api/acquisition/searches", startBody(f.title.ID))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("start = %d %s, want 404", rec.Code, rec.Body)
+	}
+	if got := decode[problemBody](t, rec); got.Type != string(acquisition.TypeTitleNotFound) {
+		t.Errorf("type = %q, want %q", got.Type, acquisition.TypeTitleNotFound)
 	}
 }

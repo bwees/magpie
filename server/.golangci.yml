@@ -103,7 +103,6 @@ linters:
           files: ["**/internal/catalog/**", "**/internal/lintfixture/catalog/**"]
           deny:
             - { pkg: magpie/internal/identity/api, desc: Catalog reads no other context }
-            - { pkg: magpie/internal/acquisition/api, desc: Catalog reads no other context }
             - { pkg: magpie/internal/subtitles/api, desc: Catalog reads no other context }
             - { pkg: magpie/internal/transcode/api, desc: Catalog reads no other context }
             - { pkg: magpie/internal/activity/api, desc: Catalog reads no other context }

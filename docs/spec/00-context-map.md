@@ -59,7 +59,7 @@ Platform    → Identity, Requests   (live gateway role filter only)
 - Transcode never reads Subtitles or Acquisition: wanted languages come from Catalog, and cutoff arrives as `CutoffMet`.
 - `acquisition.Reader` exists for Acquisition's own HTTP layer, plus Requests reading `DefaultProfile` for new requests and `DownloadsForTitle` for the REGRAB check on downloads waiting for mapping. The UI reads profiles from `GET /api/acquisition/profiles`.
 - Activity reads `acquisition.Reader.ActiveDownloads` and `transcode.Reader.Job` only for the pipeline repair at boot ([activity › Behaviour](contexts/activity.md#behaviour)). Its projections otherwise follow events alone.
-- Importing an `api` for its event structs or command is not a query dependency. For example, Library imports `acquisition/api` for `DownloadCompleted` but never uses `acquisition.Reader`, and the live gateway imports `acquisition/api` only for the search event-type constants.
+- Importing an `api` for its event structs or command is not a query dependency. For example, Library imports `acquisition/api` for `DownloadCompleted` but never uses `acquisition.Reader`, Catalog imports it only for `ProfileDeleted`, and the live gateway imports `acquisition/api` only for the search event-type constants.
 
 Reader contents other contexts rely on:
 - `catalog.Reader`:
@@ -163,6 +163,7 @@ type Event struct {
 | `acquisition.DownloadFailed` | Acquisition | download, reason | Activity → notify |
 | `acquisition.DownloadRemoved` | Acquisition | download, title | Activity → rows still on the download go back to no download |
 | `acquisition.CutoffMet` | Acquisition | mediaFile, title, episodes, quality, cfScore, origin | Transcode → evaluate policy and queue (DOWNLOAD origin ahead of LIBRARY_SCAN/MIGRATION) |
+| `acquisition.ProfileDeleted` | Acquisition | profile, replacedBy (the default profile at delete time) | Catalog → move the profile's titles to `replacedBy`, publishing `ProfileChanged` for each |
 | `library.FileImported` | Library | mediaFile, title, episodes, path, quality, releaseName, osHash, size, mediaInfo, replaces? (informational), download? (nil for scan/migration), sidecars, origin | Acquisition → cutoff check + seeding/remove; Subtitles → find subtitles; Requests → resolve REGRAB issues; Activity |
 | `library.ImportFailed` | Library | download, reason, retryable, manual | Acquisition → manual: keep the torrent and its data and wait for the user; otherwise blocklist, try next; Activity → notify |
 | `library.ImportRemoved` | Library | download, title, releaseName (the user chose Remove & blocklist on a failed or manual import) | Acquisition → blocklist, delete with data, try next; Activity |

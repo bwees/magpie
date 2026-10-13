@@ -117,15 +117,3 @@ func (s *SearchService) queueSpread(ctx context.Context, tasks []searchTask) err
 		return nil
 	})
 }
-
-// profileFor is the title's profile, or the default one when it has none.
-func (s *SearchService) profileFor(ctx context.Context, title catalogapi.Title) (ScoringProfile, error) {
-	id := title.Profile
-	if id == "" {
-		var err error
-		if id, err = DefaultProfileKey.Get(ctx, s.deps.Store); err != nil {
-			return ScoringProfile{}, err
-		}
-	}
-	return s.deps.Quality.ScoringProfile(ctx, id)
-}

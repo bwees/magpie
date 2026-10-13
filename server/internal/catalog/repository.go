@@ -466,6 +466,12 @@ func (r *Repository) createTitle(tx *gorm.DB, row titleRow) error {
 	return tx.Create(&row).Error
 }
 
+func (r *Repository) titlesOnProfile(conn *gorm.DB, profile domain.ProfileID) ([]domain.TitleID, error) {
+	var ids []domain.TitleID
+	err := conn.Model(&titleRow{}).Where("profile_id = ?", profile).Order("id").Pluck("id", &ids).Error
+	return ids, err
+}
+
 func (r *Repository) saveTitle(tx *gorm.DB, row titleRow) error {
 	return tx.Save(&row).Error
 }

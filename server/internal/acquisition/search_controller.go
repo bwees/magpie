@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"magpie/internal/acquisition/api"
+	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/problem"
@@ -174,8 +175,11 @@ func searchProblem(err error) error {
 		return nil
 	case errors.Is(err, ErrSearchNotFound):
 		return problem.New(TypeSearchNotFound, http.StatusNotFound, "The search expired or never existed")
-	case errors.Is(err, ErrTitleNotFound):
+	case errors.Is(err, ErrTitleNotFound), errors.Is(err, catalogapi.ErrNotFound):
 		return problem.New(TypeTitleNotFound, http.StatusNotFound, "No such title")
+	case errors.Is(err, api.ErrNotFound):
+		// The search found neither the title's quality profile nor the default one.
+		return problem.New(TypeProfileNotFound, http.StatusNotFound, "The title's quality profile is gone and so is the default profile; pick a default profile in Settings → Quality")
 	case errors.Is(err, ErrInvalidSearch):
 		return problem.New(problem.TypeBadRequest, http.StatusBadRequest, err.Error())
 	case errors.Is(err, ErrReleaseNotFound):

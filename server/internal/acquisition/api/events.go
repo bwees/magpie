@@ -17,6 +17,7 @@ const (
 	TypeDownloadFailed        = "acquisition.DownloadFailed"
 	TypeDownloadRemoved       = "acquisition.DownloadRemoved"
 	TypeCutoffMet             = "acquisition.CutoffMet"
+	TypeProfileDeleted        = "acquisition.ProfileDeleted"
 )
 
 type SearchTrigger string
@@ -282,11 +283,22 @@ func (CutoffMet) Type() string          { return TypeCutoffMet }
 func (e CutoffMet) AggregateID() string { return string(e.Title) }
 func (CutoffMet) Durable() bool         { return true }
 
+// ProfileDeleted names the profile that takes over the deleted one's titles: the default profile at the time.
+type ProfileDeleted struct {
+	Profile    domain.ProfileID `json:"profile"`
+	ReplacedBy domain.ProfileID `json:"replacedBy"`
+}
+
+func (ProfileDeleted) Type() string          { return TypeProfileDeleted }
+func (e ProfileDeleted) AggregateID() string { return string(e.Profile) }
+func (ProfileDeleted) Durable() bool         { return true }
+
 // Messages lists every event and command this package declares, for the bus registry and the live schemas.
 func Messages() []domain.Message {
 	return []domain.Message{
 		SearchStarted{}, SearchResultsReceived{}, SearchCompleted{},
 		ReleaseGrabbed{}, ReleaseRejected{}, DownloadProgressed{},
 		DownloadCompleted{}, DownloadFailed{}, DownloadRemoved{}, CutoffMet{},
+		ProfileDeleted{},
 	}
 }

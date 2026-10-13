@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 
+	acquisitionapi "magpie/internal/acquisition/api"
 	libraryapi "magpie/internal/library/api"
 	platformapi "magpie/internal/platform/api"
 	"magpie/internal/platform/bus"
@@ -16,6 +17,7 @@ const (
 	handlerRequestApproved = "catalog.add-title-on-request-approved"
 	handlerTmdbHealth      = "catalog.resume-refresh-on-tmdb-healthy"
 	handlerFolderFound     = "catalog.match-on-folder-found"
+	handlerProfileDeleted  = "catalog.reassign-titles-on-profile-deleted"
 )
 
 // newFolderFoundHandler queues matching a folder a library scan found; the match calls TMDB.
@@ -49,6 +51,21 @@ func newRequestApprovedHandler(s *Service, queue jobs.Enqueuer) bus.Handler {
 				return err
 			}
 			return queue.EnqueueTx(tx, addTitleTask{Request: req, Retries: addTitleRetries})
+		},
+	}
+}
+
+// newProfileDeletedHandler moves a deleted profile's titles to the profile Acquisition named in its place.
+func newProfileDeletedHandler(s *Service) bus.Handler {
+	return bus.Handler{
+		Name:       handlerProfileDeleted,
+		EventTypes: []string{acquisitionapi.TypeProfileDeleted},
+		Handle: func(_ context.Context, tx *gorm.DB, ev bus.Event) error {
+			deleted, err := bus.Decode[acquisitionapi.ProfileDeleted](ev)
+			if err != nil {
+				return err
+			}
+			return s.ReplaceProfile(tx, deleted)
 		},
 	}
 }

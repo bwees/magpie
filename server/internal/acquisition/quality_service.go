@@ -10,6 +10,7 @@ import (
 
 	"magpie/internal/acquisition/api"
 	"magpie/internal/domain"
+	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
 	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/parse"
@@ -44,11 +45,12 @@ type QualityService struct {
 	repo  *QualityRepository
 	store *settings.Store
 	jobs  jobs.Enqueuer
+	bus   *bus.Bus
 	now   func() time.Time
 }
 
-func NewQualityService(d *db.DB, repo *QualityRepository, store *settings.Store, q jobs.Enqueuer) *QualityService {
-	return &QualityService{db: d, repo: repo, store: store, jobs: q, now: time.Now}
+func NewQualityService(d *db.DB, repo *QualityRepository, store *settings.Store, q jobs.Enqueuer, b *bus.Bus) *QualityService {
+	return &QualityService{db: d, repo: repo, store: store, jobs: q, bus: b, now: time.Now}
 }
 
 // rescoreEveryFile follows a custom format change, which can change scores under every profile.
@@ -209,19 +211,23 @@ func trashScore(f CustomFormat, scoreSet string) (int, bool) {
 	return score, ok
 }
 
+// DeleteProfile publishes ProfileDeleted, so Catalog moves the profile's titles to the default profile.
 func (s *QualityService) DeleteProfile(ctx context.Context, id domain.ProfileID) error {
-	defaultProfile, err := DefaultProfileKey.Get(ctx, s.store)
-	if err != nil {
-		return err
-	}
-	if id == defaultProfile {
-		return ErrDefaultProfile
-	}
 	return s.db.Write(ctx, func(tx *gorm.DB) error {
+		defaultProfile, err := DefaultProfileKey.GetTx(tx)
+		if err != nil {
+			return err
+		}
+		if id == defaultProfile {
+			return ErrDefaultProfile
+		}
 		if err := deleteProfile(tx, id); err != nil {
 			return err
 		}
-		return s.jobs.EnqueueTx(tx, rescoreTask{Profile: id})
+		if err := s.jobs.EnqueueTx(tx, rescoreTask{Profile: id}); err != nil {
+			return err
+		}
+		return s.bus.Publish(tx, bus.EventOf(api.ProfileDeleted{Profile: id, ReplacedBy: defaultProfile}))
 	})
 }
 

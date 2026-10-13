@@ -136,7 +136,9 @@ func newSearchFixture(t *testing.T) searchFixture {
 	repo := acquisition.NewRepository(d)
 	quality := acquisition.NewQualityRepository(d)
 	jobs := &recordingQueue{}
-	qualityService := acquisition.NewQualityService(d, quality, store, jobs)
+	b := bus.New()
+	events := newRecorder(b)
+	qualityService := acquisition.NewQualityService(d, quality, store, jobs, b)
 	if err := qualityService.SeedPresets(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +156,6 @@ func newSearchFixture(t *testing.T) searchFixture {
 		ID: domain.NewID[domain.TitleID](), Kind: domain.MediaKindMovie, Name: "Movie Title", Year: 2024,
 		External: domain.ExternalIDs{Tmdb: movieTmdb, Imdb: &imdb}, RuntimeMinutes: 120, Monitored: true, Released: true,
 	}
-	b := bus.New()
 	f := searchFixture{
 		fixture: fixture{repo: repo, prowlarr: fakes.NewProwlarr(), store: store},
 		db:      d,
@@ -162,7 +163,7 @@ func newSearchFixture(t *testing.T) searchFixture {
 		catalog: catalogtest.NewFake(catalogtest.Fixture{Titles: []catalogapi.Title{title}}),
 		library: librarytest.NewFake(librarytest.Fixture{}),
 		qbit:    fakes.NewQBittorrent(),
-		events:  newRecorder(b),
+		events:  events,
 		title:   title,
 		jobs:    jobs,
 	}

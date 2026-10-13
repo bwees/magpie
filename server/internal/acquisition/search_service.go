@@ -267,7 +267,7 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 		return nil, searchTarget{}, err
 	}
 
-	if in.Profile, err = s.profileFor(ctx, title); err != nil {
+	if in.Profile, err = s.deps.Quality.TitleProfile(ctx, title); err != nil {
 		return nil, searchTarget{}, err
 	}
 	files, err := s.deps.Library.FilesForTitle(ctx, title.ID)

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	acquisitionapi "magpie/internal/acquisition/api"
 	"magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	"magpie/internal/platform/bus"
@@ -575,40 +576,62 @@ func setImagePath(images *TmdbImages, kind, path string) {
 func (s *Service) UpdateTitle(ctx context.Context, id domain.TitleID, update TitleUpdate) (TitleView, error) {
 	var view TitleView
 	err := s.db.Write(ctx, func(tx *gorm.DB) error {
-		row, err := s.repo.title(tx, id)
-		if err != nil {
+		if err := s.updateTitle(tx, id, update); err != nil {
 			return err
 		}
-		var events []domain.Message
-		if update.Profile != nil && string(*update.Profile) != row.ProfileID {
-			events = append(events, api.ProfileChanged{Title: id, From: domain.ProfileID(row.ProfileID), To: *update.Profile})
-			row.ProfileID = string(*update.Profile)
-		}
-		if update.Monitored != nil && *update.Monitored != row.Monitored {
-			row.Monitored = *update.Monitored
-			event := api.MonitoringChanged{Title: id, Added: []domain.EpisodeID{}, Removed: []domain.EpisodeID{}, Movie: ptr(row.Monitored)}
-			if domain.MediaKind(row.Kind) == domain.MediaKindSeries {
-				if event, err = s.seriesMonitoringChanged(tx, row); err != nil {
-					return err
-				}
-			}
-			events = append(events, event)
-		}
-		if update.MonitorFutureSeasons != nil {
-			row.MonitorFutureSeasons = *update.MonitorFutureSeasons
-		}
-		if err := s.repo.saveTitle(tx, row); err != nil {
-			return err
-		}
-		for _, ev := range events {
-			if err := s.publish(tx, ev); err != nil {
-				return err
-			}
-		}
+		var err error
 		view, err = s.view(tx, id)
 		return err
 	})
 	return view, err
+}
+
+func (s *Service) updateTitle(tx *gorm.DB, id domain.TitleID, update TitleUpdate) error {
+	row, err := s.repo.title(tx, id)
+	if err != nil {
+		return err
+	}
+	var events []domain.Message
+	if update.Profile != nil && string(*update.Profile) != row.ProfileID {
+		events = append(events, api.ProfileChanged{Title: id, From: domain.ProfileID(row.ProfileID), To: *update.Profile})
+		row.ProfileID = string(*update.Profile)
+	}
+	if update.Monitored != nil && *update.Monitored != row.Monitored {
+		row.Monitored = *update.Monitored
+		event := api.MonitoringChanged{Title: id, Added: []domain.EpisodeID{}, Removed: []domain.EpisodeID{}, Movie: ptr(row.Monitored)}
+		if domain.MediaKind(row.Kind) == domain.MediaKindSeries {
+			if event, err = s.seriesMonitoringChanged(tx, row); err != nil {
+				return err
+			}
+		}
+		events = append(events, event)
+	}
+	if update.MonitorFutureSeasons != nil {
+		row.MonitorFutureSeasons = *update.MonitorFutureSeasons
+	}
+	if err := s.repo.saveTitle(tx, row); err != nil {
+		return err
+	}
+	for _, ev := range events {
+		if err := s.publish(tx, ev); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReplaceProfile moves every title on a deleted profile to its replacement, publishing ProfileChanged for each.
+func (s *Service) ReplaceProfile(tx *gorm.DB, deleted acquisitionapi.ProfileDeleted) error {
+	ids, err := s.repo.titlesOnProfile(tx, deleted.Profile)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := s.updateTitle(tx, id, TitleUpdate{Profile: &deleted.ReplacedBy}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveTitle deletes the Title's rows and cached images and publishes TitleRemoved. Other contexts

@@ -9,6 +9,7 @@ import (
 
 	"magpie/internal/acquisition/api"
 	"magpie/internal/domain"
+	"magpie/internal/platform/bus"
 	"magpie/internal/platform/parse"
 	"magpie/internal/platform/settings"
 
@@ -21,7 +22,7 @@ const webTierTrashScore = 1700
 func newQualityService(t *testing.T) *QualityService {
 	t.Helper()
 	d := openQualityDB(t)
-	return NewQualityService(d, NewQualityRepository(d), settings.NewStore(d), &queuedTasks{})
+	return NewQualityService(d, NewQualityRepository(d), settings.NewStore(d), &queuedTasks{}, bus.New())
 }
 
 // queuedTasks keeps what a service queued, for tests that don't run the jobs.

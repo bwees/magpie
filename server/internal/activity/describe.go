@@ -311,6 +311,9 @@ func init() {
 	on(func(e acquisitionapi.CutoffMet) description {
 		return description{subject: titled(e.Title, e.Episodes...), Text: "Cutoff met", Detail: e.Quality.Name}
 	})
+	on(func(acquisitionapi.ProfileDeleted) description {
+		return description{Text: "Quality profile deleted", Detail: "Its titles moved to the default profile"}
+	})
 
 	on(func(e libraryapi.FileImported) description {
 		d := description{subject: titled(e.Title, episodeIDs(e.Episodes)...), Text: "Imported", Detail: e.ReleaseName}

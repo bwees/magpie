@@ -42,8 +42,7 @@ type fileScorer struct {
 	profile ScoringProfile
 }
 
-// scorerFor reports false when the title is gone. A title without a profile, or whose profile was deleted,
-// is scored under the default profile.
+// scorerFor reports false when the title is gone.
 func scorerFor(ctx context.Context, tx *gorm.DB, catalog catalogapi.Reader, id domain.TitleID) (fileScorer, bool, error) {
 	title, err := catalog.Title(ctx, id)
 	if errors.Is(err, catalogapi.ErrNotFound) {
@@ -52,14 +51,7 @@ func scorerFor(ctx context.Context, tx *gorm.DB, catalog catalogapi.Reader, id d
 	if err != nil {
 		return fileScorer{}, false, err
 	}
-	profile, err := loadScoringProfile(tx, title.Profile)
-	if errors.Is(err, api.ErrNotFound) {
-		var fallback domain.ProfileID
-		if fallback, err = DefaultProfileKey.GetTx(tx); err != nil {
-			return fileScorer{}, false, err
-		}
-		profile, err = loadScoringProfile(tx, fallback)
-	}
+	profile, err := loadTitleProfile(ctx, tx, title)
 	if err != nil {
 		return fileScorer{}, false, err
 	}
