@@ -42,7 +42,8 @@
 	const automatic = new AutomaticSearch();
 	const target = $derived({ titleId: title.id, label: title.name });
 	let searching = $state(false);
-	const report = $derived(new ReportIssue(title.id));
+	// svelte-ignore state_referenced_locally
+	const report = new ReportIssue(title.id);
 </script>
 
 <section class="overflow-hidden rounded-xl border bg-card" style:background-image={background}>

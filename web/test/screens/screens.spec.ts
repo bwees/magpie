@@ -112,6 +112,28 @@ for (const screen of SCREENS) {
 	});
 }
 
+test('leaving a title page by a link loads the next page', async ({ page }) => {
+	const errors: Error[] = [];
+	page.on('pageerror', (error) => errors.push(error));
+	await visit(page, `/titles/${MOVIE_ID}`);
+
+	await page.locator('a[href="/tv"]:visible').first().click();
+	await expect(page).toHaveURL('/tv');
+	await expect(page.getByText('Severance').first()).toBeVisible();
+
+	await page
+		.getByRole('link', { name: /Severance/ })
+		.first()
+		.click();
+	await expect(page).toHaveURL(`/titles/${SERIES_ID}`);
+	await expect(page.getByRole('heading', { name: 'Severance' }).first()).toBeVisible();
+
+	await page.locator('a[href="/"]:visible').first().click();
+	await expect(page).toHaveURL('/');
+	await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+	expect(errors).toEqual([]);
+});
+
 test('the tracker pill opens a list of trackers on tap', async ({ page }, info) => {
 	test.skip(!isPhone(info), 'phones have no hover');
 	await visit(page, `/titles/${MOVIE_ID}`);

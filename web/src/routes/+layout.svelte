@@ -14,6 +14,7 @@
 		setSession
 	} from '$lib/session/session.svelte';
 	import AppShell from '$lib/shell/AppShell.svelte';
+	import RouteError from '$lib/shell/RouteError.svelte';
 	import { ToastPosition } from '$lib/shell/shell-state.svelte';
 	import './app.css';
 
@@ -49,9 +50,18 @@
 	</div>
 {:else if bare}
 	<Toaster position={isMobile.current ? ToastPosition.PHONE : ToastPosition.DESKTOP} />
-	{@render children()}
+	{@render routeContent()}
 {:else}
 	<AppShell>
-		{@render children()}
+		{@render routeContent()}
 	</AppShell>
 {/if}
+
+{#snippet routeContent()}
+	<svelte:boundary onerror={(error) => console.error(error)}>
+		{@render children()}
+		{#snippet failed(error, reset)}
+			<RouteError {error} {reset} />
+		{/snippet}
+	</svelte:boundary>
+{/snippet}
