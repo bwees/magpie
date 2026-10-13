@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/bwees/magpie/compare/v0.3.1...v0.4.0) (2026-10-13)
+
+
+### Features
+
+* **web:** clear the Needs you list from Home ([118745f](https://github.com/bwees/magpie/commit/118745f1df07d913b6f25ea2722374dd38e19791))
+
+
+### Bug Fixes
+
+* **library:** leave the device out of file ETags so NFS remounts don't refuse swaps ([ca5b01a](https://github.com/bwees/magpie/commit/ca5b01a4b0e3fb9c040882feb62e3894f9993e6b))
+* **transcode:** give QSV a target just under the cap so quality and the cap both apply ([d05180e](https://github.com/bwees/magpie/commit/d05180e58cd9dce754f1d6e876333ab51462f14a))
+
 ## [0.3.1](https://github.com/bwees/magpie/compare/v0.3.0...v0.3.1) (2026-10-13)
 
 
