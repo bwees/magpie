@@ -553,14 +553,14 @@ Evaluation of one media file (on `CutoffMet`, a sweep, a settings change, an exc
 |---|---|---|---|---|---|
 | `hevc_nvenc` | `preset p6, tune hq, rc vbr, b:v 0, spatial-aq 1, temporal-aq 1, rc-lookahead 32` | cq 19 | 23 | 26 | 29 |
 | `av1_nvenc` | same as `hevc_nvenc` | cq 24 | 28 | 32 | 36 |
-| `hevc_qsv` | `preset slower` | global_quality 20 | 23 | 26 | 29 |
+| `hevc_qsv` | `preset slower`, `b:v` 1 kbps under the cap | global_quality 20 | 24 | 27 | 30 |
 | `av1_qsv` | `preset slower` | global_quality 22 | 26 | 30 | 34 |
 | `hevc_vaapi` | `rc_mode QVBR, compression_level 1` | global_quality 21 | 24 | 26 | 29 |
 | `av1_vaapi` | `rc_mode QVBR, compression_level 1` | global_quality (1–255) 64 | 76 | 86 | 104 |
 | `libx265` | `preset medium` | crf 18 | 21 | 24 | 27 |
 | `libsvtav1` | `preset 8` | crf 22 | 28 | 32 | 38 |
 
-Version 1 of the table was hand-set from vendor guidance. Version 2 fits the VAAPI rows by VMAF; the other rows are still hand-set. A fitted table ships as a new version, which changes the policy hash.
+Version 1 of the table was hand-set from vendor guidance. Version 2 fits the VAAPI rows by VMAF. Version 3 moves `hevc_qsv` to QVBR and fits it by VMAF. The NVENC, `av1_qsv` and CPU rows are still hand-set. A fitted table ships as a new version, which changes the policy hash.
 
 **VAAPI fit (version 2).** Measured on an AMD RX 9060 XT (Mesa 26.0.8, jellyfin-ffmpeg 8.1.3) with Magpie's AMD pipeline and the default caps. Six 60 s stream-copied clips: 1080p60 H.264 handheld web video, 1080p H.264 animation, 1080p HEVC grainy 1999 film, 1080p HEVC effects-heavy film, 720p HEVC TV, 2160p HEVC HDR10. VMAF v0.6.1 against the clip, mean of the six:
 
@@ -574,7 +574,27 @@ Version 1 of the table was hand-set from vendor guidance. Version 2 fits the VAA
 - `compression_level 1` selects the driver's quality preset. On `hevc_vaapi` at 24 it scores the same mean VMAF as the driver default in 10–55% fewer bits per clip. The default hit the cap on 2 of 6 clips at 24.
 - `av1_vaapi` reads `global_quality` on a 0–255 scale. Below about 50 it encodes at or near the cap.
 - At Archive, the 1080p60 clip still reaches the 10 Mbps cap. At matched VMAF, the VAAPI encoders need more bits than the CPU references on that clip.
-- `hevc_qsv` wasn't usable as the reference. With `-maxrate` set it falls back to CQP and ignores `global_quality`.
+
+**QSV fit (version 3).** Before version 3, every `hevc_qsv` encode ran CQP. ffmpeg's QSV wrapper picks the rate control from the options: `-maxrate` with `global_quality` and no `b:v` gives CQP, which ignores both the quality value and the cap. On the 1080p60 clip at 20 that gave 19.7 Mbps against a 10 Mbps cap.
+
+- QVBR runs when `global_quality`, `b:v` and `-maxrate` are all set and `b:v` differs from `-maxrate`. When they are equal, ffmpeg picks CBR. So `b:v` is the cap less 1 kbps.
+- With no cap, `hevc_qsv` gets no `b:v` and runs ICQ. Caps can't be 0 today.
+- `-look_ahead` and LA_ICQ exist only on `h264_qsv`.
+- QVBR spends more bits than ICQ at the same value, since it leans toward `b:v`. On the 720p clip at 24: ICQ 341 kbps, QVBR 768 kbps.
+- `av1_qsv` keeps version 1's options and values. Neither tested Intel device encodes AV1, so it still runs CQP.
+
+Measured on an Intel N95 (Alder Lake-N, iHD 26.3.5, jellyfin-ffmpeg 8.1.3) with Magpie's Intel pipeline, hardware decode and the default caps. The six clips are the same kinds as the VAAPI fit, cut fresh, so the libx265 targets were measured again on them. VMAF v0.6.1 against the clip, mean of the six, and the total of the six clips' bitrates:
+
+| Preset | libx265 | VMAF | Total | `hevc_qsv` | VMAF | Total |
+|---|---|---|---|---|---|---|
+| Archive | crf 18 | 92.7 | 26.6 Mbps | 20 | 92.5 | 26.5 Mbps |
+| High | crf 21 | 91.6 | 16.2 Mbps | 24 | 91.5 | 18.1 Mbps |
+| Balanced | crf 24 | 90.1 | 9.3 Mbps | 27 | 89.9 | 11.6 Mbps |
+| Small | crf 27 | 87.8 | 5.7 Mbps | 30 | 87.3 | 7.9 Mbps |
+
+- Every clip stays under its cap on average. The highest is the 1080p60 clip at Archive: 9.1 Mbps against 10. Its peak 2 s window is 12.7 Mbps, inside the 2 × cap buffer; libx265 peaks the same way.
+- The extra bits at High and below come mostly from the 1080p60 clip. QVBR keeps it at 4.5–8 Mbps, where libx265 drops to 2.9–6.1 Mbps.
+- At Small, 29 scores 88.3 and 30 scores 87.3. 30 is the one with fewer bits.
 
 ### Scheduler
 

@@ -66,7 +66,15 @@ const (
 	targetBitrateArg = "b:v"
 	constantQPArg    = "qp"
 	kbpsSuffix       = "k"
+	// qsvTargetUnderCapKbps keeps a QSV target bitrate off the cap, since ffmpeg switches QSV to CBR when
+	// b:v equals -maxrate.
+	qsvTargetUnderCapKbps = 1
 )
+
+// qsvQualityEncoders run QSV's QVBR, which needs a b:v under -maxrate. Given -maxrate alone, QSV falls
+// back to CQP and ignores both global_quality and the cap. With no cap it runs ICQ. av1_qsv waits for a
+// device that encodes AV1.
+var qsvQualityEncoders = []string{EncoderHEVCQSV}
 
 // encoderArgs are the options for one encode: the encoder's fixed options plus its quality value for the
 // preset, or the admin's override for that encoder.
@@ -84,19 +92,29 @@ func encoderArgs(encoder string, preset api.Preset, overrides map[string]int, ma
 	}
 	args := maps.Clone(cal.Args)
 	args[cal.Quality.Arg] = strconv.Itoa(quality)
-	if args[rateControlArg] != rateControlQVBR {
-		return args, nil
+	switch {
+	case args[rateControlArg] == rateControlQVBR:
+		vaapiQVBR(args, cal.Quality.Arg, quality, maxRateKbps)
+	case slices.Contains(qsvQualityEncoders, encoder) && maxRateKbps > 0:
+		args[targetBitrateArg] = kbpsArg(maxRateKbps - qsvTargetUnderCapKbps)
 	}
-	// VAAPI won't open a QVBR encode without a target bitrate. With no cap to aim at, the same quality
-	// value becomes a constant QP.
+	return args, nil
+}
+
+// vaapiQVBR gives a VAAPI QVBR encode the target bitrate it won't open without. With no cap to aim at,
+// the same quality value becomes a constant QP.
+func vaapiQVBR(args map[string]string, qualityArg string, quality, maxRateKbps int) {
 	if maxRateKbps > 0 {
-		args[targetBitrateArg] = strconv.Itoa(maxRateKbps) + kbpsSuffix
-		return args, nil
+		args[targetBitrateArg] = kbpsArg(maxRateKbps)
+		return
 	}
-	delete(args, cal.Quality.Arg)
+	delete(args, qualityArg)
 	args[rateControlArg] = rateControlCQP
 	args[constantQPArg] = strconv.Itoa(quality)
-	return args, nil
+}
+
+func kbpsArg(kbps int) string {
+	return strconv.Itoa(kbps) + kbpsSuffix
 }
 
 func knownPreset(p api.Preset) bool {

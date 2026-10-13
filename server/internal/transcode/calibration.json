@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "encoders": {
     "hevc_nvenc": {
       "quality": { "arg": "cq", "min": 1, "max": 51 },
@@ -14,7 +14,7 @@
     "hevc_qsv": {
       "quality": { "arg": "global_quality", "min": 1, "max": 51 },
       "args": { "preset": "slower" },
-      "presets": { "ARCHIVE": 20, "HIGH": 23, "BALANCED": 26, "SMALL": 29 }
+      "presets": { "ARCHIVE": 20, "HIGH": 24, "BALANCED": 27, "SMALL": 30 }
     },
     "av1_qsv": {
       "quality": { "arg": "global_quality", "min": 1, "max": 51 },

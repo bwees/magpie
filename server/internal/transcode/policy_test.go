@@ -451,6 +451,24 @@ func TestVAAPIQualityRateControlGetsTheBitrateItRequires(t *testing.T) {
 	}
 }
 
+func TestQSVQualityRateControlTargetsJustUnderTheCap(t *testing.T) {
+	const capKbps = 10000
+	balanced := strconv.Itoa(calibration.Encoders[EncoderHEVCQSV].Presets[api.PresetBalanced])
+
+	capped, err := encoderArgs(EncoderHEVCQSV, api.PresetBalanced, nil, capKbps)
+	if err != nil || capped["global_quality"] != balanced || capped["b:v"] != "9999k" {
+		t.Fatalf("capped QSV args = %v, %v; want global_quality %s with b:v 9999k, since b:v equal to -maxrate means CBR", capped, err, balanced)
+	}
+	uncapped, err := encoderArgs(EncoderHEVCQSV, api.PresetBalanced, nil, 0)
+	if _, hasTarget := uncapped["b:v"]; err != nil || uncapped["global_quality"] != balanced || hasTarget {
+		t.Fatalf("uncapped QSV args = %v, %v; want global_quality %s and no b:v", uncapped, err, balanced)
+	}
+	av1, err := encoderArgs(EncoderAV1QSV, api.PresetBalanced, nil, capKbps)
+	if _, hasTarget := av1["b:v"]; err != nil || hasTarget {
+		t.Fatalf("av1_qsv args = %v, %v; want no b:v until it is tested on hardware", av1, err)
+	}
+}
+
 func TestDecideFollowsTheRulesInOrder(t *testing.T) {
 	policy := policyKey.Default
 	h264 := withVideo(h264Movie(0), "h264", 12)
