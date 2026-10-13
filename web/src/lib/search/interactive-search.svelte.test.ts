@@ -3,17 +3,19 @@ import { toast } from 'svelte-sonner';
 import { HttpError } from '@oazapfts/runtime';
 import type { LiveHandler, ResetListener } from '$lib/live/live-connection';
 import { searchTopic, type LiveMessage } from '$lib/live/protocol';
-import type {
-	GrabRequest,
-	GrabResponse,
-	ReleaseDecision,
-	ReleaseGrabbed,
-	ReleaseRejected,
-	SearchIndexerResponse,
-	SearchResponse,
-	SearchResultsReceived
+import {
+	startSearch,
+	type GrabRequest,
+	type GrabResponse,
+	type ReleaseDecision,
+	type ReleaseGrabbed,
+	type ReleaseRejected,
+	type SearchIndexerResponse,
+	type SearchResponse,
+	type SearchResultsReceived
 } from '$lib/sdk';
 import {
+	ACQUISITION_SEARCH_API,
 	DropReason,
 	GrabState,
 	IndexerStatus,
@@ -23,10 +25,17 @@ import {
 	type SearchApi,
 	type SearchLive
 } from './interactive-search.svelte';
+import type { SearchTarget } from './search-target';
 
 vi.mock('svelte-sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('$lib/sdk', async (original) => ({
+	...(await original<typeof import('$lib/sdk')>()),
+	startSearch: vi.fn()
+}));
 
 const TITLE = '01TITLE';
+const MOVIE: SearchTarget = { titleId: TITLE, label: 'Movie Title' };
+const SEASON: SearchTarget = { titleId: TITLE, episodeIds: ['e1', 'e2'], label: 'Show Season 1' };
 const SEARCH = '01SEARCH';
 const WEB_1080P = 3;
 const WEB_720P = 5;
@@ -179,15 +188,15 @@ describe('InteractiveSearch', () => {
 		vi.clearAllMocks();
 		live = new FakeLive();
 		api = new FakeApi();
-		search = new InteractiveSearch(TITLE, live, api);
+		search = new InteractiveSearch(live, api);
 	});
 
 	it('starts the search, subscribes to its topic and reads the cached state', async () => {
 		api.current = snapshot({ releases: [release('a', 1)] });
 
-		await search.start();
+		await search.start(MOVIE);
 
-		expect(api.start).toHaveBeenCalledWith(TITLE);
+		expect(api.start).toHaveBeenCalledWith(MOVIE);
 		expect(live.topics.has(searchTopic(SEARCH))).toBe(true);
 		expect(search.phase).toBe(SearchPhase.RUNNING);
 		expect(search.indexers.map((i) => i.status)).toEqual([
@@ -198,7 +207,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('appends streamed releases to their bucket without reordering and stars the best', async () => {
-		await search.start();
+		await search.start(MOVIE);
 
 		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1), rejected('r')]);
 		live.results('Beyond', IndexerStatus.DONE, [release('b', 1)]);
@@ -213,7 +222,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('takes a late answer after a timeout but never moves an indexer back', async () => {
-		await search.start();
+		await search.start(MOVIE);
 
 		live.results('Nyaa', IndexerStatus.FAILED, []);
 		expect(search.failures).toBe(1);
@@ -225,7 +234,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('ignores other searches and finishes on SearchCompleted', async () => {
-		await search.start();
+		await search.start(MOVIE);
 
 		live.emit(SearchEventType.RESULTS, {
 			search: 'other',
@@ -244,7 +253,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('refetches the cached state when the live socket resets', async () => {
-		await search.start();
+		await search.start(MOVIE);
 		api.current = snapshot({
 			completed: true,
 			indexers: [indexer('Nyaa', IndexerStatus.DONE), indexer('Beyond', IndexerStatus.SKIPPED)],
@@ -259,7 +268,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('sends override for a rejected release and shows why a grab failed', async () => {
-		await search.start();
+		await search.start(MOVIE);
 		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1), rejected('r')]);
 		api.answer = new HttpError(
 			BAD_GATEWAY,
@@ -279,7 +288,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('checks a magnet, then shows it downloading once its metadata passed', async () => {
-		await search.start();
+		await search.start(MOVIE);
 		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1)]);
 		const [grabbed] = search.accepted;
 
@@ -293,7 +302,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('shows a blocked release rejected once and marks the fallback grab', async () => {
-		await search.start();
+		await search.start(MOVIE);
 		live.results('Nyaa', IndexerStatus.DONE, [release('a', 2), release('b', 1)]);
 		const [first, next] = search.accepted;
 		api.answer = { status: GrabState.REJECTED, blockedFile: 'Movie.exe', next: NEXT_DOWNLOAD };
@@ -321,7 +330,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('rejects a checked magnet when its rejection arrives later', async () => {
-		await search.start();
+		await search.start(MOVIE);
 		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1)]);
 		const [grabbed] = search.accepted;
 		await search.grab(grabbed);
@@ -344,7 +353,7 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('ignores grabs of other titles', async () => {
-		await search.start();
+		await search.start(MOVIE);
 		live.results('Nyaa', IndexerStatus.DONE, [release('a', 1)]);
 
 		live.emit(SearchEventType.GRABBED, {
@@ -356,22 +365,38 @@ describe('InteractiveSearch', () => {
 	});
 
 	it('cancels a running search when it stops, but not a finished one', async () => {
-		await search.start();
+		await search.start(MOVIE);
 		search.stop();
 		expect(api.cancelled).toEqual([SEARCH]);
 		expect(live.topics.size).toBe(0);
 
 		api.started = snapshot({ completed: true });
 		api.current = api.started;
-		await search.start();
+		await search.start(MOVIE);
 		search.stop();
 		expect(api.cancelled).toEqual([SEARCH]);
+	});
+
+	it('searches only the episodes it was opened for', async () => {
+		await search.start(SEASON);
+
+		expect(api.start).toHaveBeenCalledWith(SEASON);
+	});
+
+	it('asks the server for an interactive search of the target episodes', async () => {
+		await ACQUISITION_SEARCH_API.start(SEASON);
+
+		expect(startSearch).toHaveBeenCalledWith({
+			title: TITLE,
+			episodes: SEASON.episodeIds,
+			interactive: true
+		});
 	});
 
 	it('reports a search that could not start', async () => {
 		api.start.mockRejectedValueOnce(new HttpError(404, { detail: 'No such title' }, new Headers()));
 
-		await search.start();
+		await search.start(MOVIE);
 
 		expect(search.phase).toBe(SearchPhase.FAILED);
 		expect(search.error).toBe('No such title');

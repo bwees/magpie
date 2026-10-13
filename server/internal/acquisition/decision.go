@@ -48,6 +48,8 @@ var (
 	searchTriggers    = triggerSet{api.TriggerAuto, api.TriggerUserAuto, api.TriggerInteractive, api.TriggerRegrab}
 	automaticTriggers = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerRegrab}
 	nonInteractive    = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerUserAuto, api.TriggerRegrab}
+	// An interactive season search lists single episodes too, so the user can grab one.
+	grabbingSearches = triggerSet{api.TriggerAuto, api.TriggerUserAuto, api.TriggerRegrab}
 	// A REGRAB replaces a file someone reported as broken, however well it scores, so it skips the upgrade specs.
 	upgradeTriggers = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerUserAuto, api.TriggerInteractive}
 )
@@ -185,7 +187,7 @@ var tierZero = []specification{
 	{rssTriggers, history},
 	{allTriggers, fullSeason},
 	{allTriggers, multiSeason},
-	{searchTriggers, seasonPackOnly},
+	{grabbingSearches, seasonPackOnly},
 	{nonInteractive, monitored},
 	{searchTriggers, searchedItems},
 	{automaticTriggers, released},

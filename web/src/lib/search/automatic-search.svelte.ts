@@ -1,14 +1,7 @@
 import { toast } from 'svelte-sonner';
 import { SvelteSet } from 'svelte/reactivity';
 import { apiErrorMessage, startSearch } from '$lib/sdk';
-
-/** What a Search button searches: a whole title, or some of its episodes. */
-export interface SearchTarget {
-	titleId: string;
-	episodeIds?: string[];
-	/** Names the target in the toast, e.g. "Severance" or "S01E03". */
-	label: string;
-}
+import type { SearchTarget } from './search-target';
 
 export interface AutomaticSearchApi {
 	start: (target: SearchTarget) => Promise<unknown>;

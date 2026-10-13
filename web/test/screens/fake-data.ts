@@ -990,3 +990,49 @@ export const SEARCH: SearchResponse = {
 		})
 	]
 };
+
+export const SERIES_SEARCH_ID = 'SEARCH2';
+
+/** An interactive search of Severance season 1: a pack, one of its episodes and a season-2 episode. */
+export const SERIES_SEARCH: SearchResponse = {
+	...SEARCH,
+	searchId: SERIES_SEARCH_ID,
+	title: SERIES_ID,
+	completed: true,
+	indexers: SEARCH.indexers.map((indexer) => ({ ...indexer, status: SEARCH_INDEXER.DONE })),
+	releases: [
+		release({
+			release: 'Y1',
+			name: 'Severance.S01.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX',
+			cfScore: 1800,
+			formats: ['DV', 'HDR10'],
+			seeders: 212,
+			sizeBytes: 58 * GIB
+		}),
+		release({
+			release: 'Y2',
+			name: 'Severance.S01E02.1080p.ATVP.WEB-DL.DDP5.1.H.264-NTb',
+			indexer: 'TorrentLeech',
+			quality: WEB_DL_1080,
+			cfScore: 1700,
+			formats: [],
+			rank: 2,
+			seeders: 64,
+			sizeBytes: 3.2 * GIB
+		}),
+		release({
+			release: 'Y3',
+			name: 'Severance.S02E02.1080p.ATVP.WEB-DL.DDP5.1.H.264-NTb',
+			indexer: 'TorrentLeech',
+			quality: WEB_DL_1080,
+			cfScore: 1700,
+			formats: [],
+			rank: 0,
+			seeders: 301,
+			sizeBytes: 3.4 * GIB,
+			rejections: [
+				{ reason: 'SEARCH_MISMATCH', message: "S02E02 wasn't searched for", temporary: false }
+			]
+		})
+	]
+};

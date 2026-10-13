@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import type { SearchResponse, StartSearchRequest } from '../../src/lib/sdk';
 import * as data from './fake-data';
 
 enum Method {
@@ -11,7 +12,18 @@ interface Endpoint {
 	path: RegExp;
 	/** Extra condition on the query string, for paths that serve several lists. */
 	when?: (params: URLSearchParams) => boolean;
-	respond: (url: URL, match: RegExpMatchArray) => unknown;
+	respond: (url: URL, match: RegExpMatchArray, body: unknown) => unknown;
+}
+
+const SEARCHES = [data.SEARCH, data.SERIES_SEARCH];
+
+function startedSearch(body: unknown): SearchResponse {
+	const { title } = body as StartSearchRequest;
+	return SEARCHES.find((search) => search.title === title) ?? data.SEARCH;
+}
+
+function searchById(id: string): SearchResponse {
+	return SEARCHES.find((search) => search.searchId === id) ?? data.SEARCH;
 }
 
 const NOT_FOUND = 404;
@@ -105,8 +117,15 @@ const ENDPOINTS: Endpoint[] = [
 	},
 	{ path: /^\/api\/acquisition\/indexers$/, respond: () => data.INDEXERS },
 	{ path: /^\/api\/acquisition\/indexer-options$/, respond: () => data.INDEXER_OPTIONS },
-	{ method: Method.POST, path: /^\/api\/acquisition\/searches$/, respond: () => data.SEARCH },
-	{ path: /^\/api\/acquisition\/searches\/[^/]+$/, respond: () => data.SEARCH },
+	{
+		method: Method.POST,
+		path: /^\/api\/acquisition\/searches$/,
+		respond: (_url, _match, body) => startedSearch(body)
+	},
+	{
+		path: /^\/api\/acquisition\/searches\/([^/]+)$/,
+		respond: (_url, match) => searchById(match[1])
+	},
 	{ path: /^\/api\/transcode\/agents$/, respond: () => data.AGENTS },
 	{ path: /^\/api\/transcode\/jobs$/, respond: () => data.JOBS },
 	{ path: /^\/api\/transcode\/settings$/, respond: () => data.TRANSCODE_SETTINGS },
@@ -145,7 +164,7 @@ export class FakeApi {
 				(endpoint.method ?? Method.GET) === request.method() &&
 				(endpoint.when?.(url.searchParams) ?? true)
 			) {
-				return route.fulfill({ json: endpoint.respond(url, match) });
+				return route.fulfill({ json: endpoint.respond(url, match, request.postDataJSON()) });
 			}
 		}
 		this.unhandled.push(`${request.method()} ${url.pathname}${url.search}`);

@@ -27,8 +27,13 @@ async function settleAnimations(target: Locator): Promise<void> {
 	);
 }
 
-async function openInteractiveSearch(page: Page): Promise<void> {
-	await page.getByRole('button', { name: 'Interactive search' }).click();
+const HERO_INTERACTIVE_SEARCH = 'Interactive search';
+const SEASON_INTERACTIVE_SEARCH = 'Interactive search Season 1';
+const EPISODE_INTERACTIVE_SEARCH = 'Interactive search S01E02';
+const SEARCHES_PATH = '/api/acquisition/searches';
+
+async function openInteractiveSearch(page: Page, button = HERO_INTERACTIVE_SEARCH): Promise<void> {
+	await page.getByRole('button', { name: button, exact: true }).click();
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();
 	await settleAnimations(dialog);
@@ -69,7 +74,13 @@ const SCREENS: Screen[] = [
 	{
 		name: 'interactive-search',
 		path: `/titles/${MOVIE_ID}`,
-		open: openInteractiveSearch,
+		open: (page) => openInteractiveSearch(page),
+		viewportOnly: true
+	},
+	{
+		name: 'interactive-search-season',
+		path: `/titles/${SERIES_ID}`,
+		open: (page) => openInteractiveSearch(page, SEASON_INTERACTIVE_SEARCH),
 		viewportOnly: true
 	},
 	{ name: 'title-search', path: '/', open: openTitleSearch, viewportOnly: true }
@@ -132,6 +143,27 @@ test('leaving a title page by a link loads the next page', async ({ page }) => {
 	await expect(page).toHaveURL('/');
 	await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
 	expect(errors).toEqual([]);
+});
+
+test('a series searches interactively by season or episode, not from the hero', async ({
+	page
+}) => {
+	await visit(page, `/titles/${SERIES_ID}`);
+	await expect(
+		page.getByRole('button', { name: HERO_INTERACTIVE_SEARCH, exact: true })
+	).toHaveCount(0);
+
+	const started = page.waitForRequest(
+		(request) => request.method() === 'POST' && new URL(request.url()).pathname === SEARCHES_PATH
+	);
+	await openInteractiveSearch(page, EPISODE_INTERACTIVE_SEARCH);
+
+	expect((await started).postDataJSON()).toEqual({
+		title: SERIES_ID,
+		episodes: [`${SERIES_ID}-S1E2`],
+		interactive: true
+	});
+	await expect(page.getByRole('heading', { name: 'Search · Severance S01E02' })).toBeVisible();
 });
 
 test('the tracker pill opens a list of trackers on tap', async ({ page }, info) => {

@@ -21,6 +21,7 @@ import {
 import type { LiveConnection } from '$lib/live/live-connection';
 import { searchTopic, type LiveMessage } from '$lib/live/protocol';
 import { bestFirst, mergeRanked, rankedOrder, unseen } from './release-order';
+import type { SearchTarget } from './search-target';
 
 export enum IndexerStatus {
 	PENDING = 'PENDING',
@@ -87,14 +88,15 @@ const STATUS_WEIGHT: Record<string, number> = {
 };
 
 export interface SearchApi {
-	start(titleId: string): Promise<SearchResponse>;
+	start(target: SearchTarget): Promise<SearchResponse>;
 	get(searchId: string): Promise<SearchResponse>;
 	cancel(searchId: string): Promise<unknown>;
 	grab(searchId: string, request: GrabRequest): Promise<GrabResponse>;
 }
 
 export const ACQUISITION_SEARCH_API: SearchApi = {
-	start: (title) => startSearch({ title, interactive: true }),
+	start: (target) =>
+		startSearch({ title: target.titleId, episodes: target.episodeIds, interactive: true }),
 	get: (id) => getSearch(id),
 	cancel: (id) => cancelSearch(id),
 	grab: (id, request) => grabRelease(id, request)
@@ -149,13 +151,12 @@ export class InteractiveSearch {
 	readonly noIndexers = $derived(this.completed && this.indexers.length === 0);
 	readonly buckets = $derived.by(() => this.#buckets());
 
-	readonly #titleId: string;
 	readonly #live: SearchLive;
 	readonly #api: SearchApi;
+	#titleId: string | undefined;
 	#unwatch: (() => void) | undefined;
 
-	constructor(titleId: string, live: SearchLive, api: SearchApi = ACQUISITION_SEARCH_API) {
-		this.#titleId = titleId;
+	constructor(live: SearchLive, api: SearchApi = ACQUISITION_SEARCH_API) {
 		this.#live = live;
 		this.#api = api;
 	}
@@ -169,13 +170,14 @@ export class InteractiveSearch {
 	}
 
 	/** Starts a fresh search, cancelling the one before it. */
-	async start(): Promise<void> {
+	async start(target: SearchTarget): Promise<void> {
 		this.stop();
 		this.#reset();
+		this.#titleId = target.titleId;
 		this.phase = SearchPhase.STARTING;
 		this.#watch();
 		try {
-			const started = await this.#api.start(this.#titleId);
+			const started = await this.#api.start(target);
 			this.#apply(started);
 			this.#live.subscribe(searchTopic(started.searchId));
 			// Answers sent before the subscription reached the server are in the cached state.

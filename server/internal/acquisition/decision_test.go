@@ -395,9 +395,58 @@ func TestSeriesEpisodeSpecs(t *testing.T) {
 		t.Errorf("unknown episode: %+v, want UNKNOWN_EPISODE", got.Rejections)
 	}
 
-	in.Searched = slices.DeleteFunc(slices.Clone(in.Episodes), func(ep catalogapi.Episode) bool { return ep.Season != 1 })
+	in.Trigger = api.TriggerUserAuto
+	in.Searched = seasonEpisodes(in.Episodes, 1)
 	got := in.decided(0, single, ix)
 	if want := []api.RejectionReason{api.RejectSeasonPackOnly, api.RejectSearchMismatch}; !slices.Equal(reasons(got.Rejections), want) {
 		t.Errorf("S02E03 in an ended season-1 search: %v, want %v", reasons(got.Rejections), want)
+	}
+}
+
+func seasonEpisodes(all []catalogapi.Episode, season int) []catalogapi.Episode {
+	return slices.DeleteFunc(slices.Clone(all), func(ep catalogapi.Episode) bool { return ep.Season != season })
+}
+
+// Seed acquisition #43.
+func TestInteractiveSearchHonoursItsSeasonOrEpisode(t *testing.T) {
+	const episodesPerSeason = 4
+	title := seriesTitle()
+	in := newInput(t, title, scoring(t, PresetProfile(api.Preset1080p)))
+	in.Episodes = seasons(title.ID, map[int]bool{1: true, 2: true, 3: true}, episodesPerSeason)
+	ix := testIndexer("Nyaa", DefaultIndexerPriority)
+	episode := func(name string) TorznabItem {
+		it := item(name)
+		it.SizeBytes = oneGB
+		return it
+	}
+	pack := item("Show.Title.S01.1080p.WEB-DL.DDP5.1.H.264-GRP")
+	pack.SizeBytes = episodesPerSeason * oneGB
+	inSeason := episode("Show.Title.S01E02.1080p.WEB-DL.DDP5.1.H.264-GRP")
+	otherSeason := episode("Show.Title.S02E02.1080p.WEB-DL.DDP5.1.H.264-GRP")
+	otherEpisode := episode("Show.Title.S01E03.1080p.WEB-DL.DDP5.1.H.264-GRP")
+
+	in.Searched = seasonEpisodes(in.Episodes, 1)
+	for _, accepted := range []TorznabItem{pack, inSeason} {
+		if got := in.decided(0, accepted, ix); !got.accepted() {
+			t.Errorf("%s in a season-1 search: %v, want accepted", accepted.Title, reasons(got.Rejections))
+		}
+	}
+	if got := in.decided(0, otherSeason, ix); !slices.Equal(reasons(got.Rejections), []api.RejectionReason{api.RejectSearchMismatch}) {
+		t.Errorf("S02E02 in a season-1 search: %v, want SEARCH_MISMATCH", reasons(got.Rejections))
+	}
+	in.Trigger = api.TriggerUserAuto
+	if got := in.decided(0, inSeason, ix); !slices.Equal(reasons(got.Rejections), []api.RejectionReason{api.RejectSeasonPackOnly}) {
+		t.Errorf("S01E02 in an automatic season-1 search: %v, want SEASON_PACK_ONLY", reasons(got.Rejections))
+	}
+	in.Trigger = api.TriggerInteractive
+
+	in.Searched = in.decided(0, inSeason, ix).Candidate.Episodes
+	for _, accepted := range []TorznabItem{pack, inSeason} {
+		if got := in.decided(0, accepted, ix); !got.accepted() {
+			t.Errorf("%s in an S01E02 search: %v, want accepted", accepted.Title, reasons(got.Rejections))
+		}
+	}
+	if got := in.decided(0, otherEpisode, ix); !slices.Equal(reasons(got.Rejections), []api.RejectionReason{api.RejectSearchMismatch}) {
+		t.Errorf("S01E03 in an S01E02 search: %v, want SEARCH_MISMATCH", reasons(got.Rejections))
 	}
 }

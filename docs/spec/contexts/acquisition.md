@@ -371,7 +371,7 @@ Every release goes through the same specs, whatever triggered the search. Each s
 | SameEpisodesGrab, Queue (a download already meets cutoff or is better), History | P | all / RSS |
 | FullSeason (season pack only once every episode has aired) | P | all |
 | MultiSeason: accepted only when every contained season is wanted | P | all |
-| SeasonPackOnly (season search after the season ended) | P | search |
+| SeasonPackOnly (season search after the season ended) | P | search except interactive |
 | Monitored | P | all except interactive |
 | Searched title/season/episode match | P | search |
 | Released (`catalog.Reader` release date passed) | P | auto/RSS |
@@ -431,6 +431,7 @@ A file with `transcoded = true` is never upgraded automatically; only REGRAB or 
 - **Interactive:**
   - Nothing is grabbed automatically. The user grabs any accepted release.
   - A rejected one can be grabbed with `override=true`. Override skips the decision engine, but the blocked-file check still runs.
+  - A series is searched by season or by episode, never whole: the dialog sends the season's or the episode's IDs. A season search accepts that season's packs and single episodes, so one episode can be grabbed from an ended season; an episode search accepts any release covering it, packs included. Other episodes are rejected `SEARCH_MISMATCH`.
 - **Delay profiles:**
   - Wait N minutes from the indexer's publish time for a better release (default 0 = off; the 30 s settle window still applies).
   - Bypassed when the release meets cutoff, or its CF score ≥ the bypass threshold (the maximum attainable CF score, when the profile scores anything).
@@ -576,3 +577,4 @@ The check is on by default and can be turned off in settings.
 40. **Manual import removed:** given D in `IMPORT_PENDING_USER` and a cached next release, when `ImportRemoved{D}` arrives, then D's hash is blocklisted (`IMPORT_FAILED`), the torrent is deleted with data, D is `IMPORT_FAILED` with `removed_at`, and the next release is grabbed. Redelivering `ImportRemoved` changes nothing.
 41. **REGRAB once per issue:** given a REGRAB for issue I that blocklisted the file's hash and whose search ran, when `IssueActionRequested{REGRAB}` for I arrives again, then no second `ISSUE` entry and no second search exist.
 42. **REGRAB past a removed waiting download:** given D in `IMPORT_PENDING_USER` covering the items, when `IssueActionRequested{REGRAB, RemovedDownloads: [D]}` arrives, then its search rejects no release `ALREADY_QUEUED`; without `RemovedDownloads` every release covering D's items is rejected `ALREADY_QUEUED`.
+43. **Scoped interactive search:** given season 1 has ended, an interactive search of season 1 accepts an S01 pack and S01E02 and rejects S02E02 `SEARCH_MISMATCH`; a USER_AUTO search of season 1 rejects S01E02 `SEASON_PACK_ONLY`. An interactive search of S01E02 accepts the S01 pack and S01E02 and rejects S01E03 `SEARCH_MISMATCH`.

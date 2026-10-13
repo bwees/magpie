@@ -12,22 +12,18 @@
 	import QualityBuckets from './QualityBuckets.svelte';
 	import TrackerPill from './TrackerPill.svelte';
 	import { InteractiveSearch, SearchPhase } from './interactive-search.svelte';
+	import type { SearchTarget } from './search-target';
 
-	let {
-		titleId,
-		titleName,
-		open = $bindable(false)
-	}: { titleId: string; titleName: string; open?: boolean } = $props();
+	let { target, open = $bindable(false) }: { target: SearchTarget; open?: boolean } = $props();
 
 	const live = getLive();
-	const search = $derived(new InteractiveSearch(titleId, live));
+	const search = new InteractiveSearch(live);
 	const indexersPath = settingsPath(SettingsSection.INDEXERS);
 
 	$effect(() => {
 		if (!open) return;
-		const current = search;
-		untrack(() => void current.start());
-		return () => current.stop();
+		untrack(() => void search.start(target));
+		return () => search.stop();
 	});
 </script>
 
@@ -37,7 +33,7 @@
 		onOpenAutoFocus={(event) => event.preventDefault()}
 	>
 		<div class="flex flex-wrap items-center gap-3 border-b px-4 py-3 pr-12 md:px-6 md:py-4">
-			<Dialog.Title class="w-full truncate text-lg md:w-auto">Search · {titleName}</Dialog.Title>
+			<Dialog.Title class="w-full truncate text-lg md:w-auto">Search · {target.label}</Dialog.Title>
 			<Dialog.Description class="sr-only">
 				Releases from every indexer, grouped by quality as they arrive.
 			</Dialog.Description>
@@ -55,7 +51,7 @@
 				variant="outline"
 				class="ml-auto md:mr-8"
 				disabled={search.phase === SearchPhase.STARTING}
-				onclick={() => search.start()}
+				onclick={() => search.start(target)}
 			>
 				<RotateCw /><span class="hidden sm:inline">Search again</span>
 			</Button>

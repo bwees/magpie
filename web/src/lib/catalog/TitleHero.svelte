@@ -13,6 +13,7 @@
 	import { AutomaticSearch } from '$lib/search/automatic-search.svelte';
 	import { getSession } from '$lib/session/session.svelte';
 	import PosterImage from './PosterImage.svelte';
+	import { MediaKind } from './title-page.svelte';
 	import { Button } from '$lib/components/ui/button';
 
 	let {
@@ -41,6 +42,8 @@
 	const session = getSession();
 	const automatic = new AutomaticSearch();
 	const target = $derived({ titleId: title.id, label: title.name });
+	/** A series is searched interactively by season or episode, from the Episodes tab. */
+	const isSeries = $derived(title.kind === MediaKind.SERIES);
 	let searching = $state(false);
 	// svelte-ignore state_referenced_locally
 	const report = new ReportIssue(title.id);
@@ -83,18 +86,21 @@
 				{#if session.isAdmin}
 					<Button
 						variant="secondary"
+						class={isSeries ? 'col-span-2' : undefined}
 						disabled={automatic.isStarting(target)}
 						onclick={() => automatic.search(target)}
 					>
 						<Search />Search
 					</Button>
-					<Button
-						variant="outline"
-						class="border-white/30 bg-transparent text-white hover:bg-white/10"
-						onclick={() => (searching = true)}
-					>
-						Interactive search
-					</Button>
+					{#if !isSeries}
+						<Button
+							variant="outline"
+							class="border-white/30 bg-transparent text-white hover:bg-white/10"
+							onclick={() => (searching = true)}
+						>
+							Interactive search
+						</Button>
+					{/if}
 				{/if}
 				{#if session.canReportIssues}
 					<Button
@@ -117,6 +123,6 @@
 	<ReportIssueDialog {report} titleName={title.name} seasons={title.seasons} />
 {/if}
 
-{#if session.isAdmin}
-	<InteractiveSearchDialog bind:open={searching} titleId={title.id} titleName={title.name} />
+{#if session.isAdmin && !isSeries}
+	<InteractiveSearchDialog bind:open={searching} {target} />
 {/if}

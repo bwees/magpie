@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Search from '@lucide/svelte/icons/search';
+	import TextSearch from '@lucide/svelte/icons/text-search';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -10,8 +11,10 @@
 	import { LoadStatus } from '$lib/activity/activity-source';
 	import { STAGE_LABELS, Stage } from '$lib/activity/pipeline';
 	import type { TitlePipeline } from '$lib/activity/title-pipeline.svelte';
-	import type { EpisodeResponse, TitleResponse } from '$lib/sdk';
-	import { AutomaticSearch, type SearchTarget } from '$lib/search/automatic-search.svelte';
+	import type { EpisodeResponse, SeasonResponse, TitleResponse } from '$lib/sdk';
+	import { AutomaticSearch } from '$lib/search/automatic-search.svelte';
+	import InteractiveSearchDialog from '$lib/search/InteractiveSearchDialog.svelte';
+	import type { SearchTarget } from '$lib/search/search-target';
 	import { getSession } from '$lib/session/session.svelte';
 	import { airDateLabel, AVAILABLE_UNKNOWN, episodeCode, seasonLabel } from './episodes';
 	import type { TitlePage } from './title-page.svelte';
@@ -19,11 +22,19 @@
 	let { page, pipeline }: { page: TitlePage; pipeline: TitlePipeline } = $props();
 
 	const SEARCH_LABEL = 'Search episode';
+	const INTERACTIVE_LABEL = 'Interactive search';
 	/** Shown for a released episode nobody wants, which has no pipeline row. */
 	const NO_STAGE = '—';
 
 	const session = getSession();
 	const automatic = new AutomaticSearch();
+	let interactiveTarget = $state.raw<SearchTarget>();
+	let searching = $state(false);
+
+	function searchInteractively(target: SearchTarget): void {
+		interactiveTarget = target;
+		searching = true;
+	}
 
 	function episodeTarget(
 		title: TitleResponse,
@@ -34,6 +45,14 @@
 			titleId: title.id,
 			episodeIds: [episode.id],
 			label: `${title.name} ${episodeCode(season, episode.number)}`
+		};
+	}
+
+	function seasonTarget(title: TitleResponse, season: SeasonResponse): SearchTarget {
+		return {
+			titleId: title.id,
+			episodeIds: season.episodes.map((episode) => episode.id),
+			label: `${title.name} ${seasonLabel(season.number)}`
 		};
 	}
 </script>
@@ -53,14 +72,35 @@
 									: AVAILABLE_UNKNOWN} / {season.episodes.length}
 							</span>
 						</div>
-						<label class="flex items-center gap-2 text-xs text-muted-foreground">
-							Monitored
-							<Switch
-								checked={season.monitored}
-								aria-label="Monitor {label}"
-								onCheckedChange={(checked) => page.setSeasonMonitored(season.number, checked)}
-							/>
-						</label>
+						<div class="flex items-center gap-3">
+							{#if session.isAdmin && season.episodes.length > 0}
+								{@const target = seasonTarget(page.title, season)}
+								<Tooltip.Root>
+									<Tooltip.Trigger>
+										{#snippet child({ props })}
+											<Button
+												{...props}
+												size="icon-sm"
+												variant="ghost"
+												aria-label="{INTERACTIVE_LABEL} {label}"
+												onclick={() => searchInteractively(target)}
+											>
+												<TextSearch />
+											</Button>
+										{/snippet}
+									</Tooltip.Trigger>
+									<Tooltip.Content>{INTERACTIVE_LABEL} {label}</Tooltip.Content>
+								</Tooltip.Root>
+							{/if}
+							<label class="flex items-center gap-2 text-xs text-muted-foreground">
+								Monitored
+								<Switch
+									checked={season.monitored}
+									aria-label="Monitor {label}"
+									onCheckedChange={(checked) => page.setSeasonMonitored(season.number, checked)}
+								/>
+							</label>
+						</div>
 					</Card.Header>
 					{#if season.episodes.length === 0}
 						<p class="px-4 py-3 text-sm text-muted-foreground">No episodes announced yet.</p>
@@ -110,24 +150,43 @@
 										</Table.Cell>
 										{#if session.isAdmin}
 											{@const target = episodeTarget(page.title, episode, season.number)}
+											{@const code = episodeCode(season.number, episode.number)}
 											<Table.Cell class="pr-4">
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														{#snippet child({ props })}
-															<Button
-																{...props}
-																size="icon-sm"
-																variant="ghost"
-																aria-label={SEARCH_LABEL}
-																disabled={automatic.isStarting(target)}
-																onclick={() => automatic.search(target)}
-															>
-																<Search />
-															</Button>
-														{/snippet}
-													</Tooltip.Trigger>
-													<Tooltip.Content>{SEARCH_LABEL}</Tooltip.Content>
-												</Tooltip.Root>
+												<div class="flex items-center gap-1">
+													<Tooltip.Root>
+														<Tooltip.Trigger>
+															{#snippet child({ props })}
+																<Button
+																	{...props}
+																	size="icon-sm"
+																	variant="ghost"
+																	aria-label={SEARCH_LABEL}
+																	disabled={automatic.isStarting(target)}
+																	onclick={() => automatic.search(target)}
+																>
+																	<Search />
+																</Button>
+															{/snippet}
+														</Tooltip.Trigger>
+														<Tooltip.Content>{SEARCH_LABEL}</Tooltip.Content>
+													</Tooltip.Root>
+													<Tooltip.Root>
+														<Tooltip.Trigger>
+															{#snippet child({ props })}
+																<Button
+																	{...props}
+																	size="icon-sm"
+																	variant="ghost"
+																	aria-label="{INTERACTIVE_LABEL} {code}"
+																	onclick={() => searchInteractively(target)}
+																>
+																	<TextSearch />
+																</Button>
+															{/snippet}
+														</Tooltip.Trigger>
+														<Tooltip.Content>{INTERACTIVE_LABEL}</Tooltip.Content>
+													</Tooltip.Root>
+												</div>
 											</Table.Cell>
 										{/if}
 									</Table.Row>
@@ -143,4 +202,8 @@
 			{/each}
 		</div>
 	</Tooltip.Provider>
+{/if}
+
+{#if interactiveTarget}
+	<InteractiveSearchDialog bind:open={searching} target={interactiveTarget} />
 {/if}

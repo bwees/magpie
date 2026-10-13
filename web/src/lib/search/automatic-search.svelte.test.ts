@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HttpError } from '@oazapfts/runtime';
-import { AutomaticSearch, PROGRESS_HINT, type SearchTarget } from './automatic-search.svelte';
+import { AutomaticSearch, PROGRESS_HINT } from './automatic-search.svelte';
+import type { SearchTarget } from './search-target';
 
 const BAD_GATEWAY = 502;
 const MOVIE: SearchTarget = { titleId: 't1', label: 'Dune' };
