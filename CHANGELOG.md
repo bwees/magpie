@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.0](https://github.com/bwees/magpie/compare/v0.2.0...v0.3.0) (2026-10-13)
+
+
+### Features
+
+* **web:** interactive search per season and episode ([533be06](https://github.com/bwees/magpie/commit/533be06073e58917ed1b85bdd3dca155831ae9d0))
+* **web:** list a series' seasons newest first with specials last ([f8053b8](https://github.com/bwees/magpie/commit/f8053b8f3c74d5228ca38a6ac4ffe5520d52302d))
+
+
+### Bug Fixes
+
+* **acquisition:** grab well-seeded releases in a wanted language without duplicates ([0efe99d](https://github.com/bwees/magpie/commit/0efe99d0c2e6e7dfe4df9320fa43738ba42f6cea))
+* **activity:** clear rows left on rejected downloads and retried transcodes ([cc97115](https://github.com/bwees/magpie/commit/cc97115cd33721579886b3e78754aed5f7e6d330))
+* **activity:** follow cancelled transcodes and removed downloads ([86a19df](https://github.com/bwees/magpie/commit/86a19df03621ab33032c805c7114777f4ab88068))
+* **live:** reset a lagging browser socket instead of dropping it ([41b2830](https://github.com/bwees/magpie/commit/41b28307f9b35bf6ecae2423bfd3323c0bbede92))
+* time out hung requests and keep long agent transfers alive ([281a1ae](https://github.com/bwees/magpie/commit/281a1ae0a7ab27112c5bf65caf632dab2eb0a065))
+* **transcode:** detect dead agent sockets and stop offering to busy devices ([331db32](https://github.com/bwees/magpie/commit/331db32df9e4c7d53cca0693f6d2cf8e20bf70c0))
+* **transcode:** give VAAPI QVBR encodes the target bitrate they require ([3d51e06](https://github.com/bwees/magpie/commit/3d51e064a48f5e314125550feeac7e7efb173876))
+
 ## [0.2.0](https://github.com/bwees/magpie/compare/v0.1.1...v0.2.0) (2026-10-13)
 
 
