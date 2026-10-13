@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.1](https://github.com/bwees/magpie/compare/v0.3.0...v0.3.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **acquisition:** move a deleted profile's titles to the default and fall back when one is missing ([7bff6d4](https://github.com/bwees/magpie/commit/7bff6d43a0f1c43ad25038f00f4a432392c7a788))
+* **transcode:** check encoded output on the GPU and report it as its own stage ([0a08422](https://github.com/bwees/magpie/commit/0a084222224b218608a5ed3397bcec8c2c2fba83))
+* **transcode:** fit the AMD VAAPI quality values to VMAF and use the driver's quality preset ([96901a4](https://github.com/bwees/magpie/commit/96901a481c70015674cc0bd3d0511aac85bc52cb))
+* **transcode:** report encode progress from the frame count when ffmpeg has no output time ([42dac83](https://github.com/bwees/magpie/commit/42dac833e0e701646eab598ff003fccebcf21475))
+
 ## [0.3.0](https://github.com/bwees/magpie/compare/v0.2.0...v0.3.0) (2026-10-13)
 
 
