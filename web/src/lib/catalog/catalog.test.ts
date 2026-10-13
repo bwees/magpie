@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { episodeCode } from './episodes';
+import { episodeCode, newestSeasonsFirst } from './episodes';
 import { ImageWidth, sizedImage, titlePath } from './images';
 
 describe('sizedImage', () => {
@@ -30,5 +30,13 @@ describe('episodeCode', () => {
 	it('pads the season and episode', () => {
 		expect(episodeCode(1, 3)).toBe('S01E03');
 		expect(episodeCode(12, 104)).toBe('S12E104');
+	});
+});
+
+describe('newestSeasonsFirst', () => {
+	it('puts the latest season first and specials last', () => {
+		const seasons = [0, 1, 3, 2].map((number) => ({ number }));
+		expect(newestSeasonsFirst(seasons).map((season) => season.number)).toEqual([3, 2, 1, 0]);
+		expect(seasons.map((season) => season.number)).toEqual([0, 1, 3, 2]);
 	});
 });

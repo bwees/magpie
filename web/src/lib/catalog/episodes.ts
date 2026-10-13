@@ -10,6 +10,15 @@ export function seasonLabel(number: number): string {
 	return number === SPECIALS_SEASON ? 'Specials' : `Season ${number}`;
 }
 
+/** The latest season first, with specials at the end. */
+export function newestSeasonsFirst<T extends { number: number }>(seasons: T[]): T[] {
+	const isSpecials = (season: T) => season.number === SPECIALS_SEASON;
+	return seasons
+		.filter((season) => !isSpecials(season))
+		.toSorted((a, b) => b.number - a.number)
+		.concat(seasons.filter(isSpecials));
+}
+
 const EPISODE_NUMBER_DIGITS = 2;
 
 function padded(number: number): string {

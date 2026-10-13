@@ -16,7 +16,13 @@
 	import InteractiveSearchDialog from '$lib/search/InteractiveSearchDialog.svelte';
 	import type { SearchTarget } from '$lib/search/search-target';
 	import { getSession } from '$lib/session/session.svelte';
-	import { airDateLabel, AVAILABLE_UNKNOWN, episodeCode, seasonLabel } from './episodes';
+	import {
+		airDateLabel,
+		AVAILABLE_UNKNOWN,
+		episodeCode,
+		newestSeasonsFirst,
+		seasonLabel
+	} from './episodes';
 	import type { TitlePage } from './title-page.svelte';
 
 	let { page, pipeline }: { page: TitlePage; pipeline: TitlePipeline } = $props();
@@ -60,7 +66,7 @@
 {#if page.title}
 	<Tooltip.Provider>
 		<div class="grid gap-4">
-			{#each page.title.seasons as season (season.number)}
+			{#each newestSeasonsFirst(page.title.seasons) as season (season.number)}
 				{@const label = seasonLabel(season.number)}
 				<Card.Root class="gap-0 py-0">
 					<Card.Header class="flex flex-row items-center justify-between gap-3 border-b py-3">
