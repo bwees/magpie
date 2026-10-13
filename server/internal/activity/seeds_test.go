@@ -501,6 +501,22 @@ func TestPipelineFailureOpensOneItemPerTitle(t *testing.T) {
 	}
 }
 
+func TestUnmonitoringAFailedSeasonClearsItsFailure(t *testing.T) {
+	h := newHarness(t)
+	title, episodes := h.series([2]int{1, 1}, [2]int{1, 2})
+	search := domain.NewID[domain.SearchID]()
+	h.deliver(titleAdded(title, domain.MediaKindSeries, episodes...))
+	h.deliver(acquisitionapi.SearchStarted{Search: search, Title: title, Episodes: episodes})
+	h.deliver(acquisitionapi.SearchCompleted{Search: search, Title: title, Outcome: acquisitionapi.OutcomeNothingAccepted})
+
+	h.deliver(catalogapi.MonitoringChanged{Title: title, Added: []domain.EpisodeID{}, Removed: episodes})
+
+	for _, row := range h.pipeline(title) {
+		assertStage(t, row, api.StageRequested, false, "")
+	}
+	assertOpenKinds(t, h.attention())
+}
+
 func assertOpenKinds(t *testing.T, items []api.AttentionItem, kinds ...string) {
 	t.Helper()
 	got := make([]string, 0, len(items))

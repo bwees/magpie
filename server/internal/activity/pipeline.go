@@ -72,6 +72,8 @@ func derive(f facets) stageOf {
 		return stageOf{Stage: api.StageDownloading, Detail: f.Note}
 	case f.File == fileNone && f.Download == downloadDone:
 		return stageOf{Stage: api.StageImporting, Detail: f.Note}
+	case f.File == fileNone && !f.Wanted:
+		return stageOf{Stage: api.StageRequested}
 	case f.File == fileNone && f.Download == downloadFailed:
 		return stageOf{Stage: api.StageDownloading, Failed: true, Detail: f.Note}
 	case f.File == fileNone && f.Search == searchRunning:
