@@ -33,6 +33,11 @@ func (f RoleFilter) Allows(ctx context.Context, viewer domain.Principal, s scope
 		slog.WarnContext(ctx, "live role check failed", "user", viewer.User, "error", err)
 		return false
 	}
+	return f.allows(ctx, viewer, access, s)
+}
+
+// allows is Allows for a viewer whose access is already known.
+func (f RoleFilter) allows(ctx context.Context, viewer domain.Principal, access viewerAccess, s scope) bool {
 	switch {
 	case access.disabled:
 		return false
@@ -49,14 +54,9 @@ func (f RoleFilter) Allows(ctx context.Context, viewer domain.Principal, s scope
 	}
 }
 
-// AllowsTopic passes topic events, the interactive search results, to enabled admins only.
-func (f RoleFilter) AllowsTopic(ctx context.Context, viewer domain.Principal) bool {
-	access, err := f.access(ctx, viewer)
-	if err != nil {
-		slog.WarnContext(ctx, "live role check failed", "user", viewer.User, "error", err)
-		return false
-	}
-	return access.admin && !access.disabled
+// seesTopics passes topic events, the interactive search results, to enabled admins only.
+func (a viewerAccess) seesTopics() bool {
+	return a.admin && !a.disabled
 }
 
 func (f RoleFilter) access(ctx context.Context, viewer domain.Principal) (viewerAccess, error) {

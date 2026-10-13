@@ -13,7 +13,11 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-const closeReasonMissedPongs = "missed heartbeats"
+const (
+	closeReasonMissedPongs = "missed heartbeats"
+	// accessTTL is how long a socket trusts the viewer's role and toggles before reading them again.
+	accessTTL = 5 * time.Second
+)
 
 type client struct {
 	hub       *Hub
@@ -21,6 +25,10 @@ type client struct {
 	principal domain.Principal
 	queue     chan entry
 	cancel    context.CancelFunc
+
+	// access is the viewer's role as read at accessRead. Only the write loop touches either field.
+	access     viewerAccess
+	accessRead time.Time
 
 	mu       sync.Mutex
 	topics   map[string]bool
@@ -40,13 +48,26 @@ func newClient(h *Hub, conn *websocket.Conn, principal domain.Principal, cancel 
 	}
 }
 
-// offer queues e without blocking. A socket too slow to keep up is dropped; it resumes or resets on reconnect.
-func (c *client) offer(e entry) {
+// offer queues e without blocking and reports whether it fit.
+func (c *client) offer(e entry) bool {
 	select {
 	case c.queue <- e:
+		return true
 	default:
-		slog.Warn("live: dropping slow socket", "user", c.principal.User)
-		c.cancel()
+		return false
+	}
+}
+
+// resync swaps everything queued for reset, which tells the browser to refetch what it shows. Only the hub
+// adds to the queue, under its lock, so the emptied queue has room.
+func (c *client) resync(reset entry) {
+	for {
+		select {
+		case <-c.queue:
+		default:
+			c.queue <- reset
+			return
+		}
 	}
 }
 
@@ -146,10 +167,28 @@ func (c *client) allows(ctx context.Context, e entry) bool {
 	if e.control {
 		return true
 	}
-	if e.msg.Topic != "" {
-		return c.subscribed(e.msg.Topic) && c.hub.filter.AllowsTopic(ctx, c.principal)
+	access, err := c.viewerAccess(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "live role check failed", "user", c.principal.User, "error", err)
+		return false
 	}
-	return c.hub.filter.Allows(ctx, c.principal, e.scope)
+	if e.msg.Topic != "" {
+		return c.subscribed(e.msg.Topic) && access.seesTopics()
+	}
+	return c.hub.filter.allows(ctx, c.principal, access, e.scope)
+}
+
+func (c *client) viewerAccess(ctx context.Context) (viewerAccess, error) {
+	now := c.hub.now()
+	if !c.accessRead.IsZero() && now.Sub(c.accessRead) < accessTTL {
+		return c.access, nil
+	}
+	access, err := c.hub.filter.access(ctx, c.principal)
+	if err != nil {
+		return viewerAccess{}, err
+	}
+	c.access, c.accessRead = access, now
+	return access, nil
 }
 
 func (c *client) write(ctx context.Context, e entry) bool {

@@ -25,7 +25,7 @@ type Config struct {
 	BufferWindow time.Duration
 	// HeartbeatInterval is how often the server pings; two unanswered pings close the socket.
 	HeartbeatInterval time.Duration
-	// ClientQueue is how many messages may wait for a slow socket before it is dropped.
+	// ClientQueue is how many messages may wait for a slow socket before it is sent a reset instead.
 	ClientQueue int
 	// OriginPatterns are extra browser origins allowed to connect besides the server's own host.
 	OriginPatterns []string
@@ -120,7 +120,15 @@ func (h *Hub) Publish(ev bus.Event) {
 	h.buffer = append(h.buffer, e)
 	h.trim()
 	for c := range h.clients {
-		c.offer(e)
+		h.deliver(c, e)
+	}
+}
+
+// deliver queues e for c, or replaces c's backlog with a reset when c fell too far behind. h.mu must be held.
+func (h *Hub) deliver(c *client, e entry) {
+	if !c.offer(e) {
+		slog.Warn("live: socket fell behind, resetting it", "user", c.principal.User)
+		c.resync(h.control(TypeReset))
 	}
 }
 
@@ -147,20 +155,21 @@ func (h *Hub) attach(c *client, epoch string, seq uint64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.trim()
-	if epoch == h.epoch && h.canReplayAfter(seq) {
+	if epoch == h.epoch && h.canReplayAfter(seq, cap(c.queue)) {
 		for _, e := range h.buffer {
 			if e.msg.Seq > seq {
-				c.offer(e)
+				h.deliver(c, e)
 			}
 		}
 	} else {
-		c.offer(h.control(TypeReset))
+		h.deliver(c, h.control(TypeReset))
 	}
 	h.clients[c] = struct{}{}
 }
 
-func (h *Hub) canReplayAfter(seq uint64) bool {
-	if seq > h.seq {
+// canReplayAfter reports whether every message after seq is buffered and fits in room.
+func (h *Hub) canReplayAfter(seq uint64, room int) bool {
+	if seq > h.seq || h.seq-seq > uint64(room) {
 		return false
 	}
 	if len(h.buffer) == 0 {

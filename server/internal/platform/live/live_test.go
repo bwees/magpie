@@ -248,6 +248,48 @@ func TestResumeAfterSeqAgedOutResets(t *testing.T) {
 	}
 }
 
+func TestResumeResetsWhenTheGapOutgrowsTheQueue(t *testing.T) {
+	cases := []struct {
+		name      string
+		missed    int
+		wantReset bool
+	}{
+		{"gap fits the queue", smallQueue, false},
+		{"gap larger than the queue", smallQueue + 1, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := testConfig()
+			cfg.ClientQueue = smallQueue
+			h := newHub(cfg, RoleFilter{})
+			url := serve(t, h)
+			for range tc.missed {
+				publish(h, typeFileImported, "t1", fileImported{Title: "t1"})
+			}
+
+			s := dial(t, url, admin)
+			s.send(LiveClientMessage{Op: OpResume, Epoch: h.epoch, Seq: 0})
+
+			first := s.next()
+			if gotReset := first.Type == TypeReset; gotReset != tc.wantReset {
+				t.Fatalf("first message %+v, want reset %v", first, tc.wantReset)
+			}
+			if tc.wantReset && first.Seq != uint64(tc.missed) {
+				t.Fatalf("reset at seq %d, want %d", first.Seq, tc.missed)
+			}
+			if !tc.wantReset {
+				for range tc.missed - 1 {
+					s.next()
+				}
+			}
+			publish(h, typeFileImported, "t2", fileImported{Title: "t2"})
+			if live := s.next(); live.Seq != uint64(tc.missed+1) {
+				t.Fatalf("got %+v after the resume, want seq %d streamed live", live, tc.missed+1)
+			}
+		})
+	}
+}
+
 func TestSearchEventsOnlyReachSubscribers(t *testing.T) {
 	h := newHub(testConfig(), RoleFilter{})
 	url := serve(t, h)

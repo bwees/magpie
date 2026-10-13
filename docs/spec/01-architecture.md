@@ -159,8 +159,9 @@ type LiveClientMessage struct {
 
 - **Gateway:** `platform/live` subscribes to every durable and ephemeral event on the bus and keeps a 2-minute ring buffer of messages.
 - **Resume:** on connect the client sends `resume{epoch, seq}`.
-  - Same epoch and seq still in the buffer: the gateway replays everything after seq.
+  - Same epoch, seq still in the buffer, and no more than 256 messages missed: the gateway replays everything after seq.
   - Otherwise it sends `live.Reset` and the client refetches its views over REST.
+  - **Slow sockets:** each socket has a 256-message send queue. When it is full, the gateway replaces the queued messages with one `live.Reset` at the latest seq and keeps the socket open, so the client refetches instead of reconnecting.
   - A first connect sends an empty epoch, so it always gets `live.Reset`. `live.Reset` carries the current epoch and latest seq. The client resumes from the last event or reset it received, never from a heartbeat.
   - JSON field names are camelCase: `seq`, `epoch`, `type`, `topic`, `data`; `op`, `epoch`, `seq`, `topics`.
 - **Topics:** search results (`acquisition.SearchResultsReceived`, `SearchCompleted`) only go to sockets subscribed to `search:<SearchID>`, and only when the socket's user is an enabled admin. Everything else is broadcast, then filtered. A reconnecting client subscribes before it resumes, so the replay includes its topics.
@@ -168,7 +169,7 @@ type LiveClientMessage struct {
   - Requesters receive only events about their own requests and those requests' titles, plus their own notifications.
   - Requesters with `ViewOthersRequests` also receive every request's events and every requested title's events, but never other users' notifications.
   - Admins receive everything. Disabled users receive nothing.
-  - The role and toggles come from `identity.Reader`, not the session's principal, so a change applies to open sockets.
+  - The role and toggles come from `identity.Reader`, not the session's principal, so a change applies to open sockets. Each socket re-reads them at most every 5 s, so a change takes up to 5 s to apply.
   - The filter reads `requests.Reader` and `identity.Reader`.
 - **Heartbeat:** server sends `live.Heartbeat` every 20 s; client replies `pong`. Missing two pongs closes the socket. The client reconnects with jittered backoff (1 s → 30 s).
 - **Actions are never sent over the socket.** All mutations are REST calls.
