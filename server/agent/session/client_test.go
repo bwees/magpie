@@ -3,9 +3,11 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -26,16 +28,27 @@ const (
 	testDevice      = "cuda:0"
 	testFFmpeg      = "7.1.2-Jellyfin"
 	frameTimeout    = 5 * time.Second
+	// frameBuffer holds the frames a test hasn't read yet; heartbeats past it are dropped.
+	frameBuffer = 64
 )
 
+// fakeProber reports one device. With release set, each probe waits until it is closed.
 type fakeProber struct {
-	mu     sync.Mutex
-	probed []string
+	mu      sync.Mutex
+	probed  []string
+	release chan struct{}
 }
 
 func (p *fakeProber) FFmpegVersion(context.Context) string { return testFFmpeg }
 
-func (p *fakeProber) Probe(_ context.Context, deviceID string) []agentproto.DeviceReport {
+func (p *fakeProber) Probe(ctx context.Context, deviceID string) []agentproto.DeviceReport {
+	if p.release != nil {
+		select {
+		case <-p.release:
+		case <-ctx.Done():
+			return nil
+		}
+	}
 	p.mu.Lock()
 	p.probed = append(p.probed, deviceID)
 	p.mu.Unlock()
@@ -44,6 +57,12 @@ func (p *fakeProber) Probe(_ context.Context, deviceID string) []agentproto.Devi
 		Vendor:       agentproto.VendorNVIDIA,
 		Capabilities: []agentproto.CapabilityResult{{Capability: agentproto.CapEncHEVC10, OK: true}},
 	}}
+}
+
+func (p *fakeProber) probes() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.probed)
 }
 
 // fakeServer accepts agent sockets and hands each one to the test.
@@ -75,7 +94,37 @@ func newFakeServer(t *testing.T) *fakeServer {
 	return s
 }
 
-func (s *fakeServer) accept(t *testing.T) *websocket.Conn {
+// serverConn is one agent socket on the fake server. It reads in the background, as the real server does,
+// so the agent's pings get their pongs.
+type serverConn struct {
+	*websocket.Conn
+	frames chan agentproto.Envelope
+}
+
+func (s *fakeServer) accept(t *testing.T) *serverConn {
+	t.Helper()
+	conn := &serverConn{Conn: s.acceptSilent(t), frames: make(chan agentproto.Envelope, frameBuffer)}
+	go func() {
+		defer close(conn.frames)
+		for {
+			var env agentproto.Envelope
+			if err := wsjson.Read(context.Background(), conn.Conn, &env); err != nil {
+				return
+			}
+			select {
+			case conn.frames <- env:
+			default:
+				if env.Type != agentproto.TypeHeartbeat {
+					conn.frames <- env
+				}
+			}
+		}
+	}()
+	return conn
+}
+
+// acceptSilent returns a socket nobody reads, like a server that vanished: its pings go unanswered.
+func (s *fakeServer) acceptSilent(t *testing.T) *websocket.Conn {
 	t.Helper()
 	select {
 	case conn := <-s.conns:
@@ -89,14 +138,19 @@ func (s *fakeServer) accept(t *testing.T) *websocket.Conn {
 
 func newClient(t *testing.T, server *fakeServer, secret string) (*Client, *fakeProber, domain.AgentID) {
 	t.Helper()
-	serverURL, err := url.Parse(server.URL)
+	return newClientAt(t, server.URL, secret)
+}
+
+func newClientAt(t *testing.T, serverURL, secret string) (*Client, *fakeProber, domain.AgentID) {
+	t.Helper()
+	parsed, err := url.Parse(serverURL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	prober := &fakeProber{}
 	id := domain.NewID[domain.AgentID]()
 	client := New(Options{
-		ServerURL:   serverURL,
+		ServerURL:   parsed,
 		Secret:      secret,
 		AgentID:     id,
 		Hostname:    testHostname,
@@ -121,20 +175,28 @@ func run(t *testing.T, client *Client) {
 	})
 }
 
-func read(t *testing.T, conn *websocket.Conn, want agentproto.MessageType) agentproto.Envelope {
+// unprompted are the frames an agent sends on its own: heartbeats, and the startup test results when they
+// finish after the Hello.
+var unprompted = []agentproto.MessageType{agentproto.TypeHeartbeat, agentproto.TypeCapabilitiesChanged}
+
+// read returns the next frame of type want, skipping unprompted ones.
+func read(t *testing.T, conn *serverConn, want agentproto.MessageType) agentproto.Envelope {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), frameTimeout)
-	defer cancel()
+	timeout := time.After(frameTimeout)
 	for {
-		var env agentproto.Envelope
-		if err := wsjson.Read(ctx, conn, &env); err != nil {
-			t.Fatalf("waiting for %s: %v", want, err)
-		}
-		if env.Type == want {
-			return env
-		}
-		if env.Type != agentproto.TypeHeartbeat {
-			t.Fatalf("got %s, want %s", env.Type, want)
+		select {
+		case env, open := <-conn.frames:
+			if !open {
+				t.Fatalf("socket closed waiting for %s", want)
+			}
+			if env.Type == want {
+				return env
+			}
+			if !slices.Contains(unprompted, env.Type) {
+				t.Fatalf("got %s, want %s", env.Type, want)
+			}
+		case <-timeout:
+			t.Fatalf("no %s within %s", want, frameTimeout)
 		}
 	}
 }
@@ -166,6 +228,15 @@ func welcome(t *testing.T, conn *websocket.Conn, draining bool) {
 	write(t, conn, agentproto.TypeWelcome, agentproto.Welcome{HeartbeatEvery: testHeartbeat, Mode: agentproto.ModeDownloadFirst, Draining: draining})
 }
 
+func probed(client *Client) bool {
+	select {
+	case <-client.probed:
+		return true
+	default:
+		return false
+	}
+}
+
 func TestClientAuthenticatesHelloesAndHeartbeats(t *testing.T) {
 	server := newFakeServer(t)
 	client, _, id := newClient(t, server, testSecret)
@@ -178,36 +249,72 @@ func TestClientAuthenticatesHelloesAndHeartbeats(t *testing.T) {
 	}
 
 	hello := decode[agentproto.Hello](t, read(t, conn, agentproto.TypeHello))
-	if hello.AgentID != id || hello.Hostname != testHostname || hello.FFmpegVersion != testFFmpeg ||
-		hello.ScratchFree != testScratchFree || len(hello.Devices) != 1 || hello.Devices[0].DeviceID != testDevice {
+	if hello.AgentID != id || hello.Hostname != testHostname || hello.FFmpegVersion != testFFmpeg || hello.ScratchFree != testScratchFree {
 		t.Fatalf("hello = %+v", hello)
 	}
 
-	welcome(t, conn, false)
+	welcome(t, conn.Conn, false)
 	heartbeat := decode[agentproto.Heartbeat](t, read(t, conn, agentproto.TypeHeartbeat))
 	if heartbeat.ScratchFree != testScratchFree {
 		t.Fatalf("heartbeat = %+v", heartbeat)
 	}
 }
 
-func TestClientRetestsTheRequestedDevice(t *testing.T) {
+func TestClientHelloesBeforeItsGPUTestsFinish(t *testing.T) {
 	server := newFakeServer(t)
 	client, prober, _ := newClient(t, server, testSecret)
+	prober.release = make(chan struct{})
+	run(t, client)
+	conn := server.accept(t)
+
+	if hello := decode[agentproto.Hello](t, read(t, conn, agentproto.TypeHello)); len(hello.Devices) != 0 || hello.FFmpegVersion != testFFmpeg {
+		t.Fatalf("hello = %+v, want the ffmpeg version and no devices while the GPU tests run", hello)
+	}
+	welcome(t, conn.Conn, false)
+	close(prober.release)
+
+	changed := decode[agentproto.CapabilitiesChanged](t, read(t, conn, agentproto.TypeCapabilitiesChanged))
+	if len(changed.Devices) != 1 || changed.Devices[0].DeviceID != testDevice {
+		t.Fatalf("capabilities changed = %+v, want the tested device", changed)
+	}
+}
+
+func TestClientReportsGPUTestsThatFinishBeforeItsWelcome(t *testing.T) {
+	server := newFakeServer(t)
+	client, prober, _ := newClient(t, server, testSecret)
+	prober.release = make(chan struct{})
 	run(t, client)
 	conn := server.accept(t)
 	read(t, conn, agentproto.TypeHello)
-	welcome(t, conn, false)
 
-	write(t, conn, agentproto.TypeRetest, agentproto.Retest{DeviceID: testDevice})
+	close(prober.release)
+	waitFor(t, func() bool { return probed(client) })
+	welcome(t, conn.Conn, false)
+
+	if changed := decode[agentproto.CapabilitiesChanged](t, read(t, conn, agentproto.TypeCapabilitiesChanged)); len(changed.Devices) != 1 {
+		t.Fatalf("capabilities changed = %+v, want the tested device", changed)
+	}
+}
+
+func TestClientRetestsTheRequestedDevice(t *testing.T) {
+	server := newFakeServer(t)
+	client, prober, _ := newClient(t, server, testSecret)
+	prober.release = make(chan struct{})
+	run(t, client)
+	conn := server.accept(t)
+	read(t, conn, agentproto.TypeHello)
+	welcome(t, conn.Conn, false)
+	close(prober.release)
+	read(t, conn, agentproto.TypeCapabilitiesChanged)
+
+	write(t, conn.Conn, agentproto.TypeRetest, agentproto.Retest{DeviceID: testDevice})
 
 	changed := decode[agentproto.CapabilitiesChanged](t, read(t, conn, agentproto.TypeCapabilitiesChanged))
 	if len(changed.Devices) != 1 || changed.Devices[0].DeviceID != testDevice {
 		t.Fatalf("capabilities changed = %+v", changed)
 	}
-	prober.mu.Lock()
-	defer prober.mu.Unlock()
-	if want := []string{"", testDevice}; strings.Join(prober.probed, ",") != strings.Join(want, ",") {
-		t.Fatalf("probed %q, want startup then %q", prober.probed, testDevice)
+	if want := []string{"", testDevice}; !slices.Equal(prober.probes(), want) {
+		t.Fatalf("probed %q, want startup then %q", prober.probes(), testDevice)
 	}
 }
 
@@ -217,12 +324,12 @@ func TestClientFollowsDrainAndWelcome(t *testing.T) {
 	run(t, client)
 	conn := server.accept(t)
 	read(t, conn, agentproto.TypeHello)
-	welcome(t, conn, false)
+	welcome(t, conn.Conn, false)
 
-	write(t, conn, agentproto.TypeDrain, agentproto.Drain{})
+	write(t, conn.Conn, agentproto.TypeDrain, agentproto.Drain{})
 	waitFor(t, client.Draining)
 
-	welcome(t, conn, false)
+	welcome(t, conn.Conn, false)
 	waitFor(t, func() bool { return !client.Draining() })
 }
 
@@ -231,16 +338,75 @@ func TestClientReconnectsAfterTheServerDrops(t *testing.T) {
 	client, _, id := newClient(t, server, testSecret)
 	client.random = func() float64 { return 0 }
 	run(t, client)
+	waitFor(t, func() bool { return probed(client) })
 
 	first := server.accept(t)
 	read(t, first, agentproto.TypeHello)
-	welcome(t, first, false)
+	welcome(t, first.Conn, false)
 	_ = first.Close(websocket.StatusGoingAway, "restart")
 	<-server.headers
 
 	second := server.accept(t)
-	if hello := decode[agentproto.Hello](t, read(t, second, agentproto.TypeHello)); hello.AgentID != id {
-		t.Fatalf("reconnected as %s, want %s", hello.AgentID, id)
+	hello := decode[agentproto.Hello](t, read(t, second, agentproto.TypeHello))
+	if hello.AgentID != id || len(hello.Devices) != 1 {
+		t.Fatalf("reconnected with %+v, want %s and its tested device", hello, id)
+	}
+}
+
+func TestClientReconnectsWhenTheServerStopsAnsweringPings(t *testing.T) {
+	server := newFakeServer(t)
+	client, _, _ := newClient(t, server, testSecret)
+	client.random = func() float64 { return 0 }
+	run(t, client)
+
+	gone := server.acceptSilent(t)
+	ctx, cancel := context.WithTimeout(context.Background(), frameTimeout)
+	defer cancel()
+	var hello agentproto.Envelope
+	if err := wsjson.Read(ctx, gone, &hello); err != nil || hello.Type != agentproto.TypeHello {
+		t.Fatalf("first frame %s, error %v; want a Hello", hello.Type, err)
+	}
+	welcome(t, gone, false)
+	<-server.headers
+
+	read(t, server.accept(t), agentproto.TypeHello)
+}
+
+func TestSessionGivesUpOnAServerThatNeverAnswersTheUpgrade(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	held := make(chan net.Conn, 1)
+	go func() {
+		if conn, err := listener.Accept(); err == nil {
+			held <- conn
+		}
+	}()
+	t.Cleanup(func() {
+		select {
+		case conn := <-held:
+			_ = conn.Close()
+		default:
+		}
+	})
+	client, _, _ := newClientAt(t, "http://"+listener.Addr().String(), testSecret)
+	client.dialTimeout = testHeartbeat
+
+	ended := make(chan error, 1)
+	go func() {
+		_, err := client.session(context.Background())
+		ended <- err
+	}()
+
+	select {
+	case err := <-ended:
+		if err == nil {
+			t.Fatal("session succeeded against a server that never answered")
+		}
+	case <-time.After(frameTimeout):
+		t.Fatal("dial still waits on a server that never answers")
 	}
 }
 
@@ -294,14 +460,14 @@ func TestClientAnswersOffersAndHeartbeatsItsJobs(t *testing.T) {
 	if hello := decode[agentproto.Hello](t, read(t, conn, agentproto.TypeHello)); len(hello.ResumableJobs) != 1 || hello.ResumableJobs[0].Job != jobs.accept {
 		t.Fatalf("hello resumable = %+v", hello.ResumableJobs)
 	}
-	welcome(t, conn, false)
+	welcome(t, conn.Conn, false)
 
 	busy := domain.NewID[domain.JobID]()
-	write(t, conn, agentproto.TypeJobOffer, agentproto.JobOffer{Spec: agentproto.JobSpec{Job: busy}})
+	write(t, conn.Conn, agentproto.TypeJobOffer, agentproto.JobOffer{Spec: agentproto.JobSpec{Job: busy}})
 	if reject := decode[agentproto.JobReject](t, read(t, conn, agentproto.TypeJobReject)); reject.Job != busy || reject.Reason != agentproto.RejectDeviceBusy {
 		t.Fatalf("reject = %+v", reject)
 	}
-	write(t, conn, agentproto.TypeJobOffer, agentproto.JobOffer{Spec: agentproto.JobSpec{Job: jobs.accept}})
+	write(t, conn.Conn, agentproto.TypeJobOffer, agentproto.JobOffer{Spec: agentproto.JobSpec{Job: jobs.accept}})
 	if accept := decode[agentproto.JobAccept](t, read(t, conn, agentproto.TypeJobAccept)); accept.Job != jobs.accept {
 		t.Fatalf("accept = %+v", accept)
 	}
@@ -310,7 +476,7 @@ func TestClientAnswersOffersAndHeartbeatsItsJobs(t *testing.T) {
 		t.Fatalf("heartbeat jobs = %+v", heartbeat.Jobs)
 	}
 
-	write(t, conn, agentproto.TypeCancel, agentproto.Cancel{Job: jobs.accept})
+	write(t, conn.Conn, agentproto.TypeCancel, agentproto.Cancel{Job: jobs.accept})
 	waitFor(t, func() bool {
 		jobs.mu.Lock()
 		defer jobs.mu.Unlock()

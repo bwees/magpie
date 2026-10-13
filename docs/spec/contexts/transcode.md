@@ -278,7 +278,7 @@ type Envelope struct {
 
 - The socket path is `agentproto.ControlPath` (`/api/transcode/agents/ws`).
 - The types live in `internal/transcode/api/agentproto`, shared by the server and `agent/`. Bodies use camelCase JSON fields.
-- The server answers `CapabilitiesChanged` and `DeviceUnhealthy` with `Ack`. `Hello` is answered by `Welcome`.
+- The server answers `CapabilitiesChanged` and `DeviceUnhealthy` with `Ack`. `Hello` is answered by `Welcome`. `CapabilitiesChanged` also gets a fresh `Welcome` before its `Ack`, so `Slots` covers devices tested after the `Hello`.
 - The server registers the agent (and its `ResumableJobs`) before it sends `Welcome`, so a scheduling pass right after can offer it a job. No other frame goes out before `Welcome`.
 - Enumerated string fields below are typed there (`Mode`, `Vendor`, `Capability`, `Stage`, `RejectReason`, `Outcome`, `JobKind`). Codec, encoder, container and Whisper model names stay ffmpeg/whisper.cpp spellings.
 
@@ -349,7 +349,7 @@ Server → agent:
 
 ```go
 // Welcome answers Hello, and is sent again whenever an admin changes the agent's overrides or the
-// default slots per GPU.
+// default slots per GPU, and after each CapabilitiesChanged.
 type Welcome struct {
 	HeartbeatEvery time.Duration // 10s
 	LeaseTTL       time.Duration // 60s
@@ -411,17 +411,26 @@ type WhisperParams struct {
 - **Lease extension:** each heartbeat that lists a job extends its lease to `now + 60 s`. This includes jobs in `FETCHING` and `UPLOADING`.
 - **Expiry:** a lease that passes `lease_expires_at` returns the job to `QUEUED` with `attempt + 1` and publishes `JobFailed` (`Final` on the last attempt). It waits out no backoff: instead the job is not re-offered to the same agent for 2 minutes, unless that agent reconnects with a matching `ResumableJob` (same `SourceETag`).
 - **Reject:** a `JobReject` returns the job to `QUEUED` without an attempt and keeps it from that agent for the same 2 minutes, so an agent short of scratch isn't offered it every tick.
+  - `DEVICE_BUSY` instead takes the device out of scheduling until the agent's next heartbeat, `CapabilitiesChanged` or reconnect, and keeps nothing from the job. The server's slot count is wrong for that device (it expired leases the agent still runs, say, after a restart), so any other job offered there would be rejected too. The pause lives in memory and ends with a server restart.
 - **Stray jobs:** a heartbeat that lists a job not leased (or offered) to that agent is answered with `Cancel`; so is a late `JobAccept` after the offer timed out.
 - **Offer timeout:** an offer not accepted within 10 s returns the job to `QUEUED` without counting an attempt.
-- **Disconnect:** WebSocket loss doesn't fail jobs on its own; only lease expiry does. After 3 missed heartbeats the agent is marked offline and `AgentOffline` is published. Reconnecting publishes `AgentOnline`.
+- **Disconnect:** WebSocket loss doesn't fail jobs on its own; only lease expiry does. When an agent's socket closes, or after 3 missed heartbeats, the agent is marked offline and `AgentOffline` is published. Reconnecting publishes `AgentOnline`.
+  - A socket closing takes its agent offline at once, unless a newer socket from the same agent replaced it. Sockets the server closes as it stops leave their agents online.
   - A 5 s sweep finds agents not heard from for 3 × 10 s. `AgentOffline.Since` is the last heartbeat.
-  - `AgentOnline` is published only when an agent goes from offline (or unknown) to online, on `Hello` or on a heartbeat. A quick reconnect within the 30 s window publishes nothing.
+  - `AgentOnline` is published only when an agent goes from offline (or unknown) to online, on `Hello` or on a heartbeat. An agent whose socket was replaced, and one that reconnects within the 30 s window after a server restart, publish nothing.
+- **Liveness:** a peer that vanishes without a close frame (a node that hard-reboots) leaves a TCP connection that keeps taking writes for many minutes, so each side checks the other.
+  - The server drops a socket that sends no frame for 3 × 10 s, the same window as the sweep.
+  - The agent pings the server every heartbeat interval and drops the socket when a pong doesn't come within 2 × 10 s.
+  - The agent's dial times out after 10 s. It reconnects after 1 s, doubling to 60 s with ±20% jitter; the delay resets once a `Welcome` arrives.
 - **Server stop:** the server closes every agent socket with a normal close (`1000`) and handles no frame after that. A socket dialled while the server stops gets `503`. The close waits at most 5 s for an agent that doesn't answer it. Agents reconnect with backoff; as with any disconnect, jobs keep their leases.
 - **Unhealthy device:** the same sweep sends `Retest{DeviceID}` once `retest_at` passes and moves `retest_at` another 10 minutes on, so a retest that never answers is asked for again.
 
 ### Capability tests
 
 The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `ffmpeg -encoders`.
+
+- **Startup:** the agent connects without waiting for the tests, which can take minutes. A `Hello` sent before they finish carries the FFmpeg version and no devices, so the agent gets no offers yet. When they finish, the agent sends `CapabilitiesChanged` with every device, and the server answers with a `Welcome` that sizes their slots. A reconnect's `Hello` carries the last results.
+- An agent whose `Welcome` names no slots for a device leaves that device's limit to the server's offers. A server that predates the startup `CapabilitiesChanged` sends no new `Welcome`, so its agents would otherwise turn down every offer as `DEVICE_BUSY`.
 
 - **Devices:** NVIDIA from `nvidia-smi --query-gpu=index,name,driver_version` (`cuda:N`; GeForce gets `MaxSessions` 12). Intel and AMD from `/sys/class/drm/renderD*/device/vendor` (`0x8086`, `0x1002`); name and driver come from the VA-API vendor string ffmpeg logs at verbose level. NVIDIA's render nodes are skipped.
 - **Encode** (`ENC_HEVC_10`, `ENC_AV1_10`): 30 frames of 720p `testsrc2` converted to 10-bit, through `hevc_nvenc`/`av1_nvenc`, `hevc_qsv`/`av1_qsv` (Intel) or `hevc_vaapi`/`av1_vaapi` (AMD) to the null muxer.
@@ -552,6 +561,7 @@ Runs on: a job queued, a slot freed, an agent online, a capability change, and a
    - running jobs < slots (override, else default);
    - running jobs < `max_sessions` when that is set;
    - the device is healthy;
+   - the device hasn't rejected an offer as `DEVICE_BUSY` since its agent's last heartbeat (this also holds back prefetch offers and `Start` of a prefetched job);
    - the agent is online and not draining.
 2. Order queued jobs by:
    1. Kind priority: `WHISPER` > `TRANSCODE` with origin `DOWNLOAD` > `TRANSCODE` with origin `LIBRARY_SCAN` or `MIGRATION`.

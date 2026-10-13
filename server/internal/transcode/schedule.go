@@ -97,7 +97,10 @@ func (s *JobService) fleet(ctx context.Context) (Fleet, []jobRow, error) {
 	if err := s.deps.DB.Read(ctx).Where("state IN ? AND agent_id IS NOT NULL", slotStates).Find(&held).Error; err != nil {
 		return Fleet{}, nil, err
 	}
-	fleet := Fleet{Agents: agents, Running: map[SlotKey]int{}, Prefetching: map[domain.AgentID]bool{}, DefaultSlots: current.DefaultSlotsPerGPU}
+	fleet := Fleet{
+		Agents: agents, Running: map[SlotKey]int{}, Prefetching: map[domain.AgentID]bool{}, Busy: s.deps.Hub.Busy(),
+		DefaultSlots: current.DefaultSlotsPerGPU,
+	}
 	var prefetched []jobRow
 	for _, row := range held {
 		if row.Prefetch {
@@ -125,7 +128,7 @@ func (s *JobService) startPrefetched(ctx context.Context, fleet *Fleet, prefetch
 			continue
 		}
 		key := slotOf(row)
-		if FreeSlots(fleet.Agents, fleet.Running, fleet.DefaultSlots)[key] == 0 {
+		if fleet.freeSlots()[key] == 0 {
 			continue
 		}
 		err := s.deps.Hub.Send(ctx, key.Agent, agentproto.TypeStart, agentproto.Start{Job: row.ID})

@@ -202,6 +202,22 @@ func TestPlanGivesABusyDownloadFirstAgentOnePrefetch(t *testing.T) {
 	}
 }
 
+func TestPlanSkipsADeviceItsAgentReportedBusy(t *testing.T) {
+	agent := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)), device(secondDevice, passed(agentproto.CapEncHEVC10)))
+	agent.Mode = api.TransferDownloadFirst
+	busy := SlotKey{Agent: agent.ID, Device: testDevice}
+	second := SlotKey{Agent: agent.ID, Device: secondDevice}
+	next, after := queuedJob(agentproto.CapEncHEVC10), queuedJob(agentproto.CapEncHEVC10)
+	fleet := fleetOf(map[SlotKey]int{busy: testDefault}, agent)
+	fleet.Busy = map[SlotKey]bool{busy: true}
+
+	offers := Plan([]QueuedJob{next, after}, fleet)
+
+	if want := []Offer{{Job: next.ID, Slot: second}, {Job: after.ID, Slot: second, Prefetch: true}}; !reflect.DeepEqual(offers, want) {
+		t.Fatalf("offers = %+v, want %+v: the busy device takes neither a job nor a prefetch", offers, want)
+	}
+}
+
 // Seed 21, the scheduler's part, and step 4.
 func TestPlanGivesBacklogJobsOnlySlotsNoDownloadCouldUse(t *testing.T) {
 	agent := onlineAgent(device(testDevice, passed(agentproto.CapEncHEVC10)))

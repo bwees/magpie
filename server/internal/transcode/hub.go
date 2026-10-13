@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 
 	"magpie/internal/domain"
@@ -25,16 +26,46 @@ type frameSender interface {
 	replaced()
 }
 
-// AgentHub tracks the connected agents so the server can push frames to them, and the jobs whose scratch
-// each one kept across a restart.
+// AgentHub tracks the connected agents so the server can push frames to them, the jobs whose scratch
+// each one kept across a restart, and the devices that turned down an offer as busy.
 type AgentHub struct {
 	mu        sync.Mutex
 	conns     map[domain.AgentID]frameSender
 	resumable map[domain.AgentID][]agentproto.ResumableJob
+	busy      map[SlotKey]bool
 }
 
 func NewAgentHub() *AgentHub {
-	return &AgentHub{conns: map[domain.AgentID]frameSender{}, resumable: map[domain.AgentID][]agentproto.ResumableJob{}}
+	return &AgentHub{
+		conns:     map[domain.AgentID]frameSender{},
+		resumable: map[domain.AgentID][]agentproto.ResumableJob{},
+		busy:      map[SlotKey]bool{},
+	}
+}
+
+// markBusy keeps offers off a device that rejected one as DEVICE_BUSY until clearBusy.
+func (h *AgentHub) markBusy(key SlotKey) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.busy[key] = true
+}
+
+// clearBusy lets the agent's devices take offers again once it reports what it runs.
+func (h *AgentHub) clearBusy(id domain.AgentID) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.clearBusyLocked(id)
+}
+
+func (h *AgentHub) clearBusyLocked(id domain.AgentID) {
+	maps.DeleteFunc(h.busy, func(key SlotKey, _ bool) bool { return key.Agent == id })
+}
+
+// Busy lists the devices that rejected an offer as busy since their agent last reported.
+func (h *AgentHub) Busy() map[SlotKey]bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return maps.Clone(h.busy)
 }
 
 // SetResumable records the jobs an agent kept scratch for, from its latest Hello.
@@ -78,19 +109,30 @@ func (h *AgentHub) attach(id domain.AgentID, conn frameSender) {
 	h.mu.Lock()
 	previous := h.conns[id]
 	h.conns[id] = conn
+	h.clearBusyLocked(id)
 	h.mu.Unlock()
 	if previous != nil {
 		previous.replaced()
 	}
 }
 
-// detach forgets conn unless a newer connection already replaced it.
-func (h *AgentHub) detach(id domain.AgentID, conn frameSender) {
+// detach forgets conn unless a newer connection already replaced it, and reports whether it did.
+func (h *AgentHub) detach(id domain.AgentID, conn frameSender) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.conns[id] == conn {
-		delete(h.conns, id)
+	if h.conns[id] != conn {
+		return false
 	}
+	delete(h.conns, id)
+	h.clearBusyLocked(id)
+	return true
+}
+
+func (h *AgentHub) connected(id domain.AgentID) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	_, ok := h.conns[id]
+	return ok
 }
 
 // Connected lists the agents with an open control channel.

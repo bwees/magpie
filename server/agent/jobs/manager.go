@@ -237,7 +237,7 @@ func (m *Manager) device(spec agentproto.JobSpec) (agentproto.DeviceReport, bool
 }
 
 // slotFree reports whether the device can take the job: a free slot, or for a prefetch, no other
-// prefetched job.
+// prefetched job. A device the Welcome has no slots for is left to the server's own count.
 func (m *Manager) slotFree(device string, prefetch bool) bool {
 	var encoding, prefetched []domain.JobID
 	for id, j := range m.running {
@@ -253,7 +253,8 @@ func (m *Manager) slotFree(device string, prefetch bool) bool {
 	if prefetch {
 		return len(prefetched) == 0
 	}
-	return len(encoding) < m.slots[device]
+	slots, sized := m.slots[device]
+	return !sized || len(encoding) < slots
 }
 
 func (j *job) waiting() bool {

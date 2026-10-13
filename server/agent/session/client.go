@@ -34,6 +34,11 @@ const (
 
 	welcomeTimeout    = 10 * time.Second
 	frameWriteTimeout = 10 * time.Second
+	// dialTimeout bounds the upgrade, so a server that vanished can't hold a reconnect for minutes.
+	dialTimeout = 10 * time.Second
+	// A ping unanswered for this many heartbeat intervals means the server is gone. Heartbeat writes alone
+	// can't tell: they fill the socket's buffer until TCP gives up, many minutes later.
+	pingTimeoutHeartbeats = 2
 )
 
 var ErrNoWelcome = errors.New("session: server did not answer Hello with Welcome")
@@ -76,9 +81,12 @@ var ErrNotConnected = errors.New("session: not connected to the server")
 
 // Client keeps one control channel open to the server.
 type Client struct {
-	opts   Options
-	http   *http.Client
-	random func() float64
+	opts        Options
+	http        *http.Client
+	random      func() float64
+	dialTimeout time.Duration
+	// probed closes once the startup tests finish.
+	probed chan struct{}
 
 	mu            sync.Mutex
 	ffmpegVersion string
@@ -95,7 +103,13 @@ func New(opts Options) *Client {
 	if opts.Jobs == nil {
 		opts.Jobs = noJobs{}
 	}
-	return &Client{opts: opts, http: NewHTTPClient(opts.Secret, opts.AgentID), random: rand.Float64}
+	return &Client{
+		opts:        opts,
+		http:        NewHTTPClient(opts.Secret, opts.AgentID),
+		random:      rand.Float64,
+		dialTimeout: dialTimeout,
+		probed:      make(chan struct{}),
+	}
 }
 
 // SetJobs gives the client the job runner, which sends its results through the client.
@@ -152,9 +166,20 @@ func (t authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.base.RoundTrip(req)
 }
 
-// Run tests the GPUs once, then connects and reconnects until ctx ends.
+// Run connects and reconnects until ctx ends. The GPU tests run alongside: a Hello sent before they
+// finish carries no devices, and the results follow as CapabilitiesChanged.
 func (c *Client) Run(ctx context.Context) error {
-	c.retest(ctx, "")
+	version := c.opts.Prober.FFmpegVersion(ctx)
+	c.mu.Lock()
+	c.ffmpegVersion = version
+	c.mu.Unlock()
+	var probing sync.WaitGroup
+	defer probing.Wait()
+	probing.Go(func() {
+		defer close(c.probed)
+		c.retest(ctx, "")
+	})
+
 	delay := InitialBackoff
 	for {
 		welcomed, err := c.session(ctx)
@@ -185,16 +210,13 @@ func (c *Client) session(ctx context.Context) (welcomed bool, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	controlURL := c.opts.ServerURL.JoinPath(agentproto.ControlPath).String()
-	conn, resp, err := websocket.Dial(ctx, controlURL, &websocket.DialOptions{HTTPClient: c.http})
+	conn, err := c.dial(ctx)
 	if err != nil {
-		if resp != nil {
-			return false, fmt.Errorf("dialling %s: %s: %w", controlURL, resp.Status, err)
-		}
-		return false, fmt.Errorf("dialling %s: %w", controlURL, err)
+		return false, err
 	}
 	defer func() { _ = conn.CloseNow() }()
 
+	reported := c.isProbed()
 	if err := c.send(ctx, conn, agentproto.TypeHello, c.hello()); err != nil {
 		return false, err
 	}
@@ -213,9 +235,52 @@ func (c *Client) session(ctx context.Context) (welcomed bool, err error) {
 		c.mu.Unlock()
 	}()
 	c.opts.Jobs.Deliver(ctx)
+	if !reported {
+		go c.reportProbe(ctx, conn)
+	}
 
-	go c.heartbeats(ctx, conn)
+	every := c.heartbeatEvery()
+	go c.heartbeats(ctx, conn, every)
+	go c.pings(ctx, conn, every)
 	return true, c.readLoop(ctx, conn)
+}
+
+func (c *Client) dial(ctx context.Context) (*websocket.Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.dialTimeout)
+	defer cancel()
+	controlURL := c.opts.ServerURL.JoinPath(agentproto.ControlPath).String()
+	conn, resp, err := websocket.Dial(ctx, controlURL, &websocket.DialOptions{HTTPClient: c.http})
+	if err != nil {
+		if resp != nil {
+			return nil, fmt.Errorf("dialling %s: %s: %w", controlURL, resp.Status, err)
+		}
+		return nil, fmt.Errorf("dialling %s: %w", controlURL, err)
+	}
+	return conn, nil
+}
+
+func (c *Client) isProbed() bool {
+	select {
+	case <-c.probed:
+		return true
+	default:
+		return false
+	}
+}
+
+// reportProbe sends the startup test results that missed the Hello once they are in.
+func (c *Client) reportProbe(ctx context.Context, conn *websocket.Conn) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-c.probed:
+	}
+	c.mu.Lock()
+	devices := slices.Clone(c.devices)
+	c.mu.Unlock()
+	if err := c.send(ctx, conn, agentproto.TypeCapabilitiesChanged, agentproto.CapabilitiesChanged{Devices: devices}); err != nil {
+		slog.WarnContext(ctx, "agent: sending test results", "error", err)
+	}
 }
 
 func (c *Client) hello() agentproto.Hello {
@@ -255,13 +320,42 @@ func (c *Client) applyWelcome(welcome agentproto.Welcome) {
 	c.opts.Jobs.Configure(welcome)
 }
 
-func (c *Client) heartbeats(ctx context.Context, conn *websocket.Conn) {
+func (c *Client) heartbeatEvery() time.Duration {
 	c.mu.Lock()
-	every := c.welcome.HeartbeatEvery
-	c.mu.Unlock()
-	if every <= 0 {
-		every = DefaultHeartbeatEvery
+	defer c.mu.Unlock()
+	if c.welcome.HeartbeatEvery <= 0 {
+		return DefaultHeartbeatEvery
 	}
+	return c.welcome.HeartbeatEvery
+}
+
+// pings closes the connection once the server stops answering, so the session reconnects.
+func (c *Client) pings(ctx context.Context, conn *websocket.Conn, every time.Duration) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := ping(ctx, conn, every*pingTimeoutHeartbeats); err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					slog.WarnContext(ctx, "agent: server stopped answering pings", "error", err)
+				}
+				_ = conn.CloseNow()
+				return
+			}
+		}
+	}
+}
+
+func ping(ctx context.Context, conn *websocket.Conn, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return conn.Ping(ctx)
+}
+
+func (c *Client) heartbeats(ctx context.Context, conn *websocket.Conn, every time.Duration) {
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 	for {

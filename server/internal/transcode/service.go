@@ -124,14 +124,48 @@ func (s *AgentService) Heartbeat(ctx context.Context, id domain.AgentID, heartbe
 	})
 }
 
-// CapabilitiesChanged stores the results of a retest. A device that passes again becomes healthy.
+// CapabilitiesChanged stores the results of a test run and sends a Welcome with the devices' slots. A
+// device that passes again becomes healthy.
 func (s *AgentService) CapabilitiesChanged(ctx context.Context, id domain.AgentID, changed agentproto.CapabilitiesChanged) error {
-	return s.db.Write(ctx, func(tx *gorm.DB) error {
+	var welcome agentproto.Welcome
+	err := s.db.Write(ctx, func(tx *gorm.DB) error {
 		if err := s.repo.saveDevices(tx, id, changed.Devices, s.now(), s.timings.RetestDelay); err != nil {
 			return err
 		}
-		return s.rememberPassed(tx, id, changed.Devices)
+		if err := s.rememberPassed(tx, id, changed.Devices); err != nil {
+			return err
+		}
+		var err error
+		welcome, err = s.welcomeTx(tx, id)
+		return err
 	})
+	if err != nil {
+		return err
+	}
+	s.hub.clearBusy(id)
+	s.push(ctx, id, agentproto.TypeWelcome, welcome)
+	return nil
+}
+
+// Disconnected takes an agent offline once its socket closes, unless it has reconnected since.
+func (s *AgentService) Disconnected(ctx context.Context, id domain.AgentID) error {
+	return s.db.Write(ctx, func(tx *gorm.DB) error {
+		if s.hub.connected(id) {
+			return nil
+		}
+		row, err := s.repo.row(tx, id)
+		if err != nil || !row.Online {
+			return err
+		}
+		return s.takeOffline(tx, row)
+	})
+}
+
+func (s *AgentService) takeOffline(tx *gorm.DB, agent agentRow) error {
+	if err := s.repo.setOffline(tx, domain.AgentID(agent.ID)); err != nil {
+		return err
+	}
+	return s.bus.Publish(tx, bus.EventOf(api.AgentOffline{Agent: domain.AgentID(agent.ID), Since: agent.LastSeenAt}))
 }
 
 // DeviceUnhealthy frees the device's slots. The sweep asks for a retest after RetestDelay.
@@ -152,11 +186,7 @@ func (s *AgentService) Sweep(ctx context.Context) error {
 			return err
 		}
 		for _, agent := range silent {
-			if err := s.repo.setOffline(tx, domain.AgentID(agent.ID)); err != nil {
-				return err
-			}
-			offline := api.AgentOffline{Agent: domain.AgentID(agent.ID), Since: agent.LastSeenAt}
-			if err := s.bus.Publish(tx, bus.EventOf(offline)); err != nil {
+			if err := s.takeOffline(tx, agent); err != nil {
 				return err
 			}
 		}

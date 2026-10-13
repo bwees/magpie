@@ -2,6 +2,7 @@ package transcode
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 
 	"magpie/internal/domain"
@@ -38,8 +39,18 @@ type Fleet struct {
 	// Running counts the jobs each device runs or was offered, prefetched jobs aside.
 	Running map[SlotKey]int
 	// Prefetching are the agents that already hold a prefetched job.
-	Prefetching  map[domain.AgentID]bool
+	Prefetching map[domain.AgentID]bool
+	// Busy are the devices that rejected an offer as DEVICE_BUSY since their agent last reported. They
+	// take no offers, prefetches included, and start no prefetched job.
+	Busy         map[SlotKey]bool
 	DefaultSlots int
+}
+
+// freeSlots is FreeSlots without the busy devices.
+func (f Fleet) freeSlots() map[SlotKey]int {
+	free := FreeSlots(f.Agents, f.Running, f.DefaultSlots)
+	maps.DeleteFunc(free, func(key SlotKey, _ int) bool { return f.Busy[key] })
+	return free
 }
 
 type Offer struct {
@@ -112,7 +123,7 @@ type planner struct {
 func Plan(jobs []QueuedJob, fleet Fleet) []Offer {
 	p := planner{
 		fleet:    fleet,
-		free:     FreeSlots(fleet.Agents, fleet.Running, fleet.DefaultSlots),
+		free:     fleet.freeSlots(),
 		load:     map[SlotKey]int{},
 		scratch:  map[domain.AgentID]int64{},
 		agents:   map[domain.AgentID]api.Agent{},
@@ -182,7 +193,7 @@ func (p *planner) prefetchSlots(prefetching map[domain.AgentID]bool) []SlotKey {
 		}
 		for _, device := range agent.Devices {
 			key := SlotKey{Agent: agent.ID, Device: device.ID}
-			if device.Healthy && p.free[key] == 0 && p.load[key] > 0 {
+			if device.Healthy && !p.fleet.Busy[key] && p.free[key] == 0 && p.load[key] > 0 {
 				slots = append(slots, key)
 			}
 		}

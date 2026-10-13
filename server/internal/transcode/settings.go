@@ -34,7 +34,8 @@ var agentSettingsKey = settings.NewKey(owner.Transcode, "agents", AgentSettings{
 	DefaultSlotsPerGPU: defaultSlotsPerGPU,
 })
 
-// Timings are the fixed protocol intervals from the spec. Tests shorten nothing; they move a clock.
+// Timings are the fixed protocol intervals from the spec. Tests move a clock instead of shortening them,
+// except for the socket's offline window, which runs on the wall clock.
 type Timings struct {
 	HeartbeatEvery time.Duration
 	LeaseTTL       time.Duration

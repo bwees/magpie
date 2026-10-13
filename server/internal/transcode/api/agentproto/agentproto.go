@@ -227,7 +227,8 @@ type VerifyReport struct {
 	SHA256          string   `json:"sha256"`
 }
 
-// Welcome answers Hello. The server sends it again whenever an admin changes the agent's overrides.
+// Welcome answers Hello. The server sends it again whenever an admin changes the agent's overrides and
+// after each CapabilitiesChanged, so Slots covers devices tested after the Hello.
 type Welcome struct {
 	HeartbeatEvery time.Duration  `json:"heartbeatEvery"`
 	LeaseTTL       time.Duration  `json:"leaseTtl"`

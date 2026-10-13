@@ -27,6 +27,8 @@ const (
 	testScratchFree = 500 << 30
 	frameTimeout    = 5 * time.Second
 	sessionError    = "OpenEncodeSessionEx failed: out of memory"
+	// testHeartbeatEvery shortens the offline window for the tests that wait it out on the wall clock.
+	testHeartbeatEvery = 50 * time.Millisecond
 )
 
 var testStart = time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
@@ -49,10 +51,26 @@ func (c *testClock) Advance(d time.Duration) {
 }
 
 func (f *fixture) dial(id domain.AgentID, secret string) (*websocket.Conn, *http.Response, error) {
+	return dialAgent(f.server.URL+agentproto.ControlPath, id, secret)
+}
+
+func dialAgent(socketURL string, id domain.AgentID, secret string) (*websocket.Conn, *http.Response, error) {
 	header := http.Header{}
 	header.Set(agentproto.HeaderAuthorization, agentproto.BearerPrefix+secret)
 	header.Set(agentproto.HeaderAgentID, string(id))
-	return websocket.Dial(context.Background(), f.server.URL+agentproto.ControlPath, &websocket.DialOptions{HTTPHeader: header})
+	return websocket.Dial(context.Background(), socketURL, &websocket.DialOptions{HTTPHeader: header})
+}
+
+// eventuallyAgent waits for the agent to satisfy ok, since the socket handles frames on its own goroutine.
+func (f *fixture) eventuallyAgent(id domain.AgentID, what string, ok func(api.Agent) bool) {
+	f.t.Helper()
+	deadline := time.Now().Add(eventuallyWithin)
+	for !ok(f.agent(id)) {
+		if time.Now().After(deadline) {
+			f.t.Fatalf("agent %s never got %s: %+v", id, what, f.agent(id))
+		}
+		time.Sleep(eventuallyEvery)
+	}
 }
 
 func (f *fixture) agentRows() int64 {
@@ -180,6 +198,15 @@ func (a *testAgent) expectAck(of string) {
 	}
 }
 
+// changeCapabilities reports test results, which the server answers with a Welcome sized for them and an Ack.
+func (a *testAgent) changeCapabilities(devices ...agentproto.DeviceReport) agentproto.Welcome {
+	a.t.Helper()
+	sent := a.send(agentproto.TypeCapabilitiesChanged, agentproto.CapabilitiesChanged{Devices: devices})
+	welcome := decodeBody[agentproto.Welcome](a.t, a.expect(agentproto.TypeWelcome))
+	a.expectAck(sent)
+	return welcome
+}
+
 func decodeBody[T any](t *testing.T, env agentproto.Envelope) T {
 	t.Helper()
 	var body T
@@ -303,6 +330,87 @@ func TestStopClosesAgentSocketsBeforeItReturns(t *testing.T) {
 	if err := <-closed; websocket.CloseStatus(err) != websocket.StatusNormalClosure {
 		t.Fatalf("agent read error = %v, want a normal close", err)
 	}
+	if offline := f.published(api.TypeAgentOffline); len(offline) != 0 {
+		t.Fatalf("AgentOffline = %v, want none: a restart leaves agents to reconnect", offline)
+	}
+}
+
+func TestClosingTheSocketTakesTheAgentOfflineAtOnce(t *testing.T) {
+	f := newFixture(t)
+	id := domain.NewID[domain.AgentID]()
+	a, _ := f.connect(testHello(id))
+
+	if err := a.conn.Close(websocket.StatusNormalClosure, "agent stopping"); err != nil {
+		t.Fatal(err)
+	}
+
+	f.eventuallyAgent(id, "offline", func(a api.Agent) bool { return !a.Online })
+	offline := f.published(api.TypeAgentOffline)
+	if len(offline) != 1 || !strings.Contains(offline[0], string(id)) {
+		t.Fatalf("AgentOffline = %v, want one for %s", offline, id)
+	}
+}
+
+func TestAReconnectedAgentStaysOnline(t *testing.T) {
+	f := newFixture(t)
+	id := domain.NewID[domain.AgentID]()
+	f.connect(testHello(id))
+
+	if err := f.service.Disconnected(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+
+	if !f.agent(id).Online || len(f.published(api.TypeAgentOffline)) != 0 {
+		t.Fatal("an older socket closing took the connected agent offline")
+	}
+}
+
+func TestASilentSocketIsDroppedAfterTheOfflineWindow(t *testing.T) {
+	f := newFixture(t)
+	timings := DefaultTimings
+	timings.HeartbeatEvery = testHeartbeatEvery
+	server := httptest.NewServer(NewAgentSocket(f.service, f.jobs, f.hub, NewWake(), f.lifetime, testSecret, timings))
+	t.Cleanup(server.Close)
+	id := domain.NewID[domain.AgentID]()
+	conn, _, err := dialAgent(server.URL, id, testSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.CloseNow() })
+	a := &testAgent{t: t, id: id, conn: conn}
+	a.send(agentproto.TypeHello, testHello(id))
+	a.expect(agentproto.TypeWelcome)
+
+	for range 2 * timings.MissedHeartbeats {
+		time.Sleep(timings.HeartbeatEvery)
+		a.send(agentproto.TypeHeartbeat, agentproto.Heartbeat{ScratchFree: testScratchFree})
+	}
+	if err := f.service.Retest(context.Background(), id); err != nil {
+		t.Fatalf("heartbeating agent was dropped: %v", err)
+	}
+	a.expect(agentproto.TypeRetest)
+
+	ctx, cancel := context.WithTimeout(context.Background(), frameTimeout)
+	defer cancel()
+	if _, _, err := conn.Read(ctx); err == nil || ctx.Err() != nil {
+		t.Fatalf("read error = %v, want the server to drop the silent socket", err)
+	}
+	f.eventuallyAgent(id, "offline", func(a api.Agent) bool { return !a.Online })
+}
+
+func TestNewCapabilitiesResendTheWelcomeWithTheirSlots(t *testing.T) {
+	f := newFixture(t)
+	hello := testHello(domain.NewID[domain.AgentID]())
+	devices := hello.Devices
+	hello.Devices = nil
+	a, welcome := f.connect(hello)
+	if len(welcome.Slots) != 0 {
+		t.Fatalf("welcome slots = %v, want none before the GPU tests", welcome.Slots)
+	}
+
+	if resent := a.changeCapabilities(devices...); resent.Slots[testDevice] != defaultSlotsPerGPU {
+		t.Fatalf("welcome slots = %v, want %d on %s", resent.Slots, defaultSlotsPerGPU, testDevice)
+	}
 }
 
 func TestAgentSocketIsRefusedOnceStopped(t *testing.T) {
@@ -401,7 +509,7 @@ func TestRetestUpdatesCapabilities(t *testing.T) {
 		{Capability: agentproto.CapEncHEVC10, OK: true},
 		{Capability: agentproto.CapEncAV110, OK: true},
 	}
-	a.expectAck(a.send(agentproto.TypeCapabilitiesChanged, agentproto.CapabilitiesChanged{Devices: []agentproto.DeviceReport{report}}))
+	a.changeCapabilities(report)
 
 	av1 := capabilityNamed(f.agent(id).Devices[0], agentproto.CapEncAV110)
 	if !av1.OK || av1.Error != "" || !av1.TestedAt.Equal(testStart.Add(time.Minute)) {
@@ -486,7 +594,7 @@ func TestUnhealthyDeviceFreesSlotsAndIsRetestedLater(t *testing.T) {
 		t.Fatalf("retest device = %q, want %q", retest.DeviceID, testDevice)
 	}
 	report := testHello(id).Devices[0]
-	a.expectAck(a.send(agentproto.TypeCapabilitiesChanged, agentproto.CapabilitiesChanged{Devices: []agentproto.DeviceReport{report}}))
+	a.changeCapabilities(report)
 
 	if dev := f.agent(id).Devices[0]; !dev.Healthy {
 		t.Fatalf("device = %+v, want healthy after a passing retest", dev)

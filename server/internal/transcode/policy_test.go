@@ -213,9 +213,9 @@ func TestCapabilitiesChangedLiftsANoCapableAgentSkip(t *testing.T) {
 	f.cutoff(file, domain.OriginDownload)
 	a, _ := f.connect(capableHello("gpu-a"))
 
-	changed := agentproto.CapabilitiesChanged{Devices: capableHello("gpu-a").Devices}
-	changed.Devices[0].Capabilities = []agentproto.CapabilityResult{{Capability: agentproto.CapEncAV110, OK: true}}
-	a.expectAck(a.send(agentproto.TypeCapabilitiesChanged, changed))
+	report := capableHello("gpu-a").Devices[0]
+	report.Capabilities = []agentproto.CapabilityResult{{Capability: agentproto.CapEncAV110, OK: true}}
+	a.changeCapabilities(report)
 	f.runTasks()
 
 	f.onlyJob(file)

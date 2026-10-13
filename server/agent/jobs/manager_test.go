@@ -319,6 +319,18 @@ func TestOffersThatDontFitAreRejected(t *testing.T) {
 	}
 }
 
+// An older server sends no Welcome after the startup tests, so it never sizes a device the Hello lacked.
+func TestADeviceTheWelcomeDidntSizeTakesTheServersOffers(t *testing.T) {
+	f := newFixture(t, t.TempDir())
+	f.server.hold, f.server.received = make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() { close(f.server.hold) })
+	f.manager.Configure(agentproto.Welcome{Mode: agentproto.ModeDownloadFirst, Slots: map[string]int{}})
+
+	if ok, reason := f.manager.Offer(offer(domain.NewID[domain.JobID]())); !ok {
+		t.Fatalf("offer rejected as %s, want it left to the server's slot count", reason)
+	}
+}
+
 func TestACancelledJobDropsItsScratchWithoutAResult(t *testing.T) {
 	f := newFixture(t, t.TempDir())
 	f.server.hold, f.server.received = make(chan struct{}), make(chan struct{})

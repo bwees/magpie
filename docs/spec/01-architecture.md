@@ -127,7 +127,7 @@ web/                           SvelteKit SPA
 | TMDB refresh | Catalog | backlite periodic | continuing series daily; ended series and movies weekly; images before 5 months |
 | Release-date check (`WantedReleased`) | Catalog | backlite periodic | hourly |
 | Subtitle upgrades | Subtitles | backlite periodic | 6 h, within the 7-day window and daily quota |
-| Agent heartbeat / lease | Transcode | agent WebSocket | 10 s heartbeat, 60 s lease |
+| Agent heartbeat / lease | Transcode | agent WebSocket | 10 s heartbeat, 60 s lease; agent pings every 10 s (20 s pong timeout), server drops a socket silent for 30 s |
 | Activity pruning | Activity | backlite periodic | daily |
 | DB backup | platform | backlite periodic | daily 03:00 |
 

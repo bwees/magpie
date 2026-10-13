@@ -638,6 +638,35 @@ func TestOfferTimeoutRequeuesWithoutAnAttempt(t *testing.T) {
 	}
 }
 
+func TestDeviceBusyRejectPausesTheDeviceUntilItsNextHeartbeat(t *testing.T) {
+	f := newFixture(t)
+	first, second := f.addFile(h264Movie(0)), f.addFile(h264Movie(0))
+	f.cutoff(first, domain.OriginDownload)
+	f.cutoff(second, domain.OriginDownload)
+	hello := capableHello("gpu-a")
+	hello.Mode = agentproto.ModeDirectRead
+	a, _ := f.connect(hello)
+	rejected := f.offered(a).Spec.Job
+
+	a.send(agentproto.TypeJobReject, agentproto.JobReject{Job: rejected, Reason: agentproto.RejectDeviceBusy})
+	if job := f.inState(rejected, api.StateQueued); job.AvoidAgentID != nil {
+		t.Fatalf("job kept from agent %s; want only the device paused", *job.AvoidAgentID)
+	}
+	f.schedule()
+	for _, file := range []sourceFile{first, second} {
+		if job := f.onlyJob(file); job.State != api.StateQueued {
+			t.Fatalf("job %s is %s, want the busy device offered nothing", job.ID, job.State)
+		}
+	}
+
+	if err := f.jobs.Heartbeat(context.Background(), a.id, agentproto.Heartbeat{ScratchFree: testScratchFree}); err != nil {
+		t.Fatal(err)
+	}
+	if offer := f.offered(a); offer.Spec.Job != rejected {
+		t.Fatalf("offered %s after the heartbeat, want the rejected job %s again", offer.Spec.Job, rejected)
+	}
+}
+
 func TestNotWorthItRecordsASkip(t *testing.T) {
 	f := newFixture(t)
 	file := f.addFile(h264Movie(0))

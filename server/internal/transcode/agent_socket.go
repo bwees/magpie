@@ -114,7 +114,7 @@ func (s *AgentSocket) serve(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 	channel := newControlChannel(conn)
-	defer s.hub.detach(id, channel)
+	defer s.disconnect(ctx, id, channel)
 	if s.hub.join(ctx, hello, channel, env) != nil {
 		return
 	}
@@ -145,11 +145,24 @@ func (s *AgentSocket) readHello(ctx context.Context, conn *websocket.Conn, id do
 	return hello, nil
 }
 
+// disconnect forgets the socket and takes the agent offline, unless a newer socket replaced it. A stopping
+// server leaves its agents online: they reconnect to the next one, and the sweep catches any that don't.
+func (s *AgentSocket) disconnect(ctx context.Context, id domain.AgentID, channel *controlChannel) {
+	if !s.hub.detach(id, channel) || ctx.Err() != nil {
+		return
+	}
+	if err := s.service.Disconnected(ctx, id); err != nil && ctx.Err() == nil {
+		slog.ErrorContext(ctx, "transcode: taking a disconnected agent offline", "agent", id, "error", err)
+	}
+}
+
+// readLoop drops a socket that sends no frame for the offline window: a peer that vanished without a
+// close frame otherwise holds it open until TCP gives up, many minutes later.
 func (s *AgentSocket) readLoop(ctx context.Context, id domain.AgentID, channel *controlChannel) {
 	frames := context.WithoutCancel(ctx)
 	for {
 		var env agentproto.Envelope
-		if err := wsjson.Read(frames, channel.conn, &env); err != nil {
+		if err := s.readFrame(frames, channel.conn, &env); err != nil {
 			slog.DebugContext(ctx, "transcode: agent socket closed", "agent", id, "error", err)
 			return
 		}
@@ -171,6 +184,12 @@ func (s *AgentSocket) readLoop(ctx context.Context, id domain.AgentID, channel *
 			}
 		}
 	}
+}
+
+func (s *AgentSocket) readFrame(ctx context.Context, conn *websocket.Conn, env *agentproto.Envelope) error {
+	ctx, cancel := context.WithTimeout(ctx, offlineAfter(s.timings))
+	defer cancel()
+	return wsjson.Read(ctx, conn, env)
 }
 
 // acknowledged are the frames that change server state without a reply of their own.

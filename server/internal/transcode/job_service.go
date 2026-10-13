@@ -170,8 +170,8 @@ func heldBy(row jobRow, agent domain.AgentID) bool {
 	return slices.Contains(agentHeld, row.State) && row.AgentID != nil && *row.AgentID == agent
 }
 
-// Reject returns an offered job to the queue without counting an attempt. The agent isn't offered the
-// job again for a while.
+// Reject returns an offered job to the queue without counting an attempt. A busy device takes no offers
+// until its agent's next heartbeat; for any other reason the agent isn't offered the job for a while.
 func (s *JobService) Reject(ctx context.Context, agent domain.AgentID, reject agentproto.JobReject) error {
 	slog.InfoContext(ctx, "transcode: agent rejected a job", "agent", agent, "job", reject.Job, "reason", reject.Reason)
 	return s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
@@ -181,6 +181,10 @@ func (s *JobService) Reject(ctx context.Context, agent domain.AgentID, reject ag
 		}
 		if err != nil {
 			return err
+		}
+		if reject.Reason == agentproto.RejectDeviceBusy {
+			s.deps.Hub.markBusy(slotOf(row))
+			return s.requeueOffer(tx, row, nil)
 		}
 		return s.requeueOffer(tx, row, &agent)
 	})
@@ -201,7 +205,7 @@ func (s *JobService) requeueOffer(tx *gorm.DB, row jobRow, avoid *domain.AgentID
 }
 
 // Heartbeat extends the lease of every job the agent reports and records its stage and progress. A job
-// the agent holds without a lease is cancelled on the agent.
+// the agent holds without a lease is cancelled on the agent. Its busy devices take offers again.
 func (s *JobService) Heartbeat(ctx context.Context, agent domain.AgentID, heartbeat agentproto.Heartbeat) error {
 	var progressed []api.JobProgressed
 	var strays []domain.JobID
@@ -239,6 +243,7 @@ func (s *JobService) Heartbeat(ctx context.Context, agent domain.AgentID, heartb
 	if err != nil {
 		return err
 	}
+	s.deps.Hub.clearBusy(agent)
 	for _, p := range progressed {
 		if p.Stage == api.StateUploading {
 			s.deps.Gate.Release(TransferHolder{Job: p.Job, Direction: DirectionSource})
