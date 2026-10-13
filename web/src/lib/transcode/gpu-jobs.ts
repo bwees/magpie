@@ -55,11 +55,16 @@ export const RUNNING_STATES: string[] = [
 	JobState.VERIFIED
 ];
 
-/** States an admin can retry. */
-export const RETRYABLE_STATES: string[] = [JobState.FAILED, JobState.NOT_WORTH_IT];
+/** What the GPU jobs tab asks the server for. Not-worth-it files show among the skips. */
+export const LISTED_STATES: string[] = [JobState.QUEUED, ...RUNNING_STATES, JobState.FAILED];
 
-/** What the GPU jobs tab asks the server for. */
-export const LISTED_STATES: string[] = [JobState.QUEUED, ...RUNNING_STATES, ...RETRYABLE_STATES];
+export const QUEUED_PAGE_SIZE = 10;
+
+/** The tabs that split waiting jobs from failed ones. */
+export enum JobListTab {
+	QUEUED = 'queued',
+	FAILED = 'failed'
+}
 
 export const STATE_LABELS: Record<string, string> = {
 	[JobState.QUEUED]: 'Queued',

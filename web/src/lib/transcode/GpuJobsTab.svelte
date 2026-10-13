@@ -1,14 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+	import SkipForward from '@lucide/svelte/icons/skip-forward';
+	import HoverPopover from '$lib/components/HoverPopover.svelte';
 	import X from '@lucide/svelte/icons/x';
 	import * as Alert from '$lib/components/ui/alert';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import ProgressBar from '$lib/downloads/ProgressBar.svelte';
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { LoadStatus } from '$lib/load-status';
@@ -17,6 +22,7 @@
 	import { SKIP_LABELS } from './transcode-settings';
 	import { GpuJobsManager } from './gpu-jobs-manager.svelte';
 	import {
+		JobListTab,
 		JobState,
 		attemptLabel,
 		detailLabel,
@@ -66,6 +72,12 @@
 	>
 		<X />
 	</Button>
+{/snippet}
+
+{#snippet countBadge(count: number, variant: 'secondary' | 'destructive')}
+	{#if count > 0}
+		<Badge {variant} class="ml-1 h-5 min-w-5 px-1.5 tabular-nums">{count}</Badge>
+	{/if}
 {/snippet}
 
 {#snippet sectionTitle(title: string, count: number)}
@@ -173,94 +185,161 @@
 			{/if}
 		</section>
 
-		<section class="flex flex-col gap-3" aria-label="Queued">
+		<Tabs.Root
+			value={manager.tab}
+			onValueChange={(value) => (manager.tab = value as JobListTab)}
+			class="gap-3"
+		>
 			<div class="flex flex-wrap items-center gap-3">
-				{@render sectionTitle('Queued', manager.queuedCount)}
-				{#if manager.backlog > 0}
+				<Tabs.List>
+					<Tabs.Trigger value={JobListTab.QUEUED}>
+						Queued
+						{@render countBadge(manager.queuedCount, 'secondary')}
+					</Tabs.Trigger>
+					<Tabs.Trigger value={JobListTab.FAILED}>
+						Failed
+						{@render countBadge(manager.failed.length, 'destructive')}
+					</Tabs.Trigger>
+				</Tabs.List>
+				{#if manager.tab === JobListTab.QUEUED && manager.backlog > 0}
 					<Badge variant="secondary" class="tabular-nums">
 						{manager.backlog} from the library backlog
 					</Badge>
 				{/if}
-			</div>
-			{#if manager.queued.length === 0}
-				<p class="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-					Nothing is waiting.
-				</p>
-			{:else}
-				<ul class="divide-y rounded-xl border">
-					{#each manager.queued as job (job.id)}
-						<li class="flex items-center gap-3 px-4 py-2.5">
-							<div class="min-w-0 flex-1">
-								<p class="truncate text-sm font-medium">{jobName(job)}</p>
-								<p class="truncate text-xs text-muted-foreground">
-									{kindLabel(job)} · {originLabel(job.origin)}
-									{#if job.attempt > 1}
-										· {attemptLabel(job)}
-									{/if}
-								</p>
-							</div>
-							{@render cancelButton(job)}
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		</section>
-
-		{#if manager.failed.length > 0}
-			<section class="flex flex-col gap-3" aria-label="Failed">
-				{@render sectionTitle('Failed', manager.failed.length)}
-				<ul class="divide-y rounded-xl border">
-					{#each manager.failed as job (job.id)}
-						<li class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
-							<div class="min-w-0 flex-1">
-								<div class="flex flex-wrap items-center gap-2">
-									<p class="truncate text-sm font-medium">{jobName(job)}</p>
-									{@render stateBadge(job)}
-								</div>
-								<p
-									class="text-xs break-words {job.state === JobState.FAILED
-										? 'text-destructive'
-										: 'text-muted-foreground'}"
+				{#if manager.skipReasons.length > 0}
+					<div class="ml-auto">
+						<HoverPopover class="w-64">
+							{#snippet trigger(props)}
+								<Button
+									{...props}
+									variant="ghost"
+									size="sm"
+									class="text-muted-foreground tabular-nums"
+									aria-label="{manager.skippedCount} files skipped"
 								>
-									{job.error || 'No reason recorded'}
-								</p>
-								<p class="text-xs text-muted-foreground">
-									{kindLabel(job)} · {attemptLabel(job)}{job.agentName ? ` · ${job.agentName}` : ''}
-								</p>
+									<SkipForward />
+									{manager.skippedCount} skipped
+								</Button>
+							{/snippet}
+							<div class="flex flex-col gap-2 text-xs">
+								<dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5">
+									{#each manager.skipReasons as reason (reason)}
+										<dt class="text-muted-foreground">{SKIP_LABELS[reason]}</dt>
+										<dd class="text-right tabular-nums">{manager.skipped[reason]}</dd>
+									{/each}
+								</dl>
+								<a
+									href={settingsPath(SettingsSection.TRANSCODE)}
+									class="text-primary underline-offset-4 hover:underline">Transcode settings</a
+								>
 							</div>
+						</HoverPopover>
+					</div>
+				{/if}
+			</div>
+			<Tabs.Content value={JobListTab.QUEUED} class="flex flex-col gap-3">
+				{#if manager.queued.length === 0}
+					<p class="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+						Nothing is waiting.
+					</p>
+				{:else}
+					<ul class="divide-y rounded-xl border">
+						{#each manager.queuedOnPage as job (job.id)}
+							<li class="flex items-center gap-3 px-4 py-2.5">
+								<div class="min-w-0 flex-1">
+									<p class="truncate text-sm font-medium">{jobName(job)}</p>
+									<p class="truncate text-xs text-muted-foreground">
+										{kindLabel(job)} · {originLabel(job.origin)}
+										{#if job.attempt > 1}
+											· {attemptLabel(job)}
+										{/if}
+									</p>
+								</div>
+								{@render cancelButton(job)}
+							</li>
+						{/each}
+					</ul>
+					{#if manager.queuedPages > 1}
+						<div class="flex items-center justify-end gap-2">
+							<span class="text-xs text-muted-foreground tabular-nums">
+								Page {manager.queuedPage + 1} of {manager.queuedPages}
+							</span>
 							<Button
+								size="icon-sm"
 								variant="outline"
-								size="sm"
-								class="self-start sm:self-center"
-								disabled={manager.busy.has(job.id)}
-								onclick={() => manager.retry(job)}
+								aria-label="Previous page"
+								disabled={manager.queuedPage === 0}
+								onclick={() => manager.previousQueuedPage()}
 							>
-								<RotateCcw />
-								Retry
+								<ChevronLeft />
 							</Button>
-						</li>
-					{/each}
-				</ul>
-			</section>
-		{/if}
+							<Button
+								size="icon-sm"
+								variant="outline"
+								aria-label="Next page"
+								disabled={manager.queuedPage === manager.queuedPages - 1}
+								onclick={() => manager.nextQueuedPage()}
+							>
+								<ChevronRight />
+							</Button>
+						</div>
+					{/if}
+				{/if}
+			</Tabs.Content>
 
-		{#if manager.skipReasons.length > 0}
-			<section class="flex flex-col gap-3" aria-label="Skipped">
-				<div class="flex flex-wrap items-center justify-between gap-2">
-					{@render sectionTitle('Skipped', manager.skippedCount)}
-					<a
-						href={settingsPath(SettingsSection.TRANSCODE)}
-						class="text-xs text-primary underline-offset-4 hover:underline">Transcode settings</a
-					>
-				</div>
-				<div class="flex flex-wrap gap-2">
-					{#each manager.skipReasons as reason (reason)}
-						<Badge variant="outline" class="tabular-nums">
-							{SKIP_LABELS[reason]} · {manager.skipped[reason]}
-						</Badge>
-					{/each}
-				</div>
-			</section>
-		{/if}
+			<Tabs.Content value={JobListTab.FAILED}>
+				{#if manager.failed.length === 0}
+					<p class="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+						Nothing has failed.
+					</p>
+				{:else}
+					<ul class="divide-y rounded-xl border">
+						{#each manager.failed as job (job.id)}
+							<li class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+								<div class="min-w-0 flex-1">
+									<div class="flex flex-wrap items-center gap-2">
+										<p class="truncate text-sm font-medium">{jobName(job)}</p>
+										{@render stateBadge(job)}
+									</div>
+									<p
+										class="text-xs break-words {job.state === JobState.FAILED
+											? 'text-destructive'
+											: 'text-muted-foreground'}"
+									>
+										{job.error || 'No reason recorded'}
+									</p>
+									<p class="text-xs text-muted-foreground">
+										{kindLabel(job)} · {attemptLabel(job)}{job.agentName
+											? ` · ${job.agentName}`
+											: ''}
+									</p>
+								</div>
+								<div class="flex items-center gap-1 self-start sm:self-center">
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={manager.busy.has(job.id)}
+										onclick={() => manager.retry(job)}
+									>
+										<RotateCcw />
+										Retry
+									</Button>
+									<Button
+										size="icon-sm"
+										variant="ghost"
+										title="Dismiss"
+										aria-label={`Dismiss ${jobName(job)}`}
+										disabled={manager.busy.has(job.id)}
+										onclick={() => manager.dismiss(job)}
+									>
+										<X />
+									</Button>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</Tabs.Content>
+		</Tabs.Root>
 	</div>
 {/if}

@@ -4,7 +4,15 @@ import type { LiveHandler, ResetListener } from '$lib/live/live-connection';
 import type { LiveMessage } from '$lib/live/protocol';
 import { LoadStatus } from '$lib/load-status';
 import { GpuJobsManager, type GpuJobsApi } from './gpu-jobs-manager.svelte';
-import { JobEvent, JobState, detailLabel, jobName, kindLabel, stateLabel } from './gpu-jobs';
+import {
+	JobEvent,
+	JobState,
+	QUEUED_PAGE_SIZE,
+	detailLabel,
+	jobName,
+	kindLabel,
+	stateLabel
+} from './gpu-jobs';
 import { SkipReason } from './transcode-settings';
 
 const NANOS_PER_SECOND = 1e9;
@@ -47,7 +55,8 @@ function fakeApi(jobs: JobResponse[], backlog = 0) {
 	return {
 		list: vi.fn(async () => list(jobs, backlog)),
 		cancel: vi.fn(async (id: string) => job(id, { state: JobState.CANCELLED })),
-		retry: vi.fn(async (id: string) => job(id, { state: JobState.QUEUED }))
+		retry: vi.fn(async (id: string) => job(id, { state: JobState.QUEUED })),
+		dismiss: vi.fn(async () => undefined)
 	} satisfies GpuJobsApi;
 }
 
@@ -105,9 +114,38 @@ describe('GpuJobsManager', () => {
 		expect(manager.status).toBe(LoadStatus.READY);
 		expect(manager.running.map((j) => j.id)).toEqual(['a']);
 		expect(manager.queued.map((j) => j.id)).toEqual(['b']);
-		expect(manager.failed.map((j) => j.id)).toEqual(['c', 'd']);
+		expect(manager.failed.map((j) => j.id)).toEqual(['c']);
 		expect(manager.queuedCount).toBe(1);
 		expect(manager.backlog).toBe(1);
+	});
+
+	it('dismisses a failed job from the list', async () => {
+		const api = fakeApi([job('a', { state: JobState.FAILED })]);
+		const manager = new GpuJobsManager(api, notify());
+		await manager.load();
+
+		await manager.dismiss(manager.failed[0]);
+
+		expect(api.dismiss).toHaveBeenCalledWith('a');
+		expect(manager.failed).toEqual([]);
+	});
+
+	it('pages the queue and stays in range as it shrinks', async () => {
+		const queued = Array.from({ length: QUEUED_PAGE_SIZE + 1 }, (_, i) => job(`q${i}`));
+		const manager = new GpuJobsManager(fakeApi(queued), notify());
+		await manager.load();
+
+		expect(manager.queuedPages).toBe(2);
+		expect(manager.queuedOnPage).toHaveLength(QUEUED_PAGE_SIZE);
+		manager.nextQueuedPage();
+		manager.nextQueuedPage();
+		expect(manager.queuedPage).toBe(1);
+		expect(manager.queuedOnPage.map((j) => j.id)).toEqual([`q${QUEUED_PAGE_SIZE}`]);
+
+		manager.jobs = manager.jobs.slice(0, QUEUED_PAGE_SIZE);
+		expect(manager.queuedPage).toBe(0);
+		manager.previousQueuedPage();
+		expect(manager.queuedPage).toBe(0);
 	});
 
 	it('shows an error when the first load fails', async () => {

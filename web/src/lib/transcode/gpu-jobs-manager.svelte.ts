@@ -3,6 +3,7 @@ import { toast } from 'svelte-sonner';
 import {
 	apiErrorMessage,
 	cancelTranscodeJob,
+	dismissTranscodeJob,
 	listTranscodeJobs,
 	retryTranscodeJob,
 	type JobListResponse,
@@ -15,8 +16,9 @@ import { nanosecondsToSeconds } from '$lib/downloads/downloads';
 import {
 	JobEvent,
 	JobState,
+	JobListTab,
 	LISTED_STATES,
-	RETRYABLE_STATES,
+	QUEUED_PAGE_SIZE,
 	RUNNING_STATES,
 	jobName,
 	type JobDetail
@@ -27,6 +29,7 @@ export interface GpuJobsApi {
 	list: () => Promise<JobListResponse>;
 	cancel: (id: string) => Promise<JobResponse>;
 	retry: (id: string) => Promise<JobResponse>;
+	dismiss: (id: string) => Promise<unknown>;
 }
 
 export interface Notifier {
@@ -37,7 +40,8 @@ export interface Notifier {
 const sdkApi: GpuJobsApi = {
 	list: () => listTranscodeJobs({ state: LISTED_STATES }),
 	cancel: (id) => cancelTranscodeJob(id),
-	retry: (id) => retryTranscodeJob(id)
+	retry: (id) => retryTranscodeJob(id),
+	dismiss: (id) => dismissTranscodeJob(id)
 };
 
 export type GpuJobsLive = Pick<LiveConnection, 'on' | 'onReset'>;
@@ -62,6 +66,8 @@ export class GpuJobsManager {
 	skipped = $state<Record<string, number>>({});
 	status = $state(LoadStatus.LOADING);
 	error = $state('');
+	tab = $state(JobListTab.QUEUED);
+	#queuedPage = $state(0);
 	/** Speed and ETA of running jobs, from their last progress event. */
 	readonly details = new SvelteMap<string, JobDetail>();
 	/** Jobs with an action in flight, so their buttons disable. */
@@ -84,7 +90,29 @@ export class GpuJobsManager {
 	}
 
 	get failed(): JobResponse[] {
-		return this.jobs.filter((j) => RETRYABLE_STATES.includes(j.state));
+		return this.jobs.filter((j) => j.state === JobState.FAILED);
+	}
+
+	get queuedPages(): number {
+		return Math.max(1, Math.ceil(this.queued.length / QUEUED_PAGE_SIZE));
+	}
+
+	/** Zero-based, and kept in range as the queue shrinks. */
+	get queuedPage(): number {
+		return Math.min(this.#queuedPage, this.queuedPages - 1);
+	}
+
+	get queuedOnPage(): JobResponse[] {
+		const start = this.queuedPage * QUEUED_PAGE_SIZE;
+		return this.queued.slice(start, start + QUEUED_PAGE_SIZE);
+	}
+
+	nextQueuedPage(): void {
+		this.#queuedPage = Math.min(this.queuedPage + 1, this.queuedPages - 1);
+	}
+
+	previousQueuedPage(): void {
+		this.#queuedPage = Math.max(this.queuedPage - 1, 0);
 	}
 
 	/** Files that queue once an agent passes a test encode for the target. */
@@ -145,6 +173,14 @@ export class GpuJobsManager {
 			const updated = await this.#api.retry(job.id);
 			this.jobs = this.jobs.map((j) => (j.id === updated.id ? updated : j));
 			this.#notify.success(`Queued ${jobName(job)} again.`);
+		});
+	}
+
+	dismiss(job: JobResponse): Promise<void> {
+		return this.#act(job, async () => {
+			await this.#api.dismiss(job.id);
+			this.jobs = this.jobs.filter((j) => j.id !== job.id);
+			this.#notify.success(`Dismissed ${jobName(job)}.`);
 		});
 	}
 
