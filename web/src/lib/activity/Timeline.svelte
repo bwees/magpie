@@ -42,7 +42,7 @@
 		<p class="text-sm text-muted-foreground">Nothing has happened yet.</p>
 	{:else}
 		<ol class="flex flex-col gap-2">
-			{#each timeline.entries as entry (entry.eventId)}
+			{#each timeline.shown as entry (entry.eventId)}
 				{@const alert = isAlert(entry.severity)}
 				<li
 					class={cn(
@@ -67,7 +67,9 @@
 		{#if timeline.moreError}
 			<p class="text-sm text-destructive" role="alert">{timeline.moreError}</p>
 		{/if}
-		{#if timeline.hasMore}
+		{#if timeline.canExpand}
+			<Button variant="ghost" size="sm" onclick={() => timeline.expand()}>Show more</Button>
+		{:else if timeline.canLoadMore}
 			<Button
 				variant="ghost"
 				size="sm"

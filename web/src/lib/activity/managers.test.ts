@@ -13,7 +13,7 @@ import {
 import { ActivityHistory, HistoryFilter } from './activity-history.svelte';
 import { Severity, Stage, TranscodeState } from './pipeline';
 import { TitlePipeline } from './title-pipeline.svelte';
-import { TitleTimeline } from './title-timeline.svelte';
+import { COLLAPSED_ENTRIES, TitleTimeline } from './title-timeline.svelte';
 import { JobState } from '$lib/transcode/gpu-jobs';
 
 const TITLE = '01TITLE';
@@ -184,6 +184,22 @@ describe('TitleTimeline', () => {
 		expect(manager.entries[0].eventId).toBe('newest');
 		expect(manager.entries.at(-1)?.eventId).toBe('older');
 		expect(manager.entries).toHaveLength(PAGE_SIZE + 2);
+	});
+
+	it('shows the newest entries until expanded, then pages older ones', async () => {
+		const firstPage = Array.from({ length: PAGE_SIZE }, (_, i) => entry(`e${i}`));
+		const manager = new TitleTimeline(TITLE, source({ timeline: vi.fn(async () => firstPage) }));
+		await manager.load();
+
+		expect(manager.shown).toHaveLength(COLLAPSED_ENTRIES);
+		expect(manager.canExpand).toBe(true);
+		expect(manager.canLoadMore).toBe(false);
+
+		manager.expand();
+
+		expect(manager.shown).toHaveLength(PAGE_SIZE);
+		expect(manager.canExpand).toBe(false);
+		expect(manager.canLoadMore).toBe(true);
 	});
 });
 
