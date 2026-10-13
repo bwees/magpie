@@ -15,6 +15,7 @@ const (
 	TypeDownloadProgressed    = "acquisition.DownloadProgressed"
 	TypeDownloadCompleted     = "acquisition.DownloadCompleted"
 	TypeDownloadFailed        = "acquisition.DownloadFailed"
+	TypeDownloadRemoved       = "acquisition.DownloadRemoved"
 	TypeCutoffMet             = "acquisition.CutoffMet"
 )
 
@@ -258,6 +259,16 @@ func (DownloadFailed) Type() string          { return TypeDownloadFailed }
 func (e DownloadFailed) AggregateID() string { return string(e.Title) }
 func (DownloadFailed) Durable() bool         { return true }
 
+// DownloadRemoved is durable: a download left qBittorrent, removed by Magpie, a user or qBittorrent itself.
+type DownloadRemoved struct {
+	Download domain.DownloadID `json:"download"`
+	Title    domain.TitleID    `json:"title"`
+}
+
+func (DownloadRemoved) Type() string          { return TypeDownloadRemoved }
+func (e DownloadRemoved) AggregateID() string { return string(e.Title) }
+func (DownloadRemoved) Durable() bool         { return true }
+
 type CutoffMet struct {
 	File     domain.MediaFileID `json:"file"`
 	Title    domain.TitleID     `json:"title"`
@@ -276,6 +287,6 @@ func Messages() []domain.Message {
 	return []domain.Message{
 		SearchStarted{}, SearchResultsReceived{}, SearchCompleted{},
 		ReleaseGrabbed{}, ReleaseRejected{}, DownloadProgressed{},
-		DownloadCompleted{}, DownloadFailed{}, CutoffMet{},
+		DownloadCompleted{}, DownloadFailed{}, DownloadRemoved{}, CutoffMet{},
 	}
 }

@@ -1174,6 +1174,22 @@
 				],
 				"type": "object"
 			},
+			"DownloadRemoved": {
+				"description": "DownloadRemoved schema",
+				"properties": {
+					"download": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"download",
+					"title"
+				],
+				"type": "object"
+			},
 			"DownloadResponse": {
 				"description": "DownloadResponse schema",
 				"properties": {
@@ -2702,6 +2718,26 @@
 				"required": [
 					"apiKey",
 					"url"
+				],
+				"type": "object"
+			},
+			"JobCancelled": {
+				"description": "JobCancelled schema",
+				"properties": {
+					"job": {
+						"type": "string"
+					},
+					"mediaFile": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"job",
+					"mediaFile",
+					"reason"
 				],
 				"type": "object"
 			},

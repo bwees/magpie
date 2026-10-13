@@ -146,6 +146,26 @@ func TestRepeatedRunAgentJobQueuesOneJob(t *testing.T) {
 	}
 }
 
+func TestCancelledTranscodeJobPublishesJobCancelled(t *testing.T) {
+	f := newFixture(t)
+	file := f.addFile(h264Movie(0))
+	f.cutoff(file, domain.OriginDownload)
+	job := f.onlyJob(file)
+
+	if err := f.jobs.Cancel(context.Background(), job.ID, ReasonCancelled); err != nil {
+		t.Fatal(err)
+	}
+
+	cancelled := decodeEvents[api.JobCancelled](t, f.published(api.TypeJobCancelled))
+	want := api.JobCancelled{Job: job.ID, MediaFile: file.ID, Reason: ReasonCancelled}
+	if len(cancelled) != 1 || cancelled[0] != want {
+		t.Fatalf("JobCancelled = %+v, want %+v", cancelled, want)
+	}
+	if failed := f.published(api.TypeJobFailed); len(failed) != 0 {
+		t.Fatalf("JobFailed = %+v, want none for a transcode", failed)
+	}
+}
+
 func TestCancelledWhisperJobRepliesWithAFinalJobFailed(t *testing.T) {
 	f := newFixture(t)
 	file := f.addFile(h264Movie(0))

@@ -314,7 +314,8 @@ describe('InteractiveSearch', () => {
 			infoHash: 'h',
 			reason: DropReason.BLOCKED_FILE,
 			blockedFile: 'Movie.exe',
-			next: NEXT_DOWNLOAD
+			next: NEXT_DOWNLOAD,
+			download: null
 		};
 		live.emit(SearchEventType.GRABBED, grabbedEvent(next, NEXT_DOWNLOAD));
 		await search.grab(first);
@@ -342,7 +343,8 @@ describe('InteractiveSearch', () => {
 			infoHash: 'h',
 			reason: DropReason.METADATA_TIMEOUT,
 			blockedFile: null,
-			next: null
+			next: null,
+			download: null
 		} satisfies ReleaseRejected);
 
 		expect(search.grabState(grabbed)).toBe(GrabState.REJECTED);

@@ -393,6 +393,9 @@ func init() {
 		}
 		return d
 	})
+	on(func(e transcodeapi.JobCancelled) description {
+		return description{subject: ofFile(e.MediaFile), Text: "Transcode cancelled", Detail: e.Reason}
+	})
 	on(func(e transcodeapi.WhisperCompleted) description {
 		return description{subject: ofFile(e.MediaFile), Text: "Whisper subtitle ready: " + string(e.Language)}
 	})

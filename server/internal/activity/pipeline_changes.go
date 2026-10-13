@@ -117,9 +117,12 @@ func init() {
 		})
 	})
 	onPipeline(func(e acquisitionapi.DownloadFailed) []pipelineChange {
-		return change(rowTarget{Title: e.Title, Download: e.Download}, func(f *facets) {
+		return change(rowTarget{Downloading: e.Download}, func(f *facets) {
 			f.Download, f.Note = downloadFailed, e.Reason
 		})
+	})
+	onPipeline(func(e acquisitionapi.DownloadRemoved) []pipelineChange {
+		return change(rowTarget{Downloading: e.Download}, func(f *facets) { f.Download = downloadIdle })
 	})
 	onPipeline(func(e acquisitionapi.DownloadCompleted) []pipelineChange {
 		return change(rowTarget{Title: e.Title, Episodes: e.Episodes}, func(f *facets) {
@@ -187,6 +190,9 @@ func init() {
 			return change(rowTarget{File: e.MediaFile}, setTranscode(api.TranscodeChip{State: api.TranscodeQueued}))
 		}
 		return change(rowTarget{File: e.MediaFile}, setTranscode(api.TranscodeChip{State: api.TranscodeFailed, Reason: e.Reason}))
+	})
+	onPipeline(func(e transcodeapi.JobCancelled) []pipelineChange {
+		return change(rowTarget{File: e.MediaFile}, func(f *facets) { f.Transcode = nil })
 	})
 }
 

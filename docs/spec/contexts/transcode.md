@@ -5,7 +5,7 @@ Runs GPU work (transcodes and Whisper subtitle generation) on remote Agents and 
 - **Depends on (Readers):** `catalog.Reader` (original language, wanted languages), `library.Reader` (file, media info, `SourceForProcessing`). Never Subtitles or Acquisition.
 - **Publishes:**
   - `transcode.JobProgressed` (ephemeral).
-  - `JobQueued`, `JobStarted`, `TranscodeVerified`, `TranscodeSkipped`, `JobFailed`, `WhisperCompleted`.
+  - `JobQueued`, `JobStarted`, `TranscodeVerified`, `TranscodeSkipped`, `JobFailed`, `JobCancelled`, `WhisperCompleted`.
   - `AgentOnline`, `AgentOffline`.
 - **Consumes:**
   - Events: `acquisition.CutoffMet`, `library.FileTranscoded`, `library.FileDeleted`, `library.TranscodeSwapRejected`, `catalog.TitleRemoved`.
@@ -155,6 +155,11 @@ type JobFailed struct {
 	Reason    string
 	Final     bool            // true when retries are exhausted
 	Language  domain.Language // WHISPER jobs: the language asked for; empty for TRANSCODE
+}
+type JobCancelled struct { // TRANSCODE jobs only
+	Job       domain.JobID
+	MediaFile domain.MediaFileID
+	Reason    string
 }
 type WhisperCompleted struct {
 	Job        domain.JobID

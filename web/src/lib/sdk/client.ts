@@ -1397,6 +1397,10 @@ export type DownloadProgressed = {
     speedBps: number;
     state: string;
 };
+export type DownloadRemoved = {
+    download: string;
+    title: string;
+};
 export type EpisodeMove = {
     episode: string;
     fromNo: number;
@@ -1537,6 +1541,11 @@ export type ItemAvailable = {
     episodes: string[] | null;
     jellyfinItem: string;
     title: string;
+};
+export type JobCancelled = {
+    job: string;
+    mediaFile: string;
+    reason: string;
 };
 export type JobFailed = {
     final: boolean;

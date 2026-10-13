@@ -189,7 +189,8 @@ Every durable event other contexts and the platform publish is handled by the ha
 | `acquisition.SearchCompleted` | `Outcome = NOTHING_ACCEPTED` → `search=NOTHING_ACCEPTED`; `GRABBED`, `PENDING_DELAY` or `RELEASES_FOUND` → `search` cleared (detail "Waiting for a better release" when pending) |
 | `acquisition.ReleaseRejected` | Rows downloading its `Download`: `download=` cleared, detail "Rejected: <reason>". Other searching or downloading rows: detail only; search stays `RUNNING` |
 | `acquisition.ReleaseGrabbed` | `download=ACTIVE` |
-| `acquisition.DownloadFailed` | `download=FAILED` |
+| `acquisition.DownloadFailed` | `download=FAILED` on the rows still on that download (a fallback grab keeps its rows) |
+| `acquisition.DownloadRemoved` | `download=` none on the rows still on that download |
 | `acquisition.DownloadCompleted` | `download=DONE` |
 | `library.FileImported` | `file=PRESENT`, `jellyfin=false`, `subtitles=PENDING`, `download=` cleared |
 | `library.ImportFailed` | `download=FAILED`, detail = reason |
@@ -199,6 +200,7 @@ Every durable event other contexts and the platform publish is handled by the ha
 | `transcode.TranscodeSkipped` | `transcode=SKIPPED` with reason |
 | `transcode.JobFailed` (transcode kind, `Final`) | `transcode=FAILED` |
 | `transcode.JobFailed` (transcode kind, not `Final`) | `transcode=QUEUED`: the job waits for its next attempt, whose `JobStarted` sets `RUNNING` again |
+| `transcode.JobCancelled` | no `transcode` chip |
 | `library.FileTranscoded` | `transcode=DONE`, saved % from sizes |
 | `library.ItemAvailable` | `jellyfin=true` |
 | `library.FileDeleted` | `REMOVED` / `TITLE_REMOVED`: `file=NONE`, transcode/subtitles/jellyfin cleared. `UPGRADED`: no change, because the row already reflects the replacing file from its `FileImported`. |

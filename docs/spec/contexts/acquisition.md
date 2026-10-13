@@ -3,7 +3,7 @@
 Finds, ranks, grabs and downloads the right release for each wanted movie or episode, and decides when a file is good enough.
 
 - **Depends on (Readers):** `catalog.Reader`, `library.Reader`
-- **Publishes:** `SearchStarted`, `SearchResultsReceived` *(ephemeral)*, `SearchCompleted`, `ReleaseGrabbed`, `ReleaseRejected`, `DownloadProgressed` *(ephemeral)*, `DownloadCompleted`, `DownloadFailed`, `CutoffMet`
+- **Publishes:** `SearchStarted`, `SearchResultsReceived` *(ephemeral)*, `SearchCompleted`, `ReleaseGrabbed`, `ReleaseRejected`, `DownloadProgressed` *(ephemeral)*, `DownloadCompleted`, `DownloadFailed`, `DownloadRemoved`, `CutoffMet`
 - **Consumes:**
   - From Catalog: `TitleAdded`, `MonitoringChanged`, `ProfileChanged`, `EpisodesAnnounced`, `WantedReleased`, `TitleRemoved`.
   - From Requests: `IssueActionRequested` (REGRAB).
@@ -187,6 +187,11 @@ type DownloadFailed struct {
     Download domain.DownloadID
     Title    domain.TitleID
     Reason   string // qBittorrent error/missingFiles, stalled past limit, etc.
+}
+// DownloadRemoved: the download left qBittorrent (seeding goal, a user, a drop, or gone from qBittorrent).
+type DownloadRemoved struct {
+    Download domain.DownloadID
+    Title    domain.TitleID
 }
 
 type CutoffMet struct {

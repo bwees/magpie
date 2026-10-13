@@ -477,6 +477,12 @@ func (s *JobService) cancelTx(tx *gorm.DB, row jobRow, reason string) error {
 			return err
 		}
 	}
+	if row.Kind == api.JobKindTranscode {
+		cancelled := api.JobCancelled{Job: row.ID, MediaFile: row.MediaFileID, Reason: reason}
+		if err := s.deps.Bus.Publish(tx, bus.EventOf(cancelled)); err != nil {
+			return err
+		}
+	}
 	var cancel *agentproto.Cancel
 	if slices.Contains(slotStates, row.State) {
 		cancel = &agentproto.Cancel{Job: row.ID, Reason: reason}

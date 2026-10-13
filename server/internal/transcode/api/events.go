@@ -13,6 +13,7 @@ const (
 	TypeTranscodeVerified = "transcode.TranscodeVerified"
 	TypeTranscodeSkipped  = "transcode.TranscodeSkipped"
 	TypeJobFailed         = "transcode.JobFailed"
+	TypeJobCancelled      = "transcode.JobCancelled"
 	TypeWhisperCompleted  = "transcode.WhisperCompleted"
 	TypeAgentOnline       = "transcode.AgentOnline"
 	TypeAgentOffline      = "transcode.AgentOffline"
@@ -94,6 +95,14 @@ type JobFailed struct {
 	Language  domain.Language    `json:"language"` // WHISPER jobs; empty for TRANSCODE
 }
 
+// JobCancelled is durable: a transcode job stopped before it finished. A cancelled Whisper job publishes a
+// final JobFailed instead, since Subtitles waits for one.
+type JobCancelled struct {
+	Job       domain.JobID       `json:"job"`
+	MediaFile domain.MediaFileID `json:"mediaFile"`
+	Reason    string             `json:"reason"`
+}
+
 // WhisperCompleted is durable. Subtitles moves the staged SRT to its sidecar path.
 type WhisperCompleted struct {
 	Job        domain.JobID       `json:"job"`
@@ -144,6 +153,10 @@ func (JobFailed) Type() string          { return TypeJobFailed }
 func (e JobFailed) AggregateID() string { return string(e.MediaFile) }
 func (JobFailed) Durable() bool         { return true }
 
+func (JobCancelled) Type() string          { return TypeJobCancelled }
+func (e JobCancelled) AggregateID() string { return string(e.MediaFile) }
+func (JobCancelled) Durable() bool         { return true }
+
 func (WhisperCompleted) Type() string          { return TypeWhisperCompleted }
 func (e WhisperCompleted) AggregateID() string { return string(e.MediaFile) }
 func (WhisperCompleted) Durable() bool         { return true }
@@ -164,7 +177,7 @@ func (JobProgressed) Durable() bool         { return false }
 func Messages() []domain.Message {
 	return []domain.Message{
 		JobQueued{}, JobStarted{}, JobProgressed{}, TranscodeVerified{}, TranscodeSkipped{},
-		JobFailed{}, WhisperCompleted{}, AgentOnline{}, AgentOffline{},
+		JobFailed{}, JobCancelled{}, WhisperCompleted{}, AgentOnline{}, AgentOffline{},
 		RunAgentJob{},
 	}
 }

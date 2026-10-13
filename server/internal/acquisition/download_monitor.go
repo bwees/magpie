@@ -370,8 +370,12 @@ func (s *DownloadService) drop(ctx context.Context, d download, r rejection, cfg
 // markRemoved records a download that left qBittorrent, removed by the user here or in qBittorrent.
 func (s *DownloadService) markRemoved(ctx context.Context, d download) error {
 	err := s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
-		return tx.Model(&downloadRow{}).Where("id = ? AND removed_at IS NULL", d.ID).
-			Updates(map[string]any{"state": api.StateRemoved, "removed_at": s.now().UTC()}).Error
+		result := tx.Model(&downloadRow{}).Where("id = ? AND removed_at IS NULL", d.ID).
+			Updates(map[string]any{"state": api.StateRemoved, "removed_at": s.now().UTC()})
+		if result.Error != nil || result.RowsAffected == 0 {
+			return result.Error
+		}
+		return s.deps.Bus.Publish(tx, bus.EventOf(api.DownloadRemoved{Download: d.ID, Title: d.Title}))
 	})
 	s.forget(d.ID)
 	return err

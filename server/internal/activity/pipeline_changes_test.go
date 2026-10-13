@@ -47,6 +47,24 @@ func TestARetriedTranscodeGoesBackToQueuedUntilItsNextAttemptStarts(t *testing.T
 	}
 }
 
+func TestACancelledTranscodeClearsItsChip(t *testing.T) {
+	h := newHarness(t)
+	title := h.movie()
+	file := availableMovie(h, title)
+	job := domain.NewID[domain.JobID]()
+	h.deliver(transcodeapi.JobQueued{Job: job, Kind: transcodeapi.JobKindTranscode, MediaFile: file, Title: title})
+	h.deliver(transcodeapi.JobStarted{Job: job, Kind: transcodeapi.JobKindTranscode, MediaFile: file, Attempt: 1})
+
+	h.deliver(transcodeapi.JobCancelled{Job: job, MediaFile: file, Reason: "cancelled"})
+
+	if chip := h.row(title).Transcode; chip != nil {
+		t.Errorf("transcode chip = %+v, want none", chip)
+	}
+	if rows := h.active(); len(rows) != 0 {
+		t.Errorf("active rows = %+v, want none", rows)
+	}
+}
+
 func TestWhisperFailuresLeaveTheTranscodeChipAlone(t *testing.T) {
 	h := newHarness(t)
 	title := h.movie()
@@ -78,6 +96,39 @@ func TestARejectedDownloadLeavesTheDownloadingStage(t *testing.T) {
 	if rows := h.active(); len(rows) != 0 {
 		t.Errorf("active rows = %+v, want none", rows)
 	}
+}
+
+func TestARemovedDownloadLeavesTheDownloadingStage(t *testing.T) {
+	h := newHarness(t)
+	title := h.movie()
+	download := domain.NewID[domain.DownloadID]()
+	h.deliver(titleAdded(title, domain.MediaKindMovie))
+	h.deliver(acquisitionapi.ReleaseGrabbed{Download: download, Title: title, Release: releaseName})
+
+	h.deliver(acquisitionapi.DownloadRemoved{Download: download, Title: title})
+
+	row := h.row(title)
+	assertStage(t, row, api.StageRequested, false, "")
+	if row.Download != nil {
+		t.Errorf("download = %s, want none after the removal", *row.Download)
+	}
+}
+
+func TestAFailedDownloadLeavesItsFallbackDownloading(t *testing.T) {
+	h := newHarness(t)
+	title, episodes := h.series([2]int{1, 1}, [2]int{1, 2})
+	stalled, fallback := domain.NewID[domain.DownloadID](), domain.NewID[domain.DownloadID]()
+	h.deliver(titleAdded(title, domain.MediaKindSeries, episodes...))
+	h.deliver(acquisitionapi.ReleaseGrabbed{Download: stalled, Title: title, Episodes: episodes, Release: releaseName})
+	h.deliver(acquisitionapi.ReleaseGrabbed{Download: fallback, Title: title, Episodes: episodes[:1], Release: releaseName})
+
+	h.deliver(acquisitionapi.DownloadFailed{Download: stalled, Title: title, Reason: "stalled"})
+
+	rows := h.pipeline(title)
+	if rows[0].Stage != api.StageDownloading || rows[0].Failed || rows[0].Download == nil || *rows[0].Download != fallback {
+		t.Errorf("first episode = %+v, want downloading the fallback", rows[0])
+	}
+	assertStage(t, rows[1], api.StageDownloading, true, "stalled")
 }
 
 func TestARejectedUpgradeIsAvailableAgain(t *testing.T) {

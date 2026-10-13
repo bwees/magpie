@@ -161,6 +161,7 @@ type Event struct {
 | `acquisition.DownloadProgressed` *(ephemeral)* | Acquisition | download, state, progress, speed, eta | live gateway |
 | `acquisition.DownloadCompleted` | Acquisition | download, title, episodes, contentPath, files[], releaseName, infoHash, quality, cfScore, seedingMode (published only after the blocked-file backstop passes) | Library → import |
 | `acquisition.DownloadFailed` | Acquisition | download, reason | Activity → notify |
+| `acquisition.DownloadRemoved` | Acquisition | download, title | Activity → rows still on the download go back to no download |
 | `acquisition.CutoffMet` | Acquisition | mediaFile, title, episodes, quality, cfScore, origin | Transcode → evaluate policy and queue (DOWNLOAD origin ahead of LIBRARY_SCAN/MIGRATION) |
 | `library.FileImported` | Library | mediaFile, title, episodes, path, quality, releaseName, osHash, size, mediaInfo, replaces? (informational), download? (nil for scan/migration), sidecars, origin | Acquisition → cutoff check + seeding/remove; Subtitles → find subtitles; Requests → resolve REGRAB issues; Activity |
 | `library.ImportFailed` | Library | download, reason, retryable, manual | Acquisition → manual: keep the torrent and its data and wait for the user; otherwise blocklist, try next; Activity → notify |
@@ -180,6 +181,7 @@ type Event struct {
 | `transcode.TranscodeVerified` | Transcode | job, mediaFile, stagedPath, sha256, sourceETag, stats | Library → swap file |
 | `transcode.TranscodeSkipped` | Transcode | mediaFile, reason (not worth it, DV, under cap, low bitrate…) | Activity |
 | `transcode.JobFailed` | Transcode | job, kind, mediaFile, reason, final, language (Whisper) | Subtitles (Whisper jobs); Activity → notify + attention when final; Transcode chip back to queued when not |
+| `transcode.JobCancelled` | Transcode | job, mediaFile, reason (transcode jobs only; a cancelled Whisper job publishes a final `JobFailed`) | Activity → clear the Transcode chip |
 | `transcode.WhisperCompleted` | Transcode | job, mediaFile, language, stagedPath | Subtitles → store sidecar |
 | `transcode.AgentOnline` / `AgentOffline` | Transcode | agent | Activity → notify / attention on offline, clear on online |
 | `activity.NotificationCreated` | Activity | notification, user, kind, title, link | live gateway (to that user only) |
