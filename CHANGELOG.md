@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/bwees/magpie/compare/v0.1.1...v0.2.0) (2026-10-13)
+
+
+### Features
+
+* **library:** count files available once imported ([10561d0](https://github.com/bwees/magpie/commit/10561d0b03d249df5261f7210b1d20d2e1684581))
+
+
+### Bug Fixes
+
+* **library:** apply the qBittorrent path mapping when an import runs ([a129a17](https://github.com/bwees/magpie/commit/a129a1758b2ca2fbf7c1101e2fc66f3091212653))
+* **web:** keep title page state per title so leaving it can't stall the next page ([c8a9121](https://github.com/bwees/magpie/commit/c8a9121507b094e9ee9fd9336fbcd000580a3607))
+
 ## [0.1.1](https://github.com/bwees/magpie/compare/v0.1.0...v0.1.1) (2026-10-12)
 
 
