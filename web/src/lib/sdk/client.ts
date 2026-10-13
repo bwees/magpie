@@ -5404,6 +5404,29 @@ export function listTranscodeJobs({ state, kind, limit, accept }: {
     }));
 }
 /**
+ * Delete a FAILED or NOT_WORTH_IT job (admin)
+ */
+export function dismissTranscodeJob(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/transcode/jobs/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
  * Cancel an unfinished job; its agent drops it (admin)
  */
 export function cancelTranscodeJob(id: string, { accept }: {

@@ -203,6 +203,13 @@ func (c *Controller) Register(s *fuego.Server) {
 		fuego.OptionTags(tagTranscode),
 		fuego.OptionPath(pathID, "Job ID"),
 	)
+	fuego.Delete(s, "/transcode/jobs/{id}", c.dismissJob,
+		fuego.OptionOperationID("dismissTranscodeJob"),
+		fuego.OptionSummary("Delete a FAILED or NOT_WORTH_IT job (admin)"),
+		fuego.OptionTags(tagTranscode),
+		fuego.OptionPath(pathID, "Job ID"),
+		fuego.OptionDefaultStatusCode(http.StatusNoContent),
+	)
 
 	fuego.Get(s, "/transcode/agents", c.listAgents,
 		fuego.OptionOperationID("listAgents"),
@@ -462,20 +469,20 @@ func (c *Controller) retryJob(ctx fuego.ContextNoBody) (JobResponse, error) {
 	return c.act(ctx, func(id domain.JobID) error { return c.jobs.Retry(ctx.Context(), id) })
 }
 
+func (c *Controller) dismissJob(ctx fuego.ContextNoBody) (any, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return nil, err
+	}
+	id := domain.JobID(ctx.PathParam(pathID))
+	return nil, jobProblem(id, c.jobs.Dismiss(ctx.Context(), id))
+}
+
 func (c *Controller) act(ctx fuego.ContextNoBody, action func(domain.JobID) error) (JobResponse, error) {
 	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
 		return JobResponse{}, err
 	}
 	id := domain.JobID(ctx.PathParam(pathID))
-	err := action(id)
-	switch {
-	case errors.Is(err, ErrJobNotFound):
-		return JobResponse{}, problem.New(TypeJobNotFound, http.StatusNotFound, "no job "+string(id))
-	case errors.Is(err, ErrJobFinished):
-		return JobResponse{}, problem.New(TypeJobFinished, http.StatusConflict, "the job has already finished")
-	case errors.Is(err, ErrJobNotFailed):
-		return JobResponse{}, problem.New(TypeJobNotFailed, http.StatusConflict, "only a failed or not-worth-it job can be retried")
-	case err != nil:
+	if err := jobProblem(id, action(id)); err != nil {
 		return JobResponse{}, err
 	}
 	view, err := c.jobs.Job(ctx.Context(), id)
@@ -483,6 +490,18 @@ func (c *Controller) act(ctx fuego.ContextNoBody, action func(domain.JobID) erro
 		return JobResponse{}, err
 	}
 	return jobResponse(view), nil
+}
+
+func jobProblem(id domain.JobID, err error) error {
+	switch {
+	case errors.Is(err, ErrJobNotFound):
+		return problem.New(TypeJobNotFound, http.StatusNotFound, "no job "+string(id))
+	case errors.Is(err, ErrJobFinished):
+		return problem.New(TypeJobFinished, http.StatusConflict, "the job has already finished")
+	case errors.Is(err, ErrJobNotFailed):
+		return problem.New(TypeJobNotFailed, http.StatusConflict, "only a failed or not-worth-it job can be retried or dismissed")
+	}
+	return err
 }
 
 func jobResponse(v JobView) JobResponse {

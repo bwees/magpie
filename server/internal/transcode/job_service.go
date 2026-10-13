@@ -27,7 +27,7 @@ import (
 
 var (
 	ErrJobFinished   = errors.New("transcode: the job has already finished")
-	ErrJobNotFailed  = errors.New("transcode: only a failed or not-worth-it job can be retried")
+	ErrJobNotFailed  = errors.New("transcode: only a failed or not-worth-it job can be retried or dismissed")
 	ErrNotLeased     = errors.New("transcode: the job isn't leased to this agent")
 	errUnknownDevice = errors.New("transcode: the agent has no such device")
 )
@@ -534,6 +534,25 @@ func (s *JobService) CancelForTitle(tx *gorm.DB, title domain.TitleID) error {
 	return nil
 }
 
+var retryableStates = []api.JobState{api.StateFailed, api.StateNotWorthIt}
+
+// Dismiss deletes a failed or not-worth-it job. A not-worth-it file keeps its skip.
+func (s *JobService) Dismiss(ctx context.Context, id domain.JobID) error {
+	return s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
+		row, err := jobIn(tx, id)
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(retryableStates, row.State) {
+			return ErrJobNotFailed
+		}
+		if err := tx.Where("job_id = ?", id).Delete(&attemptRow{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ? AND state IN ?", id, retryableStates).Delete(&jobRow{}).Error
+	})
+}
+
 // Retry queues a failed or not-worth-it job again from its first attempt and forgets its skip.
 func (s *JobService) Retry(ctx context.Context, id domain.JobID) error {
 	return s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
@@ -541,8 +560,7 @@ func (s *JobService) Retry(ctx context.Context, id domain.JobID) error {
 		if err != nil {
 			return err
 		}
-		retryable := []api.JobState{api.StateFailed, api.StateNotWorthIt}
-		if !slices.Contains(retryable, row.State) {
+		if !slices.Contains(retryableStates, row.State) {
 			return ErrJobNotFailed
 		}
 		if err := tx.Where("job_id = ?", id).Delete(&attemptRow{}).Error; err != nil {
@@ -553,7 +571,7 @@ func (s *JobService) Retry(ctx context.Context, id domain.JobID) error {
 				return err
 			}
 		}
-		_, err = moveJob(tx, id, retryable, clearAssignment(map[string]any{
+		_, err = moveJob(tx, id, retryableStates, clearAssignment(map[string]any{
 			"state": api.StateQueued, "attempt": 1, "excluded_agents": emptyAgents, "not_before": nil,
 			"avoid_agent_id": nil, "avoid_until": nil, "last_agent_id": nil, "error": "", "finished_at": nil,
 			"progress": 0, "result": nil, "output_sha256": "", "output_size": 0, "updated_at": s.now(),

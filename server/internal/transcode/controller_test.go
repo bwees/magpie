@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"magpie/internal/transcode/api"
 
 	"github.com/go-fuego/fuego"
+	"gorm.io/gorm"
 )
 
 type apiClient struct {
@@ -218,6 +220,37 @@ func TestJobEndpointsListCancelAndRetry(t *testing.T) {
 	}
 	if rec := c.do(admin, http.MethodPost, "/transcode/jobs/"+string(domain.NewID[domain.JobID]())+"/cancel", nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("unknown job = %d, want 404", rec.Code)
+	}
+}
+
+func TestJobEndpointDismissesOnlyFailedJobs(t *testing.T) {
+	f := newFixture(t)
+	queued := f.addFile(h264Movie(0))
+	f.cutoff(queued, domain.OriginLibraryScan)
+	c := f.api()
+	job := f.onlyJob(queued)
+	path := "/transcode/jobs/" + string(job.ID)
+
+	if rec := c.do(admin, http.MethodDelete, path, nil); rec.Code != http.StatusConflict {
+		t.Fatalf("dismiss of a queued job = %d, want 409", rec.Code)
+	}
+	err := f.db.Write(context.Background(), func(tx *gorm.DB) error {
+		return tx.Model(&jobRow{}).Where("id = ?", job.ID).Update("state", api.StateFailed).Error
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := c.do(requester, http.MethodDelete, path, nil); rec.Code != http.StatusForbidden {
+		t.Fatalf("requester dismiss = %d, want 403", rec.Code)
+	}
+	if rec := c.do(admin, http.MethodDelete, path, nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("dismiss = %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := jobIn(f.db.Read(context.Background()), job.ID); !errors.Is(err, ErrJobNotFound) {
+		t.Fatalf("after dismiss err = %v, want ErrJobNotFound", err)
+	}
+	if rec := c.do(admin, http.MethodDelete, path, nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("second dismiss = %d, want 404", rec.Code)
 	}
 }
 
