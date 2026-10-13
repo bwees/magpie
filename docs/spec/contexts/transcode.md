@@ -555,12 +555,26 @@ Evaluation of one media file (on `CutoffMet`, a sweep, a settings change, an exc
 | `av1_nvenc` | same as `hevc_nvenc` | cq 24 | 28 | 32 | 36 |
 | `hevc_qsv` | `preset slower` | global_quality 20 | 23 | 26 | 29 |
 | `av1_qsv` | `preset slower` | global_quality 22 | 26 | 30 | 34 |
-| `hevc_vaapi` | `rc_mode QVBR` | global_quality 20 | 24 | 27 | 30 |
-| `av1_vaapi` | `rc_mode QVBR` | global_quality 24 | 28 | 32 | 36 |
+| `hevc_vaapi` | `rc_mode QVBR, compression_level 1` | global_quality 21 | 24 | 26 | 29 |
+| `av1_vaapi` | `rc_mode QVBR, compression_level 1` | global_quality (1–255) 64 | 76 | 86 | 104 |
 | `libx265` | `preset medium` | crf 18 | 21 | 24 | 27 |
 | `libsvtav1` | `preset 8` | crf 22 | 28 | 32 | 38 |
 
-Version 1 of the table is hand-set from vendor guidance, not yet VMAF-fitted; a fitted table ships as a new version, which changes the policy hash.
+Version 1 of the table was hand-set from vendor guidance. Version 2 fits the VAAPI rows by VMAF; the other rows are still hand-set. A fitted table ships as a new version, which changes the policy hash.
+
+**VAAPI fit (version 2).** Measured on an AMD RX 9060 XT (Mesa 26.0.8, jellyfin-ffmpeg 8.1.3) with Magpie's AMD pipeline and the default caps. Six 60 s stream-copied clips: 1080p60 H.264 handheld web video, 1080p H.264 animation, 1080p HEVC grainy 1999 film, 1080p HEVC effects-heavy film, 720p HEVC TV, 2160p HEVC HDR10. VMAF v0.6.1 against the clip, mean of the six:
+
+| Preset | Reference | Target VMAF | `hevc_vaapi` | VMAF | `av1_vaapi` | VMAF |
+|---|---|---|---|---|---|---|
+| Archive | libx265 crf 18 / libsvtav1 crf 22 | 93.6 / 92.7 | 21 | 93.6 | 64 | 92.5 |
+| High | crf 21 / crf 28 | 92.6 / 91.8 | 24 | 92.9 | 76 | 91.8 |
+| Balanced | crf 24 / crf 32 | 91.1 / 90.8 | 26 | 91.5 | 86 | 91.2 |
+| Small | crf 27 / crf 38 | 88.7 / 89.0 | 29 | 88.9 | 104 | 88.8 |
+
+- `compression_level 1` selects the driver's quality preset. On `hevc_vaapi` at 24 it scores the same mean VMAF as the driver default in 10–55% fewer bits per clip. The default hit the cap on 2 of 6 clips at 24.
+- `av1_vaapi` reads `global_quality` on a 0–255 scale. Below about 50 it encodes at or near the cap.
+- At Archive, the 1080p60 clip still reaches the 10 Mbps cap. At matched VMAF, the VAAPI encoders need more bits than the CPU references on that clip.
+- `hevc_qsv` wasn't usable as the reference. With `-maxrate` set it falls back to CQP and ignores `global_quality`.
 
 ### Scheduler
 

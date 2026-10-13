@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "encoders": {
     "hevc_nvenc": {
       "quality": { "arg": "cq", "min": 1, "max": 51 },
@@ -23,13 +23,13 @@
     },
     "hevc_vaapi": {
       "quality": { "arg": "global_quality", "min": 1, "max": 51 },
-      "args": { "rc_mode": "QVBR" },
-      "presets": { "ARCHIVE": 20, "HIGH": 24, "BALANCED": 27, "SMALL": 30 }
+      "args": { "rc_mode": "QVBR", "compression_level": "1" },
+      "presets": { "ARCHIVE": 21, "HIGH": 24, "BALANCED": 26, "SMALL": 29 }
     },
     "av1_vaapi": {
-      "quality": { "arg": "global_quality", "min": 1, "max": 51 },
-      "args": { "rc_mode": "QVBR" },
-      "presets": { "ARCHIVE": 24, "HIGH": 28, "BALANCED": 32, "SMALL": 36 }
+      "quality": { "arg": "global_quality", "min": 1, "max": 255 },
+      "args": { "rc_mode": "QVBR", "compression_level": "1" },
+      "presets": { "ARCHIVE": 64, "HIGH": 76, "BALANCED": 86, "SMALL": 104 }
     },
     "libx265": {
       "quality": { "arg": "crf", "min": 0, "max": 51 },
