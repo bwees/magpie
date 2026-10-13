@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"magpie/internal/domain"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
-	"magpie/internal/platform/jobs"
 	"magpie/internal/platform/settings"
 
 	"go.uber.org/fx"
@@ -51,7 +51,7 @@ type DownloadDeps struct {
 	QBittorrent QBittorrent
 	Store       *settings.Store
 	Bus         *bus.Bus
-	Jobs        jobs.Enqueuer
+	Jobs        searchJobs
 	Searches    *SearchRegistry
 }
 
@@ -68,24 +68,37 @@ type DownloadService struct {
 	// live is the last progress seen per download, for change detection and the downloads list.
 	live  map[domain.DownloadID]api.DownloadProgressed
 	marks map[domain.DownloadID]progressMark
+	// savedMarks are the marks as last stored, so a restart resumes the stall and metadata clocks.
+	savedMarks map[domain.DownloadID]progressMark
 	// checking holds downloads with a check job queued, so the poll doesn't queue it twice.
 	checking map[domain.DownloadID]bool
-}
-
-// progressMark is when a download last moved forward, for the stalled limit.
-type progressMark struct {
-	progress float64
-	at       time.Time
+	// grabbing holds one lock per title, so two searches settling at once can't both grab its items.
+	grabbing map[domain.TitleID]*sync.Mutex
 }
 
 func NewDownloadService(deps DownloadDeps) *DownloadService {
 	return &DownloadService{
-		deps:     deps,
-		now:      time.Now,
-		live:     map[domain.DownloadID]api.DownloadProgressed{},
-		marks:    map[domain.DownloadID]progressMark{},
-		checking: map[domain.DownloadID]bool{},
+		deps:       deps,
+		now:        time.Now,
+		live:       map[domain.DownloadID]api.DownloadProgressed{},
+		marks:      map[domain.DownloadID]progressMark{},
+		savedMarks: map[domain.DownloadID]progressMark{},
+		checking:   map[domain.DownloadID]bool{},
+		grabbing:   map[domain.TitleID]*sync.Mutex{},
 	}
+}
+
+// lockTitle holds the title's grab lock until the returned func is called.
+func (s *DownloadService) lockTitle(title domain.TitleID) func() {
+	s.mu.Lock()
+	lock, ok := s.grabbing[title]
+	if !ok {
+		lock = &sync.Mutex{}
+		s.grabbing[title] = lock
+	}
+	s.mu.Unlock()
+	lock.Lock()
+	return lock.Unlock
 }
 
 // rejection is a release dropped by the blocked-file check, a timeout or a failure.
@@ -167,6 +180,7 @@ func (s *DownloadService) Grab(ctx context.Context, searchID domain.SearchID, re
 	if err != nil {
 		return GrabResult{}, err
 	}
+	defer s.lockTitle(st.input.Title.ID)()
 	if !st.try(releaseID) {
 		return GrabResult{}, ErrAlreadyGrabbed
 	}
@@ -200,7 +214,9 @@ func (s *DownloadService) fallback(ctx context.Context, out *grabOutcome, cfg gr
 
 func anyRelease(decidedRelease) bool { return true }
 
-// fallbackWhere is fallback among the releases keep allows.
+// fallbackWhere is fallback among the releases keep allows. Each release is checked against the blocklist
+// and the queue as they are now, so it isn't grabbed when another search grabbed its items since. The
+// caller holds the title's grab lock.
 func (s *DownloadService) fallbackWhere(ctx context.Context, out *grabOutcome, cfg grabSettings, keep func(decidedRelease) bool) {
 	if out.search == nil {
 		return
@@ -209,6 +225,16 @@ func (s *DownloadService) fallbackWhere(ctx context.Context, out *grabOutcome, c
 		next, ok := out.search.nextUntried(keep)
 		if !ok {
 			return
+		}
+		rejections, err := s.recheck(ctx, out, next)
+		if err != nil {
+			slog.WarnContext(ctx, "rereading the queue before a grab failed; grabbing nothing", "title", out.search.input.Title.ID, "error", err)
+			return
+		}
+		if len(rejections) > 0 {
+			slog.InfoContext(ctx, "skipping a release grabbed or blocklisted since the search started",
+				"release", next.Candidate.Item.Title, "reason", rejections[0].Reason)
+			continue
 		}
 		added, rejected, err := s.attempt(ctx, out.search, next, false, cfg)
 		switch {
@@ -221,6 +247,34 @@ func (s *DownloadService) fallbackWhere(ctx context.Context, out *grabOutcome, c
 			return
 		}
 	}
+}
+
+// recheck runs grabTimeSpecs on the title's blocklist and downloads as they are now. The downloads this
+// outcome drops don't count as queued.
+func (s *DownloadService) recheck(ctx context.Context, out *grabOutcome, d decidedRelease) ([]api.Rejection, error) {
+	in := *out.search.input
+	in.Now = s.now()
+	in.Removed = slices.Concat(in.Removed, out.dropped())
+	var err error
+	if in.Blocklist, err = s.deps.Repo.Blocklist(ctx, in.Title.ID); err != nil {
+		return nil, err
+	}
+	downloads, err := s.deps.Repo.titleDownloads(ctx, in.Title.ID)
+	if err != nil {
+		return nil, err
+	}
+	in.Queue, in.History = in.grabsOf(downloads)
+	return runTier(grabTimeSpecs, d.Candidate, &in), nil
+}
+
+func (o grabOutcome) dropped() []domain.DownloadID {
+	ids := []domain.DownloadID{}
+	for _, r := range o.rejections {
+		if r.Download != nil {
+			ids = append(ids, r.Download.ID)
+		}
+	}
+	return ids
 }
 
 // torrentSource is a release's .torrent, or the magnet to add instead.

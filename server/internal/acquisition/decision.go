@@ -32,6 +32,10 @@ const (
 	yearTolerance = 1
 )
 
+// MinAutomaticSeeders is the fewest seeders a search's own grab takes, whatever the indexer's minimum. Fewer
+// seeders on an older release usually means a dead torrent that stalls. RSS releases are new, so it skips them.
+const MinAutomaticSeeders = 3
+
 var rawDiskPattern = regexp.MustCompile(`(?i)\b(?:BDMV|VIDEO_TS)\b`)
 
 // Articles and conjunctions Sonarr drops before comparing titles.
@@ -48,7 +52,8 @@ var (
 	searchTriggers    = triggerSet{api.TriggerAuto, api.TriggerUserAuto, api.TriggerInteractive, api.TriggerRegrab}
 	automaticTriggers = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerRegrab}
 	nonInteractive    = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerUserAuto, api.TriggerRegrab}
-	// An interactive season search lists single episodes too, so the user can grab one.
+	// Searches that grab on their own. An interactive season search lists single episodes too, so the user can
+	// grab one; RSS releases are too new to judge by seeders.
 	grabbingSearches = triggerSet{api.TriggerAuto, api.TriggerUserAuto, api.TriggerRegrab}
 	// A REGRAB replaces a file someone reported as broken, however well it scores, so it skips the upgrade specs.
 	upgradeTriggers = triggerSet{api.TriggerRSS, api.TriggerAuto, api.TriggerUserAuto, api.TriggerInteractive}
@@ -93,18 +98,19 @@ type activeGrab struct {
 var queuedStates = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading, api.StateCompleted, api.StateImportPendingUser}
 
 // grabsOf turns a title's downloads into the Queue (still in qBittorrent) and the History (grabbed within
-// RecentGrabWindow) the specs read, each scored against the search's profile. Failed downloads count for neither.
-func grabsOf(downloads []download, title catalogapi.Title, p ScoringProfile, now time.Time) (queue, recent []activeGrab) {
+// RecentGrabWindow) the specs read, each scored against the search's profile. Failed downloads and the
+// search's Removed ones count for neither.
+func (in *decisionInput) grabsOf(downloads []download) (queue, recent []activeGrab) {
 	queue, recent = []activeGrab{}, []activeGrab{}
 	for _, d := range downloads {
-		if d.State == api.StateFailed {
+		if d.State == api.StateFailed || slices.Contains(in.Removed, d.ID) {
 			continue
 		}
-		g := grabOf(d, title, p)
+		g := grabOf(d, in.Title, in.Profile)
 		if d.RemovedAt == nil && slices.Contains(queuedStates, d.State) {
 			queue = append(queue, g)
 		}
-		if now.Sub(d.GrabbedAt) < RecentGrabWindow {
+		if in.Now.Sub(d.GrabbedAt) < RecentGrabWindow {
 			recent = append(recent, g)
 		}
 	}
@@ -143,7 +149,11 @@ type decisionInput struct {
 	// Episodes are every episode of a series.
 	Episodes []catalogapi.Episode
 	// Searched are the episodes asked for; empty when the whole title was searched.
-	Searched  []catalogapi.Episode
+	Searched []catalogapi.Episode
+	// Languages are the title's wanted languages, beside its original language.
+	Languages []domain.Language
+	// Removed are downloads the user removed for this search; Queue and History leave them out.
+	Removed   []domain.DownloadID
 	Profile   ScoringProfile
 	Files     []existingFile
 	Blocklist []api.BlocklistEntry
@@ -170,6 +180,7 @@ var tierZero = []specification{
 	{allTriggers, unknownEpisode},
 	{allTriggers, qualityAllowedByProfile},
 	{allTriggers, customFormatAllowedByProfile},
+	{allTriggers, releaseLanguage},
 	{allTriggers, acceptableSize},
 	{allTriggers, maximumSize},
 	{allTriggers, notSample},
@@ -198,6 +209,14 @@ var tierZero = []specification{
 // tierOne runs only when tier zero accepted the release.
 var tierOne = []specification{
 	{allTriggers, freeSpace},
+}
+
+// grabTimeSpecs run again right before an automatic grab, on the blocklist and downloads as they are then, so
+// a search doesn't grab what another search grabbed or blocklisted since it started.
+var grabTimeSpecs = []specification{
+	{allTriggers, blocklisted},
+	{allTriggers, queued},
+	{rssTriggers, history},
 }
 
 // decide runs the decision table on one release. An empty result means accepted.
@@ -377,6 +396,43 @@ func customFormatAllowedByProfile(c candidate, in *decisionInput) (api.Rejection
 	return accept, false
 }
 
+// releaseLanguage wants a release with audio in the title's original language or a wanted language, as
+// Transcode keeps. A release naming no language counts as the original language, and a multi-language
+// release passes when any of its languages is wanted.
+func releaseLanguage(c candidate, in *decisionInput) (api.Rejection, bool) {
+	wanted := in.wantedLanguages()
+	named := releaseLanguages(ReleaseFacts{Release: c.Release, OriginalLanguage: in.Title.OriginalLanguage})
+	if len(wanted) == 0 || len(named) == 0 || c.Release.OriginalLanguage {
+		return accept, false
+	}
+	if slices.ContainsFunc(named, func(l domain.Language) bool { return slices.Contains(wanted, l) }) {
+		return accept, false
+	}
+	return permanent(api.RejectLanguageNotWanted, "Audio in %s, not %s", languageNames(named, "and"), languageNames(wanted, "or")), true
+}
+
+// wantedLanguages are the original language and the wanted ones, without repeats.
+func (in *decisionInput) wantedLanguages() []domain.Language {
+	wanted := []domain.Language{}
+	for _, l := range append([]domain.Language{in.Title.OriginalLanguage}, in.Languages...) {
+		if l != "" && !slices.Contains(wanted, l) {
+			wanted = append(wanted, l)
+		}
+	}
+	return wanted
+}
+
+func languageNames(languages []domain.Language, conjunction string) string {
+	names := make([]string, 0, len(languages))
+	for _, l := range languages {
+		names = append(names, parse.LanguageName(l))
+	}
+	if len(names) == 1 {
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " " + conjunction + " " + names[len(names)-1]
+}
+
 // sizeLimits returns the profile item's limits for the release's quality.
 func (in *decisionInput) sizeLimits(q domain.Quality) (api.SizeLimits, bool) {
 	items := in.Profile.Profile().Items
@@ -483,9 +539,12 @@ func alreadyImported(c candidate, in *decisionInput) (api.Rejection, bool) {
 	return accept, false
 }
 
-func torrentSeeding(c candidate, _ *decisionInput) (api.Rejection, bool) {
+func torrentSeeding(c candidate, in *decisionInput) (api.Rejection, bool) {
 	if minimum := c.Indexer.Settings.MinSeeders; c.Item.Seeders < minimum {
 		return permanent(api.RejectNotEnoughSeeders, "%d seeders, the indexer needs %d", c.Item.Seeders, minimum), true
+	}
+	if grabbingSearches.has(in.Trigger) && c.Item.Seeders < MinAutomaticSeeders {
+		return permanent(api.RejectNotEnoughSeeders, "%d seeders, an automatic grab needs %d", c.Item.Seeders, MinAutomaticSeeders), true
 	}
 	return accept, false
 }

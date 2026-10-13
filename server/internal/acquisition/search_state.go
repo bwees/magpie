@@ -194,20 +194,38 @@ func (st *search) noteHash(hash string) {
 	st.triedHashes[strings.ToLower(hash)] = true
 }
 
-// nextUntried claims the best accepted release not tried yet among those keep allows.
+// nextUntried claims the best accepted release not tried yet among those keep allows, in the automatic
+// order. A grabbing search skips a release whose agreed seeders are below MinAutomaticSeeders.
 func (st *search) nextUntried(keep func(decidedRelease) bool) (decidedRelease, bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	order := automaticRanking(st.releases)
 	accepted := slices.DeleteFunc(slices.Clone(st.releases), func(d decidedRelease) bool {
 		return !d.accepted() || st.tried[d.ID] || !keep(d) ||
-			(d.Candidate.Item.InfoHash != "" && st.triedHashes[strings.ToLower(d.Candidate.Item.InfoHash)])
+			(d.Candidate.Item.InfoHash != "" && st.triedHashes[strings.ToLower(d.Candidate.Item.InfoHash)]) ||
+			(grabbingSearches.has(st.trigger) && order.seeders(d) < MinAutomaticSeeders)
 	})
 	if len(accepted) == 0 {
 		return decidedRelease{}, false
 	}
-	slices.SortFunc(accepted, compareReleases)
+	slices.SortFunc(accepted, order.compare)
 	st.tried[accepted[0].ID] = true
 	return accepted[0], true
+}
+
+// ranking is the order the search shows: the automatic one for a search that grabs on its own. Caller holds mu.
+func (st *search) ranking() ranking {
+	if st.trigger == api.TriggerInteractive {
+		return interactiveRanking
+	}
+	return automaticRanking(st.releases)
+}
+
+// acceptedAny reports whether any release passed the decision engine.
+func (st *search) acceptedAny() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return slices.ContainsFunc(st.releases, decidedRelease.accepted)
 }
 
 // grabbedAs records a grab, so a search that completes afterwards reports GRABBED.
@@ -248,7 +266,7 @@ func (st *search) answer(ix Indexer, status api.IndexerRunStatus, message string
 	st.runs[i].Status, st.runs[i].Message = status, message
 	added := st.add(ix, decided)
 
-	current := ranks(st.releases)
+	current := ranks(st.releases, st.ranking())
 	decisions := make([]api.ReleaseDecision, 0, len(added))
 	for _, d := range st.releases[len(st.releases)-len(added):] {
 		decisions = append(decisions, d.decision(current[d.ID]))
@@ -342,7 +360,7 @@ func (st *search) release(id domain.ReleaseID) (decidedRelease, bool) {
 func (st *search) snapshot() SearchSnapshot {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	current := ranks(st.releases)
+	current := ranks(st.releases, st.ranking())
 	decisions := make([]api.ReleaseDecision, 0, len(st.releases))
 	for _, d := range st.releases {
 		decisions = append(decisions, d.decision(current[d.ID]))

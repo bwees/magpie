@@ -57,6 +57,18 @@ func LanguageCode(s string) (domain.Language, bool) {
 	return domain.Language(base.String()), true
 }
 
+// LanguageName is a language's English name, or its code when x/text doesn't know it.
+func LanguageName(code domain.Language) string {
+	base, err := language.ParseBase(string(code))
+	if err != nil {
+		return string(code)
+	}
+	if name := display.English.Languages().Name(base); name != "" {
+		return name
+	}
+	return string(code)
+}
+
 // SubtitleLanguage is what a subtitle file's name says about it.
 type SubtitleLanguage struct {
 	Language domain.Language

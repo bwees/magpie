@@ -11,7 +11,8 @@ import (
 
 // Settle runs a search's automatic grab: the best accepted release first, then the best for each item no
 // grab covers yet, each through the blocked-file check and its fallback. Releases waiting only on the delay
-// go to the pending queue. The search then completes, if every indexer answered.
+// go to the pending queue. An ended season that accepted nothing is searched again episode by episode. The
+// search then completes, if every indexer answered.
 func (s *DownloadService) Settle(ctx context.Context, id domain.SearchID) error {
 	st, err := s.deps.Searches.find(id)
 	if errors.Is(err, ErrSearchNotFound) {
@@ -26,15 +27,46 @@ func (s *DownloadService) Settle(ctx context.Context, id domain.SearchID) error 
 	if err := s.CheckClient(ctx); err != nil {
 		return err
 	}
-	covered, err := s.grabEachItem(ctx, st)
+	held, err := s.grabAndHold(ctx, st)
 	if err != nil {
 		return err
 	}
-	held, err := s.hold(ctx, st, covered)
-	if err != nil {
+	if err := s.searchEpisodesInstead(ctx, st, held); err != nil {
 		return err
 	}
 	return s.finishSettle(ctx, st, held)
+}
+
+func (s *DownloadService) grabAndHold(ctx context.Context, st *search) (bool, error) {
+	defer s.lockTitle(st.input.Title.ID)()
+	covered, err := s.grabEachItem(ctx, st)
+	if err != nil {
+		return false, err
+	}
+	return s.hold(ctx, st, covered)
+}
+
+// searchEpisodesInstead queues a search per episode, MinSweepGap apart, when a grabbing search of a whole
+// season that has ended accepted nothing: such a search wants a pack, and an old season's pack is often
+// missing or below the profile's size floor.
+func (s *DownloadService) searchEpisodesInstead(ctx context.Context, st *search, held bool) error {
+	in := st.input
+	season, whole := in.searchedSeason()
+	if held || !whole || len(in.Searched) <= 1 || !in.seasonAired(season) ||
+		!grabbingSearches.has(st.trigger) || st.isCancelled() || st.acceptedAny() {
+		return nil
+	}
+	return s.deps.DB.Write(context.WithoutCancel(ctx), func(tx *gorm.DB) error {
+		at := s.now().UTC()
+		for _, ep := range in.Searched {
+			task := searchTask{Title: in.Title.ID, Episodes: []domain.EpisodeID{ep.ID}, Trigger: st.trigger, Removed: in.Removed}
+			if err := queueSearchAt(tx, s.deps.Jobs, task, at); err != nil {
+				return err
+			}
+			at = at.Add(MinSweepGap)
+		}
+		return nil
+	})
 }
 
 func (s *DownloadService) finishSettle(ctx context.Context, st *search, held bool) error {

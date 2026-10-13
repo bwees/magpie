@@ -302,6 +302,7 @@ func TestAMetadataTimeoutDeletesAndBlocklistsFor24Hours(t *testing.T) {
 	s := f.searched(t, release(acceptedName))
 	result := f.grab(t, s, acceptedName)
 	hash := magnetHash(acceptedName)
+	f.poll(t)
 
 	f.clock.Advance(acquisition.DefaultMetadataTimeout - time.Second)
 	f.poll(t)
@@ -476,6 +477,64 @@ func TestALongerStalledLimitLeavesTheDownloadAlone(t *testing.T) {
 	if len(f.qbit.Deletions()) != 0 || len(f.events.ofType(api.TypeDownloadFailed)) != 0 {
 		t.Errorf("a %s stall under a %s limit was dropped", stall, longerLimit)
 	}
+}
+
+// Seed acquisition #51.
+func TestTheStallClockSurvivesARestart(t *testing.T) {
+	const beforeRestart = 5 * time.Hour
+	f := newSearchFixture(t)
+	s := f.searched(t, f.torrentRelease(acceptedName, "Movie.mkv"))
+	f.grab(t, s, acceptedName)
+	f.qbit.Update(torrentHash(acceptedName, "Movie.mkv"), func(tr *acquisition.Torrent) { tr.Progress, tr.Status = 0.4, acquisition.TorrentStalledDL })
+	f.poll(t)
+	f.clock.Advance(beforeRestart)
+	f.poll(t)
+
+	f = f.restarted()
+	f.poll(t)
+	f.clock.Advance(acquisition.DefaultStalledLimit - beforeRestart + time.Minute)
+	f.poll(t)
+
+	if n := len(f.events.ofType(api.TypeDownloadFailed)); n != 1 {
+		t.Errorf("%d DownloadFailed, want the stall counted from before the restart", n)
+	}
+}
+
+// Seed acquisition #51, second case.
+func TestTimeQueuedInQBittorrentCountsTowardNoTimeout(t *testing.T) {
+	queued := func(tr *acquisition.Torrent) { tr.Status = acquisition.TorrentQueuedDL }
+	t.Run("metadata", func(t *testing.T) {
+		f := newSearchFixture(t)
+		s := f.searched(t, release(acceptedName))
+		f.grab(t, s, acceptedName)
+		hash := magnetHash(acceptedName)
+		f.qbit.Update(hash, queued)
+		f.poll(t)
+		f.clock.Advance(2 * acquisition.DefaultMetadataTimeout)
+		f.poll(t)
+		if len(f.qbit.Deletions()) != 0 {
+			t.Fatal("a magnet qBittorrent kept queued hit the metadata timeout")
+		}
+
+		f.qbit.Update(hash, func(tr *acquisition.Torrent) { tr.Status = acquisition.TorrentMetaDL })
+		f.clock.Advance(acquisition.DefaultMetadataTimeout + time.Second)
+		f.poll(t)
+		if !slices.Equal(f.qbit.Deletions(), []fakes.Deletion{{Hash: hash, DeleteFiles: true}}) {
+			t.Errorf("deletions = %+v, want the timeout once qBittorrent fetched it", f.qbit.Deletions())
+		}
+	})
+	t.Run("stall", func(t *testing.T) {
+		f := newSearchFixture(t)
+		s := f.searched(t, f.torrentRelease(acceptedName, "Movie.mkv"))
+		f.grab(t, s, acceptedName)
+		f.qbit.Update(torrentHash(acceptedName, "Movie.mkv"), queued)
+		f.poll(t)
+		f.clock.Advance(acquisition.DefaultStalledLimit + time.Minute)
+		f.poll(t)
+		if len(f.qbit.Deletions()) != 0 || len(f.events.ofType(api.TypeDownloadFailed)) != 0 {
+			t.Error("a download qBittorrent kept queued was dropped as stalled")
+		}
+	})
 }
 
 func TestAnErroredDownloadFailsAndIsBlocklistedPermanently(t *testing.T) {

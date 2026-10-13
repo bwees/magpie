@@ -78,6 +78,7 @@ const (
 	RejectUnableToParse        RejectionReason = "UNABLE_TO_PARSE"
 	RejectQualityNotAllowed    RejectionReason = "QUALITY_NOT_ALLOWED"
 	RejectFormatScoreTooLow    RejectionReason = "FORMAT_SCORE_TOO_LOW"
+	RejectLanguageNotWanted    RejectionReason = "LANGUAGE_NOT_WANTED"
 	RejectUnknownRuntime       RejectionReason = "UNKNOWN_RUNTIME"
 	RejectSizeTooSmall         RejectionReason = "SIZE_TOO_SMALL"
 	RejectSizeTooLarge         RejectionReason = "SIZE_TOO_LARGE"

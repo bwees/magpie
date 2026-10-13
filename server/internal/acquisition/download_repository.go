@@ -11,6 +11,7 @@ import (
 	"magpie/internal/domain"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // download is a stored Download plus what Acquisition needs to manage it in qBittorrent.
@@ -150,6 +151,42 @@ func (r *Repository) hasActiveDownloads(ctx context.Context) (bool, error) {
 	var found int64
 	err := r.db.Read(ctx).Model(&downloadRow{}).Where("removed_at IS NULL AND state NOT IN ?", finishedStates).Limit(1).Count(&found).Error
 	return found > 0, err
+}
+
+type downloadMarkRow struct {
+	DownloadID domain.DownloadID `gorm:"primaryKey"`
+	Progress   float64
+	At         time.Time
+}
+
+func (downloadMarkRow) TableName() string { return "acquisition_download_marks" }
+
+// downloadMarks reads the stored progress marks of some downloads.
+func (r *Repository) downloadMarks(ctx context.Context, ids []domain.DownloadID) (map[domain.DownloadID]progressMark, error) {
+	var rows []downloadMarkRow
+	if err := r.db.Read(ctx).Where("download_id IN ?", ids).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	marks := make(map[domain.DownloadID]progressMark, len(rows))
+	for _, row := range rows {
+		marks[row.DownloadID] = progressMark{progress: row.Progress, at: row.At}
+	}
+	return marks, nil
+}
+
+// saveDownloadMarks stores marks and drops those of downloads no longer fetching.
+func (r *Repository) saveDownloadMarks(ctx context.Context, marks map[domain.DownloadID]progressMark) error {
+	rows := make([]downloadMarkRow, 0, len(marks))
+	for id, mark := range marks {
+		rows = append(rows, downloadMarkRow{DownloadID: id, Progress: mark.progress, At: mark.at.UTC()})
+	}
+	return r.db.Write(ctx, func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&rows).Error; err != nil {
+			return err
+		}
+		fetching := tx.Model(&downloadRow{}).Select("id").Where("removed_at IS NULL AND state IN ?", fetchingStates)
+		return tx.Where("download_id NOT IN (?)", fetching).Delete(&downloadMarkRow{}).Error
+	})
 }
 
 // moveDownload changes a download's state only while it is still in one of from, so a repeated

@@ -41,6 +41,7 @@ Decided in: [quality model](../../../.scratch/v1-spec/issues/10-quality-model.md
 | `search_jobs` | `key` = `(title, episodes, trigger)`, `queued_at`: a queued search job; a second one with the key isn't queued. The job deletes its key when it starts. |
 | `issue_regrabs` | `issue_id`, `handled_at`: issues whose REGRAB already blocklisted and searched |
 | `blocklist` | `title_id`, `info_hash`, `release_name`, `indexer`, `reason` (`BLOCKED_FILE` \| `METADATA_TIMEOUT` \| `STALLED` \| `IMPORT_FAILED` \| `DOWNLOAD_FAILED` \| `USER` \| `ISSUE` \| `MIGRATED`), `at`, `expires_at?` (null = permanent) |
+| `download_marks` | `download_id`, `progress`, `at`: when a download awaiting metadata or downloading last moved forward or waited in qBittorrent's queue; the start of its stall or metadata clock. Stored at most once a minute while it moves; rows of downloads no longer fetching are dropped |
 | `downloads` | `id`, `info_hash`, `qbit_hash`, `title_id`, `episode_ids`, `release_name`, `release_id` (the search's release ID), `indexer_id`, `indexer` (name), `quality` (JSON), `cf_score`, `size_bytes`, `state`, `progress`, `seeding_mode`, `trigger`, `override`, `failure` (why it was dropped), `goal_ratio?`, `goal_time?`, `grabbed_at`, `completed_at?`, `removed_at?`, `search_id?` |
 | `file_scores` | `media_file_id`, `title_id`, `episode_ids`, `quality` (JSON), `release_name`, `path`, `size_bytes` (what the score is computed from, as imported), `cf_score`, `profile_id` (the Title's profile at the last evaluation), `cutoff_met bool`, `transcoded bool`, `origin`, `evaluated_at` (Acquisition's own view of library files; built from `FileImported`/`FileTranscoded`/`FileDeleted`) |
 
@@ -321,6 +322,7 @@ Owned by Acquisition, under `/api/acquisition`, in the OpenAPI spec.
   2. Title + year (movies) or title + season/episode (TV) when tier 1 is unsupported or returns nothing. Year, season and episode go in the query text (`Dune 2024`, `Severance S02E03`) when the caps lack those params.
   - Both tiers ask for the caps' categories in the kind's Newznab range (2000–2999 movies, 5000–5999 TV), or none.
   - A series search narrows to a season when every searched episode is in it, and to the episode when only one was searched.
+  - A series search spanning several seasons, or the whole series, runs the tiers once per season (one season's episodes each), never as one query without a season: indexers answer that with a page of mixed episodes. The indexer's answer is every season's releases together.
   - No ID support and no title results → status `SKIPPED`.
 - **Timeout:** 60 s per indexer. A late answer still streams into an open search; a timed-out indexer reports `FAILED`, and its late answer is a second `SearchResultsReceived` with `DONE`.
 - **Cache:** results are kept in memory per `(indexer, query)` for 30 min, and per search for the "next best release" fallback. A restart loses it; the fallback then runs a fresh search.
@@ -361,11 +363,12 @@ Every release goes through the same specs, whatever triggered the search. Each s
 | UnknownTitle / UnknownEpisode / UnableToParse | P | all |
 | QualityAllowedByProfile | P | all |
 | CustomFormatAllowedByProfile (score ≥ min) | P | all |
+| ReleaseLanguage (`LANGUAGE_NOT_WANTED`: audio in the original or a wanted language) | P | all |
 | AcceptableSize (profile item MB/min × runtime) and MaximumSize (global) | P | all |
 | NotSample, RawDisk, SplitEpisode | P | all |
 | Blocklisted (by info hash; else name + indexer) | P | all |
 | AlreadyImported | P | all |
-| TorrentSeeding (seeders ≥ indexer minimum) | P | all |
+| TorrentSeeding (seeders ≥ indexer minimum; AUTO, USER_AUTO and REGRAB also need `MinAutomaticSeeders` = 3) | P | all |
 | BlockedIndexer (backoff) | T | all |
 | UpgradeAllowed / UpgradeDisk (upgrade rule below; file transcoded → reject) | P | all but REGRAB |
 | Repack (same group as existing file) and Proper (7-day window) | P | all but REGRAB / RSS |
@@ -389,12 +392,20 @@ How the specs read their inputs:
 - UnknownTitle compares the parsed title and its aliases with the title's name, original name and aliases after Sonarr's cleaning (case, punctuation and the words a/an/the/and/or/of dropped); a movie's year may be off by one.
 - MaximumSize reads `acquisition.maximumSize` (bytes, 0 = no cap; no UI yet). NotSample rejects a release named "sample" under 70 MB. RawDisk rejects `BDMV` / `VIDEO_TS` in the name.
 - AlreadyImported matches the info hash against the title's library files (`library.Reader`). The upgrade, Repack, Proper and SameEpisodesGrab specs score each library file the release would replace by its original release name, else its path, with the library's quality.
+- ReleaseLanguage reads the parsed audio languages. A release passes when any of them is the title's original language or one of its wanted languages (`catalog.Reader.WantedLanguages`), the same languages Transcode keeps. A release naming no language counts as the original; "orig" or German "DL" tags count as the original too. A multi-language release such as `ITA.ENG` passes for an English title. No original language and no wanted languages skips the check. Message: "Audio in Italian, not English".
+- TorrentSeeding reads the release's own seeder count. A grabbing search (AUTO, USER_AUTO, REGRAB) also needs `MinAutomaticSeeders` (3): an older release with fewer is usually dead and stalls. RSS keeps the indexer minimum only, since its releases are minutes old. Interactive keeps the indexer minimum, so the dialog still lists everything.
 - BlockedIndexer rejects releases from an indexer that was `FAILING` when the search started.
 - Queue reads the title's downloads still in qBittorrent (awaiting metadata, downloading or completed); History reads its grabs from the last 12 h. Failed downloads count for neither. Each is scored against the search's profile by its release name and stored quality. Pending reads the title's `pending_releases`; like Delay it lets a release that bypasses the delay through.
 - FreeSpace asks qBittorrent for the download disk's free space once per search and rejects a release that would leave less than 100 MB. Unknown free space skips the check.
 - Every rejection carries a message for the dialog, such as "WEBDL-720p isn't wanted by 1080p".
 
 **Ranking** (accepted only): quality rank (profile order; members of a group are equal) → CF score → episode count (more episodes first, a season pack first at equal count) → indexer priority (lower first) → seeders (log10 buckets) → size closest to preferred (200 MB buckets; largest first when the profile has no preferred size) → arrival. The order is total, so earlier releases never swap places as more arrive; `ReleaseDecision.Rank` is the position among accepted releases when the event is sent.
+
+**Automatic ranking** (every search but interactive, and every automatic pick: the settle grab and the fallback) weighs seeders more:
+- **Agreed seeders.** A release listed by several indexers counts with the lower median of their seeder counts. Copies match by info hash, by name (cleaned as for titles), or by size and quality. One indexer reporting 644 seeders where the others report 0 and 1 counts as 1; with two copies the smaller count wins; a release one indexer lists keeps its own count.
+- **Floor.** A grabbing search (AUTO, USER_AUTO, REGRAB) skips a release whose agreed seeders are below `MinAutomaticSeeders` (3), even when its own count passed TorrentSeeding.
+- **Seeder tier** after CF score and before episode count: well seeded (≥ `WellSeededSeeders` = 10), weak (3–9), below 3. A season pack with 4 seeders ranks after a single episode with 200 at the same quality and score; the remaining episodes are grabbed one by one.
+- The rest of the order is as above, with the agreed seeders in the log10 tiebreak. As agreed counts change with each answer, an automatic search's ranks may swap; the interactive order never does.
 
 **Upgrade rule**, in order:
 1. Better quality while below cutoff → upgrade.
@@ -427,6 +438,9 @@ A file with `transcoded = true` is never upgraded automatically; only REGRAB or 
   - Wait until every indexer answered or 30 s passed (setting), then grab the top accepted release. When the window passes with nothing accepted, the next accepted answer or the last indexer settles it.
   - Grab early when the top release meets the quality cutoff with the profile's **maximum attainable CF score**, because nothing can beat it. The maximum attainable score is the sum of the profile's positive format scores, an upper bound, so an early grab never passes over a better release.
   - Grab each item once per batch; a pack covers its episodes. After the best release, the best one covering only items no grab covers yet is taken, and so on. Each grab goes through `DownloadService`'s blocked-file check and fallback.
+  - **Grab-time recheck.** The decision input is read once, when the search starts. Right before each automatic or fallback grab, Blocklisted, Queue and (RSS) History run again on the title's blocklist and downloads as they are then; a release they reject is skipped, not blocklisted, and the next one is tried. Downloads the same grab is dropping (a stall or failure falling back) and the search's removed downloads don't count as queued. A user's own grab from the dialog isn't rechecked.
+  - **One grab at a time per title.** The settle grab, a user grab and a drop's fallback hold a per-title lock from the recheck to the stored download, so two searches settling at once can't both pass the recheck. The lock lives in memory; Magpie runs one server.
+  - **Ended season, nothing accepted.** When a grabbing search of a whole season that has ended (more than one episode) accepts nothing and holds nothing, one search per episode of that season is queued with the same trigger, `MinSweepGap` (4 s) apart. Such a season search wants a pack (SeasonPackOnly), and an old season's pack is often missing or below the profile's size floor. An episode search isn't a season search, so it accepts singles.
   - The grab runs as a job (`acquisition.automatic-grab`) once the search settles. `SearchCompleted` waits for it, so its outcome says `GRABBED` or `PENDING_DELAY`.
   - RSS and the pending queue decide their releases as quiet batches: a `searches` row, no `SearchStarted`/`SearchCompleted`; only their grabs (`ReleaseGrabbed{Trigger}`) show.
 - **Interactive:**
@@ -458,6 +472,7 @@ The check is on by default and can be turned off in settings.
    - No content bytes are fetched before the check.
 3. **Metadata timeout:**
    - No metadata after 5 min (setting) → delete, then a **temporary** blocklist entry (`METADATA_TIMEOUT`, expires after 24 h), publish `ReleaseRejected`, fall back.
+   - The clock starts at the first poll that sees the torrent and restarts at every poll that finds it waiting (`queuedDL`, `checkingDL`, `checkingResumeData`): a magnet queued behind qBittorrent's active-download limit isn't fetching yet. It is the download's progress mark, so it survives a restart.
 4. **Fallback:**
    - Take the next accepted, not-yet-tried release from the search's cached ranking. Grab it and set `ReleaseRejected.Next`.
    - A release is tried once per search, whether the user grabbed it or the fallback did; the same info hash from another indexer counts as tried. A fallback .torrent that is blocked in turn is rejected the same way and the next one is taken.
@@ -478,6 +493,7 @@ The check is on by default and can be turned off in settings.
 - **Failure:**
   - `error` or `missingFiles` state → `DownloadFailed`, permanent blocklist (`DOWNLOAD_FAILED`), delete with data, fall back.
   - Stalled (no progress) for longer than the stalled limit (setting, default 6 h) → `DownloadFailed`, **temporary** blocklist (`STALLED`, expires after 24 h), delete with data, fall back.
+  - The stall clock is the download's progress mark (`download_marks`): it restarts when progress moves or qBittorrent has the torrent waiting (`queuedDL`, `checkingDL`, `checkingResumeData`), and is read back after a restart. A moving mark is stored at most once a minute (`MarkSaveInterval`), so after a restart a clock reads at most a minute long.
 - **SEED_UNTIL_GOALS:**
   - After `FileImported`, keep seeding.
   - Every 5 min (the `acquisition.seeding-goals` periodic job), check ratio and seeding time of each `IMPORTED` download against the indexer's goals, else the global goal (`acquisition.seedingGoal`, default ratio 2.0 or 14 days, whichever first). The indexer's ratio and days override the global ones separately. When either goal is met: `Delete(deleteFiles=true)` and set `removed_at`; the state stays `IMPORTED`. The library copy is a hardlink or copy, so it survives.
@@ -579,3 +595,11 @@ The check is on by default and can be turned off in settings.
 41. **REGRAB once per issue:** given a REGRAB for issue I that blocklisted the file's hash and whose search ran, when `IssueActionRequested{REGRAB}` for I arrives again, then no second `ISSUE` entry and no second search exist.
 42. **REGRAB past a removed waiting download:** given D in `IMPORT_PENDING_USER` covering the items, when `IssueActionRequested{REGRAB, RemovedDownloads: [D]}` arrives, then its search rejects no release `ALREADY_QUEUED`; without `RemovedDownloads` every release covering D's items is rejected `ALREADY_QUEUED`.
 43. **Scoped interactive search:** given season 1 has ended, an interactive search of season 1 accepts an S01 pack and S01E02 and rejects S02E02 `SEARCH_MISMATCH`; a USER_AUTO search of season 1 rejects S01E02 `SEASON_PACK_ONLY`. An interactive search of S01E02 accepts the S01 pack and S01E02 and rejects S01E03 `SEARCH_MISMATCH`.
+44. **Two searches settle at once:** given two AUTO searches of a movie that both accepted the same releases, when their automatic grabs run at the same time, then one release is grabbed; the other search's recheck finds it queued. Given a release blocklisted after the search started, a fallback skips it.
+45. **Agreed seeders:** given one release listed with 644 seeders on one indexer and 0 and 1 on two others, and another release with 40 on one indexer, then an AUTO search grabs the 40-seeder release. Interactive search still lists the 644 copy with its own count.
+46. **Automatic seeder floor:** a release with 2 seeders is rejected `NOT_ENOUGH_SEEDERS` in AUTO, USER_AUTO and REGRAB searches and accepted in interactive and RSS ones (indexer minimum 1).
+47. **Seeder tier:** at equal quality and score, an S01 pack with 4 seeders ranks above S01E02 with 200 interactively, and below it in the automatic order.
+48. **Release language:** for an English title, `iTALiAN` is rejected `LANGUAGE_NOT_WANTED` ("Audio in Italian, not English") in every search, interactive included; `ITA.ENG`, `GERMAN.DL` and a name without a language are accepted. With Italian wanted, `iTALiAN` is accepted.
+49. **Ended season fallback:** given an ended three-episode season 1 and an indexer offering only S01E01, when an AUTO search of the season accepts nothing, then three AUTO searches of one episode each are queued 4 s apart. Given a season pack is offered, it is grabbed and no episode search is queued.
+50. **Per-season queries:** given a series with seasons 1 and 2, a USER_AUTO search of the whole series queries each indexer once per season, never without a season.
+51. **Clocks across restarts and queueing:** given a download stalled at 40 % for 5 h, when the server restarts, then it fails 1 h 1 min later. A magnet qBittorrent keeps `queuedDL` for twice the metadata timeout is left alone, then times out 5 min after qBittorrent starts fetching it; a download kept queued past the stalled limit isn't dropped.

@@ -116,8 +116,8 @@ Owner: **Acquisition**. Decided in [ticket 11](../../.scratch/v1-spec/issues/11-
 |---|---|---|
 | Reject releases with blocked files | on | |
 | Blocked file patterns | `*.exe *.msi *.bat *.cmd *.com *.scr *.lnk *.ps1 *.vbs *.js *.jar *.apk *.dmg *.iso *.rar *.r[0-9][0-9] *.zip *.7z` | glob or `regex:` prefix; regex must compile |
-| Magnet metadata timeout | 5 min (then temporary blocklist for 24 h) | 1–60 min |
-| Stalled download limit | 6 h (then `DownloadFailed`, temporary blocklist for 24 h, grab next) | 30 min–72 h |
+| Magnet metadata timeout | 5 min (then temporary blocklist for 24 h), counted while qBittorrent fetches, not while it queues the torrent | 1–60 min |
+| Stalled download limit | 6 h (then `DownloadFailed`, temporary blocklist for 24 h, grab next), counted while qBittorrent fetches; survives a restart | 30 min–72 h |
 | Global seeding goal | ratio 2.0 or 14 days, whichever first (`acquisition.seedingGoal`) | ratio 0–100, days 0–365 |
 | Search when a title is added | on | `GET · PUT /api/acquisition/search-options`; saves on change. Requested and manually added titles only. |
 
@@ -127,7 +127,7 @@ Owner: **Subtitles**, except where noted. Decided in [ticket 16](../../.scratch/
 
 | Setting | Default | Validation |
 |---|---|---|
-| Wanted languages (ordered, with Forced / HI-ok flags) | English | Owner: **Catalog** (`catalog.Reader.WantedLanguages`). ≥ 1 language, ISO 639-1. Subtitles and Transcode both read it. |
+| Wanted languages (ordered, with Forced / HI-ok flags) | English | Owner: **Catalog** (`catalog.Reader.WantedLanguages`). ≥ 1 language, ISO 639-1. Subtitles and Transcode both read it; Acquisition reads it for release languages. |
 | OpenSubtitles login | none | Platform connection config (see Connections). Shows today's quota (20 free / 1000 VIP). |
 | Generate with Whisper when nothing is found | off | original language only; the admin turns it on once an agent passes `WHISPER_VULKAN` |
 | Whisper model | `large-v3-turbo` | `large-v3-turbo` \| `large-v3` \| `medium` \| `small` |

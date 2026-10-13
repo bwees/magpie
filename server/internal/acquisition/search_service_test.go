@@ -116,14 +116,16 @@ type searchFixture struct {
 	quality   *acquisition.QualityService
 	searches  *acquisition.SearchService
 	downloads *acquisition.DownloadService
-	cutoff    *acquisition.CutoffService
-	jobs      *recordingQueue
-	clock     *clock
-	catalog   *catalogtest.Fake
-	library   *librarytest.Fake
-	qbit      *fakes.QBittorrent
-	events    *recorder
-	title     catalogapi.Title
+	// downloadDeps build the download service again, as a restart does.
+	downloadDeps acquisition.DownloadDeps
+	cutoff       *acquisition.CutoffService
+	jobs         *recordingQueue
+	clock        *clock
+	catalog      *catalogtest.Fake
+	library      *librarytest.Fake
+	qbit         *fakes.QBittorrent
+	events       *recorder
+	title        catalogapi.Title
 }
 
 func newSearchFixture(t *testing.T) searchFixture {
@@ -172,12 +174,19 @@ func newSearchFixture(t *testing.T) searchFixture {
 	})
 	t.Cleanup(f.searches.Close)
 	f.clock = &clock{now: time.Now().Truncate(time.Second)}
-	f.downloads = acquisition.NewDownloadService(acquisition.DownloadDeps{
+	f.downloadDeps = acquisition.DownloadDeps{
 		DB: d, Repo: repo, Catalog: f.catalog, Prowlarr: f.prowlarr, QBittorrent: f.qbit,
 		Store: store, Bus: b, Jobs: f.jobs, Searches: registry,
-	})
-	acquisition.SetDownloadClock(f.downloads, f.clock.Now)
+	}
+	f = f.restarted()
 	f.cutoff = acquisition.NewCutoffService(acquisition.CutoffDeps{DB: d, Repo: repo, Catalog: f.catalog, Bus: b})
+	return f
+}
+
+// restarted has a new download service on the same database, which remembers nothing in memory.
+func (f searchFixture) restarted() searchFixture {
+	f.downloads = acquisition.NewDownloadService(f.downloadDeps)
+	acquisition.SetDownloadClock(f.downloads, f.clock.Now)
 	return f
 }
 

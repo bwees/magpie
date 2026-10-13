@@ -21,6 +21,14 @@ func TestLanguageCodeReadsCodesAndNames(t *testing.T) {
 	}
 }
 
+func TestLanguageNameIsTheEnglishName(t *testing.T) {
+	for code, want := range map[domain.Language]string{"it": "Italian", "en": "English", "zz": "zz", "": ""} {
+		if got := LanguageName(code); got != want {
+			t.Errorf("LanguageName(%q) = %q, want %q", code, got, want)
+		}
+	}
+}
+
 func TestParseSubtitleLanguage(t *testing.T) {
 	for path, want := range map[string]SubtitleLanguage{
 		"Movie.en.srt":                   {Language: "en"},

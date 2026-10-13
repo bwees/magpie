@@ -208,10 +208,11 @@ func (s *SearchService) Start(ctx context.Context, req SearchRequest) (SearchSna
 	}
 
 	timeout := options.SearchTimeout.Std()
+	targets := seasonTargets(target, in.Episodes)
 	for _, run := range st.runs {
-		plan, hasIDTier := queryPlan(run.Indexer.Caps, target)
+		plans, hasIDTier := queryPlans(run.Indexer.Caps, targets)
 		s.running.Add(1)
-		go s.ask(st, run.Indexer, plan, hasIDTier, timeout)
+		go s.ask(st, run.Indexer, plans, hasIDTier, timeout)
 	}
 	s.follow(st, st.stepNow())
 	return st.snapshot(), nil
@@ -251,7 +252,7 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 		return nil, searchTarget{}, err
 	}
 	target := searchTarget{Title: title}
-	in := &decisionInput{Trigger: req.Trigger, Now: s.now(), Title: title}
+	in := &decisionInput{Trigger: req.Trigger, Now: s.now(), Title: title, Removed: req.Removed}
 
 	if title.Kind == domain.MediaKindSeries {
 		if in.Episodes, err = s.deps.Catalog.Episodes(ctx, title.ID); err != nil {
@@ -262,6 +263,9 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 		return nil, searchTarget{}, err
 	}
 	in.Searched = target.Episodes
+	if in.Languages, err = s.wantedLanguages(ctx, title.ID); err != nil {
+		return nil, searchTarget{}, err
+	}
 
 	if in.Profile, err = s.profileFor(ctx, title); err != nil {
 		return nil, searchTarget{}, err
@@ -278,8 +282,7 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 	if err != nil {
 		return nil, searchTarget{}, err
 	}
-	downloads = slices.DeleteFunc(downloads, func(d download) bool { return slices.Contains(req.Removed, d.ID) })
-	in.Queue, in.History = grabsOf(downloads, title, in.Profile, in.Now)
+	in.Queue, in.History = in.grabsOf(downloads)
 	held, err := s.deps.Repo.PendingReleases(ctx, title.ID)
 	if err != nil {
 		return nil, searchTarget{}, err
@@ -296,6 +299,18 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 	}
 	in.FreeSpace = sync.OnceValues(s.freeSpace)
 	return in, target, nil
+}
+
+func (s *SearchService) wantedLanguages(ctx context.Context, title domain.TitleID) ([]domain.Language, error) {
+	wanted, err := s.deps.Catalog.WantedLanguages(ctx, title)
+	if err != nil {
+		return nil, err
+	}
+	languages := make([]domain.Language, 0, len(wanted))
+	for _, w := range wanted {
+		languages = append(languages, w.Language)
+	}
+	return languages, nil
 }
 
 // pickEpisodes resolves the requested episode IDs; a movie takes none.
@@ -352,15 +367,15 @@ func (s *SearchService) freeSpace() (int64, bool) {
 	return free, true
 }
 
-// ask runs one indexer's query tiers. After the timeout it reports FAILED but keeps waiting, so a late
-// answer still streams into the open search.
-func (s *SearchService) ask(st *search, ix Indexer, plan []TorznabQuery, hasIDTier bool, timeout time.Duration) {
+// ask runs one indexer's query plans, one per searched season. After the timeout it reports FAILED but keeps
+// waiting, so a late answer still streams into the open search.
+func (s *SearchService) ask(st *search, ix Indexer, plans [][]TorznabQuery, hasIDTier bool, timeout time.Duration) {
 	defer s.running.Done()
 	result := make(chan indexerAnswer, 1)
 	s.running.Add(1)
 	go func() {
 		defer s.running.Done()
-		result <- s.query(st, ix, plan, hasIDTier)
+		result <- s.query(st, ix, plans, hasIDTier)
 	}()
 
 	timer := time.NewTimer(timeout)
@@ -403,22 +418,24 @@ func (in *decisionInput) decideAll(items []TorznabItem, ix Indexer) []decidedRel
 	return decided
 }
 
-// query tries each tier in turn until one returns releases.
-func (s *SearchService) query(st *search, ix Indexer, plan []TorznabQuery, hasIDTier bool) indexerAnswer {
+// query runs each plan, trying its tiers in turn until one returns releases.
+func (s *SearchService) query(st *search, ix Indexer, plans [][]TorznabQuery, hasIDTier bool) indexerAnswer {
 	answer := indexerAnswer{status: api.IndexerDone}
-	for _, q := range plan {
-		items, asked, err := s.cachedSearch(st, ix, q)
-		answer.asked = answer.asked || asked
-		if err != nil {
-			answer.err = err
-			return answer
-		}
-		if len(items) > 0 {
-			answer.items = items
-			return answer
+	for _, plan := range plans {
+		for _, q := range plan {
+			items, asked, err := s.cachedSearch(st, ix, q)
+			answer.asked = answer.asked || asked
+			if err != nil {
+				answer.err = err
+				return answer
+			}
+			if len(items) > 0 {
+				answer.items = append(answer.items, items...)
+				break
+			}
 		}
 	}
-	if !hasIDTier {
+	if len(answer.items) == 0 && !hasIDTier {
 		answer.status, answer.message = api.IndexerSkipped, messageSkipped
 	}
 	return answer

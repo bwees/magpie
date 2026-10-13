@@ -41,6 +41,40 @@ func (c TorznabCaps) params(kind domain.MediaKind) []TorznabParam {
 	return c.MovieParams
 }
 
+// seasonTargets splits a series search spanning several seasons, or the whole series, into one target per
+// season: indexers answer a query without a season with a page of mixed episodes from anywhere.
+func seasonTargets(target searchTarget, all []catalogapi.Episode) []searchTarget {
+	episodes := target.Episodes
+	if len(episodes) == 0 {
+		episodes = all
+	}
+	if target.Title.Kind != domain.MediaKindSeries || len(episodes) == 0 {
+		return []searchTarget{target}
+	}
+	targets := []searchTarget{}
+	seasons := []int{}
+	for _, ep := range episodes {
+		i := slices.Index(seasons, ep.Season)
+		if i < 0 {
+			seasons = append(seasons, ep.Season)
+			targets = append(targets, searchTarget{Title: target.Title})
+			i = len(targets) - 1
+		}
+		targets[i].Episodes = append(targets[i].Episodes, ep)
+	}
+	return targets
+}
+
+// queryPlans is queryPlan for each target.
+func queryPlans(caps TorznabCaps, targets []searchTarget) (plans [][]TorznabQuery, hasIDTier bool) {
+	for _, target := range targets {
+		plan, withID := queryPlan(caps, target)
+		plans = append(plans, plan)
+		hasIDTier = hasIDTier || withID
+	}
+	return plans, hasIDTier
+}
+
 // queryPlan lists an indexer's query tiers in order: an ID query with whatever IDs its caps support,
 // then a title query. hasIDTier is false when the caps support none of the title's IDs.
 func queryPlan(caps TorznabCaps, target searchTarget) (plan []TorznabQuery, hasIDTier bool) {

@@ -15,8 +15,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// missingGrace keeps a just-added torrent that qBittorrent doesn't list yet from counting as removed.
-const missingGrace = time.Minute
+const (
+	// missingGrace keeps a just-added torrent that qBittorrent doesn't list yet from counting as removed.
+	missingGrace = time.Minute
+	// MarkSaveInterval is how often a moving progress mark is stored. After a restart a download's stall or
+	// metadata clock reads at most this much long.
+	MarkSaveInterval = time.Minute
+)
 
 // downloadStep is what a check does for a download, given its torrent's state.
 type downloadStep string
@@ -35,9 +40,21 @@ var (
 	failedStatuses   = []TorrentStatus{TorrentError, TorrentMissingFiles}
 	finishedStatuses = []TorrentStatus{TorrentUploading, TorrentStalledUp, TorrentStoppedUp, TorrentQueuedUp, TorrentForcedUp}
 	seedingStatuses  = []TorrentStatus{TorrentUploading, TorrentStalledUp, TorrentQueuedUp, TorrentForcedUp}
+	// waitingStatuses are torrents qBittorrent isn't fetching yet: queued behind its active-download limit, or
+	// checking data. Time in them counts toward neither the stalled limit nor the metadata timeout.
+	waitingStatuses = []TorrentStatus{TorrentQueuedDL, TorrentCheckingDL, TorrentCheckingData}
 	// finishedStates are downloads done downloading that may still seed.
 	finishedStates = []api.DownloadState{api.StateCompleted, api.StateImported, api.StateImportPendingUser}
+	// fetchingStates are the downloads a progress mark times.
+	fetchingStates = []api.DownloadState{api.StateAwaitingMetadata, api.StateDownloading}
 )
+
+// progressMark is when a download last moved forward or waited in qBittorrent's queue: the start of its
+// stall or metadata clock.
+type progressMark struct {
+	progress float64
+	at       time.Time
+}
 
 // PollInterval is the qBittorrent poll's pace: quick while anything downloads, slow when idle.
 func (s *DownloadService) PollInterval(ctx context.Context) (time.Duration, error) {
@@ -66,6 +83,9 @@ func (s *DownloadService) Poll(ctx context.Context, q jobs.Enqueuer) error {
 	if err != nil {
 		return err
 	}
+	if err := s.loadMarks(ctx, downloads); err != nil {
+		return err
+	}
 	now := s.now()
 	for _, d := range downloads {
 		t, found := state.Torrents[d.QbitHash]
@@ -78,6 +98,58 @@ func (s *DownloadService) Poll(ctx context.Context, q jobs.Enqueuer) error {
 		if err := q.Enqueue(ctx, downloadCheckTask{Download: d.ID}); err != nil {
 			s.unclaim(d.ID)
 			return err
+		}
+	}
+	return s.saveMarks(ctx)
+}
+
+// loadMarks reads the stored marks of fetching downloads the poll hasn't seen since the server started.
+func (s *DownloadService) loadMarks(ctx context.Context, downloads []download) error {
+	s.mu.Lock()
+	unseen := []domain.DownloadID{}
+	for _, d := range downloads {
+		if _, seen := s.marks[d.ID]; !seen && slices.Contains(fetchingStates, d.State) {
+			unseen = append(unseen, d.ID)
+		}
+	}
+	s.mu.Unlock()
+	if len(unseen) == 0 {
+		return nil
+	}
+	stored, err := s.deps.Repo.downloadMarks(ctx, unseen)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, mark := range stored {
+		s.marks[id] = mark
+		s.savedMarks[id] = mark
+	}
+	return nil
+}
+
+// saveMarks stores the marks that moved MarkSaveInterval or more since they were last stored.
+func (s *DownloadService) saveMarks(ctx context.Context) error {
+	s.mu.Lock()
+	moved := map[domain.DownloadID]progressMark{}
+	for id, mark := range s.marks {
+		if saved, ok := s.savedMarks[id]; !ok || mark.at.Sub(saved.at) >= MarkSaveInterval {
+			moved[id] = mark
+		}
+	}
+	s.mu.Unlock()
+	if len(moved) == 0 {
+		return nil
+	}
+	if err := s.deps.Repo.saveDownloadMarks(ctx, moved); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, mark := range moved {
+		if _, tracked := s.marks[id]; tracked {
+			s.savedMarks[id] = mark
 		}
 	}
 	return nil
@@ -99,8 +171,8 @@ func (s *DownloadService) observe(d download, t Torrent, now time.Time) {
 		Download: d.ID, State: displayState(d, t), Progress: t.Progress, SpeedBps: t.DownloadBps, ETA: t.ETA, Ratio: t.Ratio,
 	}
 	s.mu.Lock()
-	if mark, seen := s.marks[d.ID]; !seen || t.Progress > mark.progress {
-		s.marks[d.ID] = progressMark{progress: t.Progress, at: now}
+	if mark, seen := s.marks[d.ID]; slices.Contains(fetchingStates, d.State) && restartsClock(mark, seen, t) {
+		s.marks[d.ID] = progressMark{progress: max(t.Progress, mark.progress), at: now}
 	}
 	last, seen := s.live[d.ID]
 	s.live[d.ID] = progress
@@ -108,6 +180,11 @@ func (s *DownloadService) observe(d download, t Torrent, now time.Time) {
 	if !seen || last != progress {
 		s.deps.Bus.Emit(bus.EventOf(progress))
 	}
+}
+
+// restartsClock is a download seen for the first time, moving forward, or waiting for qBittorrent to fetch it.
+func restartsClock(mark progressMark, seen bool, t Torrent) bool {
+	return !seen || t.Progress > mark.progress || slices.Contains(waitingStatuses, t.Status)
 }
 
 // displayState is the state the Downloads tab shows, from the stored state and qBittorrent's.
@@ -137,7 +214,7 @@ func (s *DownloadService) nextStep(d download, t Torrent, found bool, now time.T
 		switch {
 		case t.HasMetadata:
 			return stepMetadata
-		case now.Sub(d.GrabbedAt) > o.MetadataTimeout.Std():
+		case s.idleFor(d.ID, now) > o.MetadataTimeout.Std():
 			return stepMetadataTimeout
 		}
 	case api.StateDownloading:
@@ -146,14 +223,15 @@ func (s *DownloadService) nextStep(d download, t Torrent, found bool, now time.T
 			return stepFailed
 		case t.Progress >= 1 && slices.Contains(finishedStatuses, t.Status):
 			return stepCompleted
-		case s.stalledFor(d.ID, now) > o.StalledLimit.Std():
+		case s.idleFor(d.ID, now) > o.StalledLimit.Std():
 			return stepStalled
 		}
 	}
 	return stepNone
 }
 
-func (s *DownloadService) stalledFor(id domain.DownloadID, now time.Time) time.Duration {
+// idleFor is how long a download has been fetched without moving forward.
+func (s *DownloadService) idleFor(id domain.DownloadID, now time.Time) time.Duration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	mark, seen := s.marks[id]
@@ -185,6 +263,7 @@ func (s *DownloadService) forget(id domain.DownloadID) {
 	defer s.mu.Unlock()
 	delete(s.live, id)
 	delete(s.marks, id)
+	delete(s.savedMarks, id)
 }
 
 // Check acts on one download: the metadata check, completion with its backstop, a failure, a timeout
@@ -279,6 +358,7 @@ func (s *DownloadService) drop(ctx context.Context, d download, r rejection, cfg
 		return err
 	}
 	r.Title, r.Episodes, r.Release, r.InfoHash, r.Indexer, r.Download = d.Title, d.Episodes, d.ReleaseName, d.InfoHash, d.Indexer, &d
+	defer s.lockTitle(d.Title)()
 	out := grabOutcome{rejections: []rejection{r}}
 	if d.Search != nil {
 		out.search, _ = s.deps.Searches.find(*d.Search)

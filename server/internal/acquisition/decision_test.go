@@ -148,7 +148,7 @@ func TestRanksNumberAcceptedReleasesBestFirst(t *testing.T) {
 	rejected := in.decided(1, item("Movie.Title.2024.720p.WEB-DL.DDP5.1.H.264-HIGH"), ix)
 	best := in.decided(2, item("Movie.Title.2024.2160p.WEB-DL.DDP5.1.H.265-HIGH"), ix)
 
-	got := ranks([]decidedRelease{low, rejected, best})
+	got := ranks([]decidedRelease{low, rejected, best}, interactiveRanking)
 	if got[best.ID] != 1 || got[low.ID] != 2 {
 		t.Errorf("ranks = %v, want best 1 and low 2", got)
 	}
