@@ -322,6 +322,24 @@ describe('TitleFiles', () => {
 		]);
 	});
 
+	it('finds the files of one episode, including a file spanning two', async () => {
+		const episodeFile = (id: string, ...episodes: string[]) =>
+			({
+				...mediaFile(id),
+				episodes: episodes.map((episode, i) => ({ episode, season: 1, number: i + 1 }))
+			}) as MediaFileResponse;
+		const files = new TitleFiles(
+			't1',
+			filesApi([episodeFile('double', 'e1', 'e2'), episodeFile('third', 'e3')]),
+			notifier()
+		);
+		await files.load();
+
+		expect(files.forEpisode('e2').map((f) => f.id)).toEqual(['double']);
+		expect(files.forEpisode('e3').map((f) => f.id)).toEqual(['third']);
+		expect(files.forEpisode('e4')).toEqual([]);
+	});
+
 	it('deletes a file only once the delete is confirmed', async () => {
 		const api = filesApi([mediaFile('f1'), mediaFile('f2')]);
 		const notify = notifier();

@@ -13,7 +13,8 @@
 	import TitleHero from '$lib/catalog/TitleHero.svelte';
 	import TitleSettings from '$lib/catalog/TitleSettings.svelte';
 	import { TIMELINE_COLUMN_QUERY, TitleTab } from '$lib/catalog/layout';
-	import FilesTab from '$lib/library/FilesTab.svelte';
+	import FileList from '$lib/library/FileList.svelte';
+	import { TitleFiles } from '$lib/library/title-files.svelte';
 	import { PageStatus, TitlePage } from '$lib/catalog/title-page.svelte';
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { Route } from '$lib/navigation/nav';
@@ -29,6 +30,8 @@
 	/** The stage bar and the episode rows share one pipeline. */
 	// svelte-ignore state_referenced_locally
 	const pipeline = new TitlePipeline(id, SDK_SOURCE);
+	// svelte-ignore state_referenced_locally
+	const files = new TitleFiles(id);
 	/** The tab the user picked; until then the page opens on its default tab. */
 	let picked = $state<TitleTab | undefined>();
 	const defaultTab = $derived(
@@ -44,6 +47,11 @@
 	onMount(() => {
 		void pipeline.load();
 		return pipeline.connect(live);
+	});
+
+	onMount(() => {
+		void files.load();
+		return files.watch(live);
 	});
 
 	$effect(() => {
@@ -92,20 +100,24 @@
 						<Tabs.Trigger value={TitleTab.EPISODES}>Episodes</Tabs.Trigger>
 					{/if}
 					<Tabs.Trigger value={TitleTab.TIMELINE} class="lg:hidden">Timeline</Tabs.Trigger>
-					<Tabs.Trigger value={TitleTab.FILES}>Files</Tabs.Trigger>
+					{#if !title.isSeries}
+						<Tabs.Trigger value={TitleTab.FILES}>Files</Tabs.Trigger>
+					{/if}
 					<Tabs.Trigger value={TitleTab.SETTINGS}>Settings</Tabs.Trigger>
 				</Tabs.List>
 				{#if title.isSeries}
 					<Tabs.Content value={TitleTab.EPISODES} class="pt-4">
-						<EpisodesTab page={title} {pipeline} />
+						<EpisodesTab page={title} {pipeline} {files} />
 					</Tabs.Content>
 				{/if}
 				<Tabs.Content value={TitleTab.TIMELINE} class="pt-4 lg:hidden">
 					<Timeline titleId={title.id} />
 				</Tabs.Content>
-				<Tabs.Content value={TitleTab.FILES} class="pt-4">
-					<FilesTab titleId={title.id} />
-				</Tabs.Content>
+				{#if !title.isSeries}
+					<Tabs.Content value={TitleTab.FILES} class="pt-4">
+						<FileList {files} />
+					</Tabs.Content>
+				{/if}
 				<Tabs.Content value={TitleTab.SETTINGS} class="pt-4">
 					<TitleSettings page={title} onRemoved={() => goto(Route.HOME)} />
 				</Tabs.Content>

@@ -24,8 +24,11 @@
 		seasonLabel
 	} from './episodes';
 	import type { TitlePage } from './title-page.svelte';
+	import EpisodeFilesDialog from '$lib/library/EpisodeFilesDialog.svelte';
+	import type { OpenEpisode, TitleFiles } from '$lib/library/title-files.svelte';
 
-	let { page, pipeline }: { page: TitlePage; pipeline: TitlePipeline } = $props();
+	let { page, pipeline, files }: { page: TitlePage; pipeline: TitlePipeline; files: TitleFiles } =
+		$props();
 
 	const SEARCH_LABEL = 'Search episode';
 	const INTERACTIVE_LABEL = 'Interactive search';
@@ -52,6 +55,16 @@
 			episodeIds: [episode.id],
 			label: `${title.name} ${episodeCode(season, episode.number)}`
 		};
+	}
+
+	function episodeFiles(episode: EpisodeResponse, season: number): OpenEpisode {
+		const code = episodeCode(season, episode.number);
+		return { id: episode.id, label: episode.name ? `${code} · ${episode.name}` : code };
+	}
+
+	/** The row opens the episode's files, so its controls keep their clicks to themselves. */
+	function stopRowClick(event: MouseEvent): void {
+		event.stopPropagation();
 	}
 
 	function seasonTarget(title: TitleResponse, season: SeasonResponse): SearchTarget {
@@ -114,12 +127,21 @@
 						<Table.Root>
 							<Table.Body>
 								{#each season.episodes as episode (episode.id)}
-									<Table.Row>
+									{@const showFiles = () => files.showEpisode(episodeFiles(episode, season.number))}
+									<Table.Row class="cursor-pointer" onclick={showFiles}>
 										<Table.Cell class="w-10 pl-4 text-muted-foreground tabular-nums">
 											{episode.number}
 										</Table.Cell>
 										<Table.Cell class="max-w-0 w-full">
-											<span class="block truncate font-medium">{episode.name || 'TBA'}</span>
+											<button
+												type="button"
+												class="block w-full truncate text-left font-medium"
+												aria-label="Show files of {episodeCode(season.number, episode.number)}"
+												onclick={(event) => {
+													event.stopPropagation();
+													showFiles();
+												}}>{episode.name || 'TBA'}</button
+											>
 										</Table.Cell>
 										<Table.Cell
 											class="hidden w-32 text-right text-muted-foreground tabular-nums sm:table-cell"
@@ -147,7 +169,7 @@
 												<span class="text-muted-foreground">{NO_STAGE}</span>
 											{/if}
 										</Table.Cell>
-										<Table.Cell>
+										<Table.Cell onclick={stopRowClick}>
 											<Switch
 												checked={episode.monitored}
 												aria-label="Monitor episode {episode.number}"
@@ -157,7 +179,7 @@
 										{#if session.isAdmin}
 											{@const target = episodeTarget(page.title, episode, season.number)}
 											{@const code = episodeCode(season.number, episode.number)}
-											<Table.Cell class="pr-4">
+											<Table.Cell class="pr-4" onclick={stopRowClick}>
 												<div class="flex items-center gap-1">
 													<Tooltip.Root>
 														<Tooltip.Trigger>
@@ -213,3 +235,5 @@
 {#if interactiveTarget}
 	<InteractiveSearchDialog bind:open={searching} target={interactiveTarget} />
 {/if}
+
+<EpisodeFilesDialog {files} />

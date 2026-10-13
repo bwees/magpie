@@ -173,6 +173,9 @@ export function importVideos(imp: ImportResponse) {
 	return imp.files.filter((f) => f.kind === FileKind.VIDEO);
 }
 
+/** The heading style of a file card's Video, Audio and Subtitles sections. */
+export const FILE_SECTION_HEADING = 'text-sm font-semibold';
+
 /** The file name without its folders. */
 export function baseName(path: string): string {
 	return path.split('/').at(-1) ?? path;

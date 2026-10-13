@@ -56,7 +56,13 @@ export function cutoffState(status: CutoffStatusResponse | undefined): CutoffSta
 	return status.upgradesAllowed ? CutoffState.UPGRADING : CutoffState.KEPT;
 }
 
-/** The title page's Files tab: the title's media files with their cutoff state, and deleting one. */
+export interface OpenEpisode {
+	id: string;
+	/** "S01E03 · Pilot". */
+	label: string;
+}
+
+/** The title page's media files with their cutoff state, and deleting one. */
 export class TitleFiles {
 	files = $state<MediaFileResponse[]>([]);
 	status = $state(LoadStatus.LOADING);
@@ -65,6 +71,8 @@ export class TitleFiles {
 	readonly deleting = new SvelteSet<string>();
 	/** The file whose delete dialog is open. */
 	confirmingDelete = $state<MediaFileResponse | undefined>();
+	/** The episode whose files dialog is open. */
+	openEpisode = $state<OpenEpisode>();
 
 	readonly #title: string;
 	readonly #api: FilesApi;
@@ -78,6 +86,11 @@ export class TitleFiles {
 
 	cutoffOf(file: MediaFileResponse): CutoffState {
 		return cutoffState(this.cutoff.get(file.id));
+	}
+
+	/** The files holding the episode. */
+	forEpisode(episode: string): MediaFileResponse[] {
+		return this.files.filter((file) => file.episodes.some((ref) => ref.episode === episode));
 	}
 
 	async load(): Promise<void> {
@@ -95,6 +108,14 @@ export class TitleFiles {
 			if (this.status !== LoadStatus.READY) this.status = LoadStatus.ERROR;
 			this.error = apiErrorMessage(error, 'Could not load the files.');
 		}
+	}
+
+	showEpisode(episode: OpenEpisode): void {
+		this.openEpisode = episode;
+	}
+
+	closeEpisode(): void {
+		this.openEpisode = undefined;
 	}
 
 	askDelete(file: MediaFileResponse): void {

@@ -1,11 +1,13 @@
 <script lang="ts">
-	import Captions from '@lucide/svelte/icons/captions';
+	import Info from '@lucide/svelte/icons/info';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Search from '@lucide/svelte/icons/search';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import { Badge } from '$lib/components/ui/badge';
+	import HoverPopover from '$lib/components/HoverPopover.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { FILE_SECTION_HEADING } from '$lib/library/library';
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { LoadStatus } from '$lib/load-status';
 	import { cn } from '$lib/utils';
@@ -15,6 +17,7 @@
 		CoverageStatus,
 		coverageLabel,
 		fileName,
+		languageName,
 		SOURCE_LABELS,
 		SubtitleSource,
 		syncLabel,
@@ -22,6 +25,9 @@
 	} from './subtitles';
 
 	let { fileId }: { fileId: string } = $props();
+
+	const SEARCH_LABEL = 'Search subtitles now';
+	const FIND_LABEL = 'Pick a subtitle';
 
 	const live = getLive();
 	const subs = $derived(new FileSubtitles(fileId));
@@ -31,108 +37,146 @@
 		return subs.watch(live);
 	});
 
-	const COVERAGE_TONES: Record<string, string> = {
-		[CoverageStatus.SATISFIED]: 'border-primary/50 text-primary',
-		[CoverageStatus.PENDING]: 'border-muted-foreground/40 text-muted-foreground',
-		[CoverageStatus.MISSING]: 'border-amber-500/50 text-amber-500'
+	const UNMET_TONES: Record<string, string> = {
+		[CoverageStatus.PENDING]: 'text-muted-foreground',
+		[CoverageStatus.MISSING]: 'text-amber-500'
 	};
 </script>
 
 <section class="grid gap-2" aria-label="Subtitles">
-	<div class="flex flex-wrap items-center justify-between gap-2">
-		<h3 class="text-xs text-muted-foreground">Subtitles</h3>
-		<div class="flex gap-1.5">
-			<Button
-				size="sm"
-				variant="outline"
-				disabled={subs.searching || subs.status !== LoadStatus.READY}
-				onclick={() => subs.searchNow()}
-			>
-				<RefreshCw class={cn(subs.searching && 'animate-spin')} />Search now
-			</Button>
-			<Button
-				size="sm"
-				variant="outline"
-				disabled={subs.status !== LoadStatus.READY}
-				onclick={() => subs.openPicker()}
-			>
-				<Search />Find…
-			</Button>
-		</div>
+	<div class="flex flex-wrap items-center gap-2">
+		<h3 class="flex-1 {FILE_SECTION_HEADING}">Subtitles</h3>
+		<Tooltip.Provider>
+			<div class="flex gap-0.5">
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								size="icon-sm"
+								variant="ghost"
+								aria-label={SEARCH_LABEL}
+								disabled={subs.searching || subs.status !== LoadStatus.READY}
+								onclick={() => subs.searchNow()}
+							>
+								<RefreshCw class={cn(subs.searching && 'animate-spin')} />
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>{SEARCH_LABEL}</Tooltip.Content>
+				</Tooltip.Root>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								size="icon-sm"
+								variant="ghost"
+								aria-label={FIND_LABEL}
+								disabled={subs.status !== LoadStatus.READY}
+								onclick={() => subs.openPicker()}
+							>
+								<Search />
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>{FIND_LABEL}</Tooltip.Content>
+				</Tooltip.Root>
+			</div>
+		</Tooltip.Provider>
 	</div>
 
 	{#if subs.status === LoadStatus.LOADING}
-		<Skeleton class="h-16 w-full" aria-label="Loading subtitles" />
+		<Skeleton class="h-8 w-full" aria-label="Loading subtitles" />
 	{:else if subs.status === LoadStatus.ERROR || !subs.data}
 		<div class="flex flex-wrap items-center gap-3" role="alert">
 			<p class="text-sm text-destructive">{subs.error}</p>
 			<Button size="sm" variant="outline" onclick={() => subs.load()}>Retry</Button>
 		</div>
+	{:else if subs.data.subtitles.length === 0 && subs.unmet.length === 0}
+		<p class="text-sm text-muted-foreground">No subtitles yet.</p>
 	{:else}
-		{#if subs.data.coverage.length > 0}
-			<ul class="flex flex-wrap gap-1.5" aria-label="Wanted languages">
-				{#each subs.data.coverage as c (`${c.language}-${c.forced}`)}
-					<li>
-						<button
-							type="button"
-							class="rounded-md"
-							title="Find {trackLabel(c)} subtitles"
-							onclick={() => subs.openPicker(c.language, c.forced)}
-						>
-							<Badge variant="outline" class={COVERAGE_TONES[c.status]}>
-								{trackLabel(c)} · {coverageLabel(c)}
-							</Badge>
-						</button>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-
-		{#if subs.data.subtitles.length === 0}
-			<p class="flex items-center gap-2 text-sm text-muted-foreground">
-				<Captions class="size-4" />No subtitles yet.
-			</p>
-		{:else}
-			<ul class="grid gap-1.5" aria-label="Subtitle tracks">
-				{#each subs.data.subtitles as sub (sub.id)}
-					{@const sync = syncLabel(sub)}
-					<li
-						class="flex flex-col gap-1 rounded-lg border px-3 py-2 sm:flex-row sm:items-center sm:gap-3"
+		<ul class="grid divide-y rounded-lg border" aria-label="Subtitle tracks">
+			{#each subs.unmet as c (`${c.language}-${c.forced}`)}
+				<li class="flex items-center gap-2 py-1 pr-1 pl-3">
+					<span class="text-sm font-medium">{trackLabel(c)}</span>
+					<span class="flex-1 text-xs {UNMET_TONES[c.status]}">{coverageLabel(c)}</span>
+					<Button
+						size="icon-sm"
+						variant="ghost"
+						class="text-muted-foreground"
+						aria-label="Find {trackLabel(c)} subtitles"
+						onclick={() => subs.openPicker(c.language, c.forced)}
 					>
-						<div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-							<span class="text-sm font-medium">{trackLabel(sub)}</span>
-							<Badge variant="secondary">{SOURCE_LABELS[sub.source] ?? sub.source}</Badge>
-							{#if sub.score !== undefined}
-								<span class="text-xs text-muted-foreground tabular-nums">{sub.score}%</span>
-							{/if}
-							{#if sync}
-								<span class={cn('text-xs', sub.synced ? 'text-primary' : 'text-muted-foreground')}
-									>{sync}</span
-								>
-							{/if}
-						</div>
+						<Search />
+					</Button>
+				</li>
+			{/each}
+			{#each subs.added as sub (sub.id)}
+				{@const sync = syncLabel(sub)}
+				<li class="flex items-center gap-2 py-1 pr-1 pl-3">
+					<div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+						<span class="text-sm font-medium">{trackLabel(sub)}</span>
+						<span class="text-xs text-muted-foreground">
+							{SOURCE_LABELS[sub.source] ?? sub.source}
+							{#if sub.score !== undefined}· {sub.score}%{/if}
+						</span>
+						{#if sync}
+							<span class={cn('text-xs', sub.synced ? 'text-primary' : 'text-muted-foreground')}
+								>{sync}</span
+							>
+						{/if}
 						{#if sub.path}
 							<span
-								class="min-w-0 font-mono text-xs break-all text-muted-foreground sm:max-w-[45%] sm:truncate"
+								class="hidden min-w-0 flex-1 truncate text-right font-mono text-xs text-muted-foreground sm:block"
 								title={sub.path}>{fileName(sub.path)}</span
 							>
 						{/if}
-						{#if sub.source !== SubtitleSource.EMBEDDED}
+					</div>
+					<Button
+						size="icon-sm"
+						variant="ghost"
+						class="text-muted-foreground hover:text-destructive"
+						aria-label="Remove {trackLabel(sub)} subtitle"
+						disabled={subs.removing === sub.id}
+						onclick={() => subs.remove(sub.id)}
+					>
+						<Trash2 />
+					</Button>
+				</li>
+			{/each}
+			{#if subs.embedded.length > 0}
+				<li class="flex items-center gap-2 py-1 pr-1 pl-3">
+					<span class="text-sm font-medium">{SOURCE_LABELS[SubtitleSource.EMBEDDED]}</span>
+					<span class="flex-1 text-xs text-muted-foreground">
+						{subs.embedded.length}
+						{subs.embedded.length === 1 ? 'language' : 'languages'}
+					</span>
+					<HoverPopover class="w-72 p-3">
+						{#snippet trigger(props)}
 							<Button
+								{...props}
 								size="icon-sm"
 								variant="ghost"
-								class="self-end sm:self-auto"
-								aria-label="Remove {trackLabel(sub)} subtitle"
-								disabled={subs.removing === sub.id}
-								onclick={() => subs.remove(sub.id)}
+								class="text-muted-foreground"
+								aria-label="Embedded subtitle languages"
 							>
-								<Trash2 />
+								<Info />
 							</Button>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
+						{/snippet}
+						<ul class="flex flex-wrap gap-x-3 gap-y-1 text-xs" aria-label="Embedded subtitles">
+							{#each subs.embedded as { language, count } (language)}
+								<li>
+									{languageName(language)}{#if count > 1}<span class="text-muted-foreground">
+											×{count}</span
+										>{/if}
+								</li>
+							{/each}
+						</ul>
+					</HoverPopover>
+				</li>
+			{/if}
+		</ul>
 	{/if}
 </section>
 

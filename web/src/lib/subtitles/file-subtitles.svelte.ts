@@ -11,7 +11,15 @@ import {
 } from '$lib/sdk';
 import type { LiveConnection } from '$lib/live/live-connection';
 import { LoadStatus } from '$lib/load-status';
-import { SUBTITLE_EVENTS, trackLabel, wantedLanguages } from './subtitles';
+import {
+	embeddedLanguages,
+	externalTracks,
+	SUBTITLE_EVENTS,
+	trackLabel,
+	wantedLanguages,
+	type LanguageCount,
+	unmetCoverage
+} from './subtitles';
 
 export interface FileSubtitlesApi {
 	get: (file: string) => Promise<FileSubtitlesResponse>;
@@ -44,13 +52,16 @@ const sdkApi: FileSubtitlesApi = {
 
 const FALLBACK_LANGUAGE = 'en';
 
-/** One media file's subtitles on the Files tab, with the manual search and the candidate picker. */
+/** One media file's subtitles, with the manual search and the candidate picker. */
 export class FileSubtitles {
 	data = $state<FileSubtitlesResponse>();
 	status = $state(LoadStatus.LOADING);
 	error = $state('');
 	searching = $state(false);
 	removing = $state<string>();
+	readonly unmet = $derived(unmetCoverage(this.data?.coverage ?? []));
+	readonly added = $derived(externalTracks(this.data?.subtitles ?? []));
+	readonly embedded: LanguageCount[] = $derived(embeddedLanguages(this.data?.subtitles ?? []));
 
 	pickerOpen = $state(false);
 	pickerLanguage = $state(FALLBACK_LANGUAGE);

@@ -13,6 +13,8 @@ import { SubtitleSettings, type SubtitleSettingsApi } from './subtitle-settings.
 import {
 	CoverageStatus,
 	coverageLabel,
+	embeddedLanguages,
+	externalTracks,
 	MissingReason,
 	quotaLabel,
 	settingsError,
@@ -20,6 +22,7 @@ import {
 	SubtitlesEvent,
 	syncLabel,
 	trackLabel,
+	unmetCoverage,
 	wantedLanguages
 } from './subtitles';
 
@@ -107,6 +110,7 @@ describe('subtitle labels', () => {
 		expect(syncLabel(PROVIDER)).toBe('synced −1.3 s');
 		expect(syncLabel({ ...PROVIDER, synced: false })).toBe('not synced');
 		expect(syncLabel({ ...PROVIDER, source: SubtitleSource.EMBEDDED })).toBeUndefined();
+		expect(syncLabel({ ...PROVIDER, source: SubtitleSource.WHISPER })).toBeUndefined();
 		expect(COVERAGE.map(coverageLabel)).toEqual([
 			'Found · OpenSubtitles',
 			'Missing · no good match',
@@ -114,6 +118,30 @@ describe('subtitle labels', () => {
 			'Generating with Whisper'
 		]);
 		expect(wantedLanguages(COVERAGE)).toEqual(['en', 'es', 'ja']);
+		expect(unmetCoverage(COVERAGE)).toEqual(COVERAGE.slice(1));
+	});
+
+	it('folds embedded tracks into one count per language and keeps the added ones apart', () => {
+		const embedded = (id: string, language: string) => ({
+			...PROVIDER,
+			id,
+			language,
+			source: SubtitleSource.EMBEDDED
+		});
+		const subs = [
+			embedded('e1', 'zh'),
+			embedded('e2', 'en'),
+			embedded('e3', 'zh'),
+			embedded('e4', 'de'),
+			PROVIDER
+		];
+
+		expect(embeddedLanguages(subs)).toEqual([
+			{ language: 'zh', count: 2 },
+			{ language: 'en', count: 1 },
+			{ language: 'de', count: 1 }
+		]);
+		expect(externalTracks(subs)).toEqual([PROVIDER]);
 	});
 
 	it('labels the quota badge', () => {

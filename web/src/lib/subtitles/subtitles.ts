@@ -91,9 +91,16 @@ export function trackLabel(track: { language: string; forced: boolean; sdh?: boo
 	return parts.join(' · ');
 }
 
-/** "synced +1.2 s", "synced" for no shift, or "not synced". Embedded tracks have no sync. */
+/** Sources Magpie never syncs. */
+const UNSYNCED_SOURCES: string[] = [
+	SubtitleSource.EMBEDDED,
+	SubtitleSource.RELEASE,
+	SubtitleSource.WHISPER
+];
+
+/** "synced +1.2 s", "synced" for no shift, or "not synced"; nothing for a source that is never synced. */
 export function syncLabel(sub: SubtitleResponse): string | undefined {
-	if (sub.source === SubtitleSource.EMBEDDED || sub.source === SubtitleSource.RELEASE) {
+	if (UNSYNCED_SOURCES.includes(sub.source)) {
 		return undefined;
 	}
 	if (!sub.synced) {
@@ -125,9 +132,37 @@ export function coverageLabel(c: CoverageResponse): string {
 	return status;
 }
 
+/** The wanted tracks the file has no subtitle for yet. */
+export function unmetCoverage(coverage: CoverageResponse[]): CoverageResponse[] {
+	return coverage.filter((c) => c.status !== CoverageStatus.SATISFIED);
+}
+
 /** The file name without its folders. */
 export function fileName(path: string): string {
 	return path.split('/').at(-1) ?? path;
+}
+
+export interface LanguageCount {
+	language: string;
+	count: number;
+}
+
+/** The subtitles Magpie added beside the video, which can be removed one by one. */
+export function externalTracks(subs: SubtitleResponse[]): SubtitleResponse[] {
+	return subs.filter((sub) => sub.source !== SubtitleSource.EMBEDDED);
+}
+
+/** The video's embedded tracks counted per language, by language name. */
+export function embeddedLanguages(subs: SubtitleResponse[]): LanguageCount[] {
+	const counts = new Map<string, number>();
+	for (const sub of subs) {
+		if (sub.source === SubtitleSource.EMBEDDED) {
+			counts.set(sub.language, (counts.get(sub.language) ?? 0) + 1);
+		}
+	}
+	return [...counts]
+		.map(([language, count]) => ({ language, count }))
+		.toSorted((a, b) => languageName(a.language).localeCompare(languageName(b.language)));
 }
 
 /** The distinct wanted languages of a file, in wanted order, for the candidate picker. */
