@@ -67,5 +67,6 @@ func TestServerToAgentRoundTrip(t *testing.T) {
 		LeaseTTL:       leaseTTL,
 		Mode:           ModeDirectRead,
 		Slots:          map[string]int{testDevice: deviceSlots},
+		Stages:         []Stage{StageFetching, StageEncoding, StageChecking, StageUploading},
 	})
 }

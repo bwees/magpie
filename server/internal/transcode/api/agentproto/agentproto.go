@@ -119,6 +119,7 @@ type Stage string
 const (
 	StageFetching  Stage = "FETCHING"
 	StageEncoding  Stage = "ENCODING"
+	StageChecking  Stage = "CHECKING" // the agent checks its output; only when the Welcome lists it in Stages
 	StageUploading Stage = "UPLOADING"
 )
 
@@ -235,6 +236,9 @@ type Welcome struct {
 	Mode           Mode           `json:"mode"`     // effective transfer mode for this agent
 	Slots          map[string]int `json:"slots"`    // device_id -> concurrent jobs allowed
 	Draining       bool           `json:"draining"` // accept no new jobs
+	// Stages are the stages the server takes in a heartbeat. A server that predates StageChecking
+	// sends none, and cancels a job reported in a stage it doesn't know.
+	Stages []Stage `json:"stages"`
 }
 
 type JobOffer struct {

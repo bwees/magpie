@@ -13,13 +13,8 @@ import {
 	type ActivitySource,
 	type LiveEvents
 } from './activity-source';
-import { Stage, summarize, type PipelineSummary } from './pipeline';
-
-const PERCENT = 100;
-
-function percentOf(progress: number): number {
-	return Math.round(progress * PERCENT);
-}
+import { liveJob, percentOf } from './live-progress.svelte';
+import { Stage, summarize, type LiveJob, type PipelineSummary } from './pipeline';
 
 /** The stage bar of one title: its pipeline rows, refetched when Activity updates them, plus live percents. */
 export class TitlePipeline {
@@ -35,7 +30,7 @@ export class TitlePipeline {
 	readonly titleId: string;
 	readonly #source: ActivitySource;
 	readonly #downloadPercents = new SvelteMap<string, number>();
-	readonly #jobPercents = new SvelteMap<string, number>();
+	readonly #jobs = new SvelteMap<string, LiveJob>();
 	#latest: Promise<PipelineRowResponse[]> | undefined;
 
 	constructor(titleId: string, source: ActivitySource) {
@@ -58,10 +53,10 @@ export class TitlePipeline {
 		return download ? this.#downloadPercents.get(download) : undefined;
 	}
 
-	/** The live percent of the running transcode the chip shows. */
-	get transcodePercent(): number | undefined {
+	/** The live progress of the running transcode the chip shows. */
+	get transcodeProgress(): LiveJob | undefined {
 		const job = this.summary?.transcode?.jobId;
-		return job ? this.#jobPercents.get(job) : undefined;
+		return job ? this.#jobs.get(job) : undefined;
 	}
 
 	async load(): Promise<void> {
@@ -109,7 +104,7 @@ export class TitlePipeline {
 			live.on(LiveEventType.JOB_PROGRESSED, (message) => {
 				const progress = message.data as JobProgressed;
 				if (this.rows.some((row) => row.transcode?.jobId === progress.job)) {
-					this.#jobPercents.set(progress.job, percentOf(progress.progress));
+					this.#jobs.set(progress.job, liveJob(progress));
 				}
 			}),
 			live.onReset(() => void this.refresh())

@@ -38,19 +38,21 @@ const (
 )
 
 // agentHeld are the states in which an agent holds the job and must heartbeat it.
-var agentHeld = []api.JobState{api.StateLeased, api.StateFetching, api.StateEncoding, api.StateUploading}
+var agentHeld = []api.JobState{api.StateLeased, api.StateFetching, api.StateEncoding, api.StateChecking, api.StateUploading}
 
 // slotStates are the states that take a device slot: offered or held by an agent.
 var slotStates = append([]api.JobState{api.StateOffered}, agentHeld...)
 
 // openStates are the states of a job that hasn't finished.
 var openStates = []api.JobState{
-	api.StateQueued, api.StateOffered, api.StateLeased, api.StateFetching, api.StateEncoding,
+	api.StateQueued, api.StateOffered, api.StateLeased, api.StateFetching, api.StateEncoding, api.StateChecking,
 	api.StateUploading, api.StateVerifying, api.StateVerified,
 }
 
 func activeStates() []api.JobState {
-	return []api.JobState{api.StateOffered, api.StateLeased, api.StateFetching, api.StateEncoding, api.StateUploading, api.StateVerifying}
+	return []api.JobState{
+		api.StateOffered, api.StateLeased, api.StateFetching, api.StateEncoding, api.StateChecking, api.StateUploading, api.StateVerifying,
+	}
 }
 
 type jobRow struct {

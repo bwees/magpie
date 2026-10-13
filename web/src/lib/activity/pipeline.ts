@@ -1,4 +1,5 @@
 import type { PipelineRowResponse, SubsChipResponse, TranscodeChipResponse } from '$lib/sdk';
+import { JobState } from '$lib/transcode/gpu-jobs';
 
 // Mirrors server/internal/activity/api: stage, chip and severity values.
 
@@ -82,13 +83,22 @@ export function subsChipText(chip: SubsChipResponse): string {
 	return `Subs ✓ ${[satisfied, missing].filter(Boolean).join(MISSING_SEPARATOR)}`;
 }
 
-/** livePercent overlays the running job's progress, which is never stored. */
-export function transcodeChipText(chip: TranscodeChipResponse, livePercent?: number): string {
+/** A running job's live progress: its state and the percent through that state. */
+export interface LiveJob {
+	state: string;
+	percent: number;
+}
+
+/** live overlays the running job's progress, which is never stored. */
+export function transcodeChipText(chip: TranscodeChipResponse, live?: LiveJob): string {
 	switch (chip.state) {
 		case TranscodeState.QUEUED:
 			return 'Transcode queued';
 		case TranscodeState.RUNNING:
-			return livePercent === undefined ? 'Transcoding' : `Transcode ${livePercent}%`;
+			if (!live) return 'Transcoding';
+			return live.state === JobState.CHECKING
+				? `Transcode check ${live.percent}%`
+				: `Transcode ${live.percent}%`;
 		case TranscodeState.DONE:
 			return chip.savedPercent === null ? 'Transcoded' : `Transcoded −${chip.savedPercent}%`;
 		case TranscodeState.SKIPPED:

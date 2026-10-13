@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
 
 	"magpie/agent/encode"
 	"magpie/agent/transfer"
@@ -64,17 +63,13 @@ func (m *Manager) process(ctx context.Context, j *job, device agentproto.DeviceR
 	output := filepath.Join(j.dir, outputName)
 	work := encode.Job{
 		Spec: j.spec, Device: device, Input: input, Source: source, Output: output,
-		Progress: func(fraction, speed float64) {
-			var eta time.Duration
-			if speed > 0 {
-				eta = time.Duration((1 - fraction) * source.Duration / speed * float64(time.Second))
-			}
-			j.set(agentproto.StageEncoding, fraction, speed, eta)
-		},
+		Progress: j.realtime(agentproto.StageEncoding, source.Duration),
 	}
 	if err := m.opts.Encoder.Transcode(ctx, work); err != nil {
 		return agentproto.JobResult{}, err
 	}
+	j.set(agentproto.StageChecking, 0, 0, 0)
+	work.Progress = j.realtime(agentproto.StageChecking, source.Duration)
 	report, err := m.check(ctx, work)
 	if err != nil {
 		return agentproto.JobResult{}, err

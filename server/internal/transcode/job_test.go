@@ -160,6 +160,26 @@ func TestHeartbeatsKeepAnUploadsLeaseAlive(t *testing.T) {
 	}
 }
 
+func TestAnAgentCheckingItsOutputKeepsTheJob(t *testing.T) {
+	f := newFixture(t)
+	file := f.addFile(h264Movie(0))
+	f.cutoff(file, domain.OriginDownload)
+	a, _ := f.connect(capableHello("gpu-a"))
+	spec := f.lease(a)
+	f.beat(a, spec.Job, agentproto.StageEncoding, 1)
+
+	for beat := range 5 * time.Minute / DefaultTimings.HeartbeatEvery {
+		f.clock.Advance(DefaultTimings.HeartbeatEvery)
+		f.beat(a, spec.Job, agentproto.StageChecking, float64(beat)/100)
+		f.schedule()
+	}
+
+	if job := f.job(spec.Job); job.State != api.StateChecking || job.Attempt != 1 {
+		t.Fatalf("job = %s attempt %d, want still CHECKING on attempt 1", job.State, job.Attempt)
+	}
+	f.uploadAndReport(a, spec, []byte("hevc output"))
+}
+
 // Seed 13: a restarted agent back with the job's scratch gets it back inside its avoid window, and the
 // server resumes the download at the agent's offset.
 func TestRestartedAgentResumesItsJob(t *testing.T) {

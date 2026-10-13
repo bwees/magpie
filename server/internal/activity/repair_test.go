@@ -66,9 +66,10 @@ func TestRepairedRowWithNothingAcceptedOpensAPipelineFailure(t *testing.T) {
 
 func TestRepairQueuesTranscodesWhoseJobLostItsAgent(t *testing.T) {
 	h := newHarness(t)
-	requeued, encoding, cancelled := h.movie(), h.movie(), h.movie()
+	requeued, encoding, checking, cancelled := h.movie(), h.movie(), h.movie(), h.movie()
 	h.transcode.PutJob(transcodeapi.Job{ID: transcodingMovie(h, requeued), State: transcodeapi.StateQueued})
 	h.transcode.PutJob(transcodeapi.Job{ID: transcodingMovie(h, encoding), State: transcodeapi.StateEncoding})
+	h.transcode.PutJob(transcodeapi.Job{ID: transcodingMovie(h, checking), State: transcodeapi.StateChecking})
 	h.transcode.PutJob(transcodeapi.Job{ID: transcodingMovie(h, cancelled), State: transcodeapi.StateCancelled})
 
 	h.repair()
@@ -76,14 +77,16 @@ func TestRepairQueuesTranscodesWhoseJobLostItsAgent(t *testing.T) {
 	if chip := h.row(requeued).Transcode; chip == nil || chip.State != api.TranscodeQueued {
 		t.Errorf("requeued job chip = %+v, want QUEUED", chip)
 	}
-	if chip := h.row(encoding).Transcode; chip == nil || chip.State != api.TranscodeRunning {
-		t.Errorf("encoding job chip = %+v, want RUNNING", chip)
+	for _, held := range []domain.TitleID{encoding, checking} {
+		if chip := h.row(held).Transcode; chip == nil || chip.State != api.TranscodeRunning {
+			t.Errorf("held job chip = %+v, want RUNNING", chip)
+		}
 	}
 	if chip := h.row(cancelled).Transcode; chip != nil {
 		t.Errorf("cancelled job chip = %+v, want none", chip)
 	}
-	if rows := h.active(); len(rows) != 1 || rows[0].Title != encoding {
-		t.Errorf("active rows = %+v, want only the encoding movie", rows)
+	if rows := h.active(); len(rows) != 2 {
+		t.Errorf("active rows = %+v, want the encoding and checking movies", rows)
 	}
 }
 

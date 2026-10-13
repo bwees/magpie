@@ -92,7 +92,12 @@ type runner struct {
 	outputSize   int
 	sourceHashes string
 	outputHashes string
+	// checking, when set, is closed once the decode check is halfway; the check then waits for hold.
+	checking, hold chan struct{}
 }
+
+// checkHalfway is the decode check's progress through the 60 s source, at 12.5× realtime.
+var checkHalfway = []string{"frame=720", "speed=12.5x", "out_time_us=30000000"}
 
 func (r *runner) Run(_ context.Context, c encode.Command) (string, string, error) {
 	line := c.String()
@@ -105,7 +110,15 @@ func (r *runner) Run(_ context.Context, c encode.Command) (string, string, error
 		return r.outputHashes, "", nil
 	case strings.Contains(line, "streamhash"):
 		return r.sourceHashes, "", nil
-	case strings.Contains(line, "-progress"):
+	case strings.Contains(line, "-xerror"):
+		for _, progress := range checkHalfway {
+			c.OnLine(progress)
+		}
+		if r.checking != nil {
+			close(r.checking)
+			<-r.hold
+		}
+	case strings.Contains(line, "-f matroska"):
 		return "", "", os.WriteFile(c.Args[len(c.Args)-1], bytes.Repeat([]byte("o"), r.outputSize), filePerm)
 	}
 	return "", "", nil
@@ -236,6 +249,48 @@ func TestAJobRunsFromDownloadToUpload(t *testing.T) {
 	}
 	if beats := f.manager.Heartbeats(); len(beats) != 0 {
 		t.Fatalf("heartbeats = %+v, want the finished job gone", beats)
+	}
+}
+
+// holdCheck runs a job until its decode check is halfway and returns its heartbeat there.
+func (f *fixture) holdCheck(t *testing.T) agentproto.JobHeartbeat {
+	t.Helper()
+	f.runner.checking, f.runner.hold = make(chan struct{}), make(chan struct{})
+	f.accept(t, offer(domain.NewID[domain.JobID]()))
+	<-f.runner.checking
+	beats := f.manager.Heartbeats()
+	close(f.runner.hold)
+	if result := f.sender.result(t); result.Outcome != agentproto.OutcomeUploaded {
+		t.Fatalf("result = %+v", result)
+	}
+	if len(beats) != 1 {
+		t.Fatalf("heartbeats = %+v, want the job", beats)
+	}
+	return beats[0]
+}
+
+func TestTheOutputCheckReportsItsOwnStage(t *testing.T) {
+	f := newFixture(t, t.TempDir())
+	f.manager.Configure(agentproto.Welcome{
+		Mode: agentproto.ModeDownloadFirst, Slots: map[string]int{testDevice: 1},
+		Stages: []agentproto.Stage{agentproto.StageChecking, agentproto.StageEncoding, agentproto.StageFetching, agentproto.StageUploading},
+	})
+
+	beat := f.holdCheck(t)
+
+	if beat.Stage != agentproto.StageChecking || beat.Progress != 0.5 || beat.Speed != 12.5 || beat.ETA != 2400*time.Millisecond {
+		t.Fatalf("heartbeat = %+v, want CHECKING halfway at 12.5x with 2.4 s left", beat)
+	}
+}
+
+// A server that predates CHECKING would cancel a job it heard of in that stage.
+func TestAnOlderServerSeesTheCheckAsAFinishedEncode(t *testing.T) {
+	f := newFixture(t, t.TempDir())
+
+	beat := f.holdCheck(t)
+
+	if beat.Stage != agentproto.StageEncoding || beat.Progress != 1 || beat.Speed != 0 || beat.ETA != 0 {
+		t.Fatalf("heartbeat = %+v, want ENCODING at 100%%", beat)
 	}
 }
 

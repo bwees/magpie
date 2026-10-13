@@ -269,6 +269,9 @@ func TestFirstHelloRegistersTheAgent(t *testing.T) {
 		LeaseTTL:       DefaultTimings.LeaseTTL,
 		Mode:           agentproto.ModeDownloadFirst,
 		Slots:          map[string]int{testDevice: defaultSlotsPerGPU},
+		Stages: []agentproto.Stage{
+			agentproto.StageChecking, agentproto.StageEncoding, agentproto.StageFetching, agentproto.StageUploading,
+		},
 	}
 	if !jsonEqual(t, welcome, want) {
 		t.Fatalf("welcome = %+v, want %+v", welcome, want)

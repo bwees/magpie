@@ -32,9 +32,9 @@
 	}
 
 	/** A file being transcoded is past the main stages, so its chip says what is running. */
-	function stageText(row: PipelineRowResponse, percent: number | undefined): string {
+	function stageText(row: PipelineRowResponse): string {
 		if (row.stage === Stage.AVAILABLE && row.transcode?.state === TranscodeState.RUNNING) {
-			return transcodeChipText(row.transcode, percent);
+			return transcodeChipText(row.transcode, pipeline.progress.job(row));
 		}
 		return STAGE_LABELS[row.stage as Stage] ?? row.stage;
 	}
@@ -72,8 +72,7 @@
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center justify-between gap-2">
 								<span class="truncate text-sm font-medium">{name(row)}</span>
-								<span class="shrink-0 text-xs text-muted-foreground">{stageText(row, percent)}</span
-								>
+								<span class="shrink-0 text-xs text-muted-foreground">{stageText(row)}</span>
 							</div>
 							<div
 								class={cn(

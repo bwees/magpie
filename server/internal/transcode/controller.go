@@ -406,8 +406,8 @@ func (c *Controller) output(w http.ResponseWriter, r *http.Request) {
 }
 
 var jobStates = []api.JobState{
-	api.StateQueued, api.StateOffered, api.StateLeased, api.StateFetching, api.StateEncoding, api.StateUploading,
-	api.StateVerifying, api.StateVerified, api.StateSwapped, api.StateCompleted, api.StateFailed,
+	api.StateQueued, api.StateOffered, api.StateLeased, api.StateFetching, api.StateEncoding, api.StateChecking,
+	api.StateUploading, api.StateVerifying, api.StateVerified, api.StateSwapped, api.StateCompleted, api.StateFailed,
 	api.StateNotWorthIt, api.StateCancelled,
 }
 

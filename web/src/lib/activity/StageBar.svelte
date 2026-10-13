@@ -120,7 +120,7 @@
 									? 'outline'
 									: 'secondary'}
 						>
-							{transcodeChipText(chip, pipeline.transcodePercent)}
+							{transcodeChipText(chip, pipeline.transcodeProgress)}
 						</Badge>
 					{/if}
 				{/if}

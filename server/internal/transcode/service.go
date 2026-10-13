@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"time"
 
@@ -304,6 +305,7 @@ func (s *AgentService) welcomeTx(tx *gorm.DB, id domain.AgentID) (agentproto.Wel
 		Mode:           agentproto.Mode(agent.Mode),
 		Slots:          slots,
 		Draining:       agent.Draining,
+		Stages:         slices.Sorted(maps.Keys(stageStates)),
 	}, nil
 }
 

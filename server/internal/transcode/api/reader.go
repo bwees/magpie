@@ -27,6 +27,7 @@ const (
 	StateLeased     JobState = "LEASED"
 	StateFetching   JobState = "FETCHING"
 	StateEncoding   JobState = "ENCODING"
+	StateChecking   JobState = "CHECKING" // the agent checks its output before the upload; VERIFYING is the server's check
 	StateUploading  JobState = "UPLOADING"
 	StateVerifying  JobState = "VERIFYING"
 	StateVerified   JobState = "VERIFIED"
@@ -37,7 +38,7 @@ const (
 	StateCancelled  JobState = "CANCELLED"
 )
 
-var activeStates = []JobState{StateOffered, StateLeased, StateFetching, StateEncoding, StateUploading, StateVerifying}
+var activeStates = []JobState{StateOffered, StateLeased, StateFetching, StateEncoding, StateChecking, StateUploading, StateVerifying}
 
 // Active reports whether s is one of OFFERED through VERIFYING, the states ActiveJobs returns.
 func (s JobState) Active() bool { return slices.Contains(activeStates, s) }

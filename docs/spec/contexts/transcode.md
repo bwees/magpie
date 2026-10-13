@@ -78,7 +78,7 @@ type Reader interface {
 	Target(ctx context.Context) (Target, error)
 }
 
-type JobState string // QUEUED OFFERED LEASED FETCHING ENCODING UPLOADING VERIFYING VERIFIED SWAPPED COMPLETED FAILED NOT_WORTH_IT CANCELLED
+type JobState string // QUEUED OFFERED LEASED FETCHING ENCODING CHECKING UPLOADING VERIFYING VERIFIED SWAPPED COMPLETED FAILED NOT_WORTH_IT CANCELLED
 type JobKind string  // TRANSCODE | WHISPER
 type Job struct {
 	ID         domain.JobID
@@ -320,7 +320,7 @@ type Heartbeat struct {
 }
 type JobHeartbeat struct {
 	Job      domain.JobID
-	Stage    string  // FETCHING | ENCODING | UPLOADING
+	Stage    string  // FETCHING | ENCODING | CHECKING (only to a server whose Welcome lists it) | UPLOADING
 	Progress float64 // 0..1 within the stage
 	Speed    float64
 	ETA      time.Duration
@@ -361,6 +361,7 @@ type Welcome struct {
 	Mode           string        // effective transfer mode for this agent
 	Slots          map[string]int // device_id -> concurrent jobs allowed
 	Draining       bool          // accept no new jobs; false undoes an earlier Drain
+	Stages         []string      // heartbeat stages the server takes; none from a server older than CHECKING
 }
 type JobOffer struct {
 	Spec         JobSpec
@@ -413,7 +414,7 @@ type WhisperParams struct {
 ### Timings and lease
 
 - **Heartbeat:** the agent sends one every 10 s.
-- **Lease extension:** each heartbeat that lists a job extends its lease to `now + 60 s`. This includes jobs in `FETCHING` and `UPLOADING`.
+- **Lease extension:** each heartbeat that lists a job extends its lease to `now + 60 s`. This includes jobs in `FETCHING`, `CHECKING` and `UPLOADING`.
 - **Expiry:** a lease that passes `lease_expires_at` returns the job to `QUEUED` with `attempt + 1` and publishes `JobFailed` (`Final` on the last attempt). It waits out no backoff: instead the job is not re-offered to the same agent for 2 minutes, unless that agent reconnects with a matching `ResumableJob` (same `SourceETag`).
 - **Reject:** a `JobReject` returns the job to `QUEUED` without an attempt and keeps it from that agent for the same 2 minutes, so an agent short of scratch isn't offered it every tick.
   - `DEVICE_BUSY` instead takes the device out of scheduling until the agent's next heartbeat, `CapabilitiesChanged` or reconnect, and keeps nothing from the job. The server's slot count is wrong for that device (it expired leases the agent still runs, say, after a restart), so any other job offered there would be rejected too. The pause lives in memory and ends with a server restart.
@@ -472,8 +473,11 @@ The agent runs these on start and on `Retest` (`agent/probe`). It never trusts `
 
 1. Fetch the source (download-first) or open the URL (direct read), checking the ETag.
 2. **Transcode:** a full-GPU pipeline where supported (`-hwaccel X -hwaccel_output_format X`, device scaler, hardware encoder). Unsupported decode (e.g. H.264 10-bit) falls back to CPU decode plus `hwupload`. Output is MKV with `-map` from `KeepAudio`/`KeepSubs`, video re-encoded, the rest copied, and `-maxrate/-bufsize` from the spec.
-3. Verify (`VerifyReport`):
-   - Decode check: `-xerror` full decode.
+3. Verify (`VerifyReport`), reported as stage `CHECKING`:
+   - Decode check: `-xerror` full decode of the video and audio to the null muxer, with `-progress` like the encode, so `CHECKING` shows its own 0–100%.
+     - It runs on the GPU (`-hwaccel X -hwaccel_output_format X`, frames never leave the device) when the device passed the decode test for the output's codec (`DEC_HEVC_10` for HEVC 10-bit); otherwise, and for AV1, on the CPU.
+     - A GPU check that fails before ffmpeg writes its first frame runs again on the CPU: the device or its decoder didn't open, which says nothing about the file. One that fails after a frame found an error in the file and fails the check.
+     - A server whose `Welcome` doesn't list `CHECKING` in `Stages` would cancel a job in a stage it doesn't know, so the agent reports the check to it as `ENCODING` at 100%.
    - Duration within ±1 s.
    - Frame count within ±1 for CFR sources.
    - Stream map matches the spec.
@@ -583,13 +587,14 @@ Runs on: a job queued, a slot freed, an agent online, a capability change, and a
 ### Job state machine
 
 ```
-QUEUED → OFFERED → LEASED → FETCHING → ENCODING → UPLOADING → VERIFYING → VERIFIED → SWAPPED      (TRANSCODE)
-                                                             └→ COMPLETED                        (WHISPER, after WhisperCompleted)
+QUEUED → OFFERED → LEASED → FETCHING → ENCODING → CHECKING → UPLOADING → VERIFYING → VERIFIED → SWAPPED      (TRANSCODE)
+                                                                        └→ COMPLETED                        (WHISPER, after WhisperCompleted)
+ENCODING → UPLOADING       (WHISPER, which has no CHECKING)
 any non-terminal → CANCELLED
 OFFERED  → QUEUED          (reject / offer timeout, no attempt counted)
 LEASED.. → QUEUED          (lease expiry / retryable failure, attempt+1, backoff)
 LEASED.. → FAILED          (attempt 3 failed, or non-retryable)
-ENCODING → NOT_WORTH_IT    (agent outcome; recorded as skip, TranscodeSkipped{NOT_WORTH_IT})
+CHECKING → NOT_WORTH_IT    (agent outcome; recorded as skip, TranscodeSkipped{NOT_WORTH_IT})
 ```
 
 ### Server-side verification (`UPLOADED` → `VERIFIED`)

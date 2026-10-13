@@ -14,6 +14,7 @@ import { ActivityHistory, HistoryFilter } from './activity-history.svelte';
 import { Severity, Stage, TranscodeState } from './pipeline';
 import { TitlePipeline } from './title-pipeline.svelte';
 import { TitleTimeline } from './title-timeline.svelte';
+import { JobState } from '$lib/transcode/gpu-jobs';
 
 const TITLE = '01TITLE';
 const OTHER_TITLE = '01OTHER';
@@ -129,10 +130,12 @@ describe('TitlePipeline', () => {
 		manager.connect(live);
 
 		live.emit(LiveEventType.DOWNLOAD_PROGRESSED, { download: DOWNLOAD, progress: HALF });
-		live.emit(LiveEventType.JOB_PROGRESSED, { job: JOB, progress: HALF });
-
+		live.emit(LiveEventType.JOB_PROGRESSED, { job: JOB, stage: JobState.ENCODING, progress: HALF });
 		expect(manager.downloadPercent).toBe(HALF_PERCENT);
-		expect(manager.transcodePercent).toBe(HALF_PERCENT);
+		expect(manager.transcodeProgress).toEqual({ state: JobState.ENCODING, percent: HALF_PERCENT });
+
+		live.emit(LiveEventType.JOB_PROGRESSED, { job: JOB, stage: JobState.CHECKING, progress: 0 });
+		expect(manager.transcodeProgress).toEqual({ state: JobState.CHECKING, percent: 0 });
 	});
 
 	it('shows the error when a reload fails, and keeps the rows when a refetch fails', async () => {

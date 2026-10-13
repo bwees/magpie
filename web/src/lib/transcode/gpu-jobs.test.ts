@@ -149,6 +149,30 @@ describe('GpuJobsManager', () => {
 		expect(live.handlers.size).toBe(0);
 	});
 
+	it('keeps a job running while the agent checks its output', async () => {
+		const api = fakeApi([job('a', { state: JobState.ENCODING, progress: 1 })]);
+		const manager = new GpuJobsManager(api, notify());
+		await manager.load();
+		const live = new FakeLive();
+		manager.watch(live);
+
+		live.emit(JobEvent.PROGRESSED, {
+			job: 'a',
+			mediaFile: 'file-a',
+			stage: JobState.CHECKING,
+			progress: 0.25,
+			speed: 12,
+			eta: 300 * NANOS_PER_SECOND
+		});
+
+		expect(manager.running.map((j) => j.id)).toEqual(['a']);
+		expect(stateLabel(manager.running[0])).toBe('Checking output');
+		expect(manager.running[0].progress).toBe(0.25);
+		expect(detailLabel(manager.running[0], manager.details.get('a'))).toBe(
+			'12.0× realtime · 5m left'
+		);
+	});
+
 	it('reloads when progress arrives for a job it does not list', async () => {
 		const api = fakeApi([]);
 		const manager = new GpuJobsManager(api, notify());

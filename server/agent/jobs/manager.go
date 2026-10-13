@@ -44,6 +44,10 @@ const (
 	scratchFactorDirectRead    = 1.2
 
 	percent = 100
+
+	// encoded is the progress a server that predates StageChecking is told while the agent checks the
+	// output: the encode is done.
+	encoded = 1.0
 )
 
 // encodeCapability is what a device must have passed to encode each target codec.
@@ -83,6 +87,7 @@ type Manager struct {
 	slots    map[string]int
 	mode     agentproto.Mode
 	draining bool
+	stages   []agentproto.Stage // the stages the server takes in a heartbeat
 	pending  []agentproto.JobResult
 	wg       sync.WaitGroup
 }
@@ -142,6 +147,18 @@ func (j *job) transferred(stage agentproto.Stage) transfer.Progress {
 	}
 }
 
+// realtime records an ffmpeg run's progress through a source of duration seconds, with its speed as a
+// multiple of realtime.
+func (j *job) realtime(stage agentproto.Stage, duration float64) func(fraction, speed float64) {
+	return func(fraction, speed float64) {
+		var eta time.Duration
+		if speed > 0 {
+			eta = time.Duration((1 - fraction) * duration / speed * float64(time.Second))
+		}
+		j.set(stage, fraction, speed, eta)
+	}
+}
+
 // Run deletes scratch nobody resumed after KeepResumable. When ctx ends it stops every job and waits
 // for them, keeping their scratch for a resume.
 func (m *Manager) Run(ctx context.Context) {
@@ -161,7 +178,7 @@ func (m *Manager) Run(ctx context.Context) {
 func (m *Manager) Configure(welcome agentproto.Welcome) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.slots, m.mode, m.draining = welcome.Slots, welcome.Mode, welcome.Draining
+	m.slots, m.mode, m.draining, m.stages = welcome.Slots, welcome.Mode, welcome.Draining, welcome.Stages
 }
 
 // Drain stops the agent from accepting jobs.
@@ -314,8 +331,12 @@ func (m *Manager) Heartbeats() []agentproto.JobHeartbeat {
 	beats := make([]agentproto.JobHeartbeat, 0, len(m.running))
 	for id, j := range m.running {
 		j.mu.Lock()
-		beats = append(beats, agentproto.JobHeartbeat{Job: id, Stage: j.stage, Progress: j.progress, Speed: j.speed, ETA: j.eta})
+		beat := agentproto.JobHeartbeat{Job: id, Stage: j.stage, Progress: j.progress, Speed: j.speed, ETA: j.eta}
 		j.mu.Unlock()
+		if beat.Stage == agentproto.StageChecking && !slices.Contains(m.stages, agentproto.StageChecking) {
+			beat = agentproto.JobHeartbeat{Job: id, Stage: agentproto.StageEncoding, Progress: encoded}
+		}
+		beats = append(beats, beat)
 	}
 	slices.SortFunc(beats, func(a, b agentproto.JobHeartbeat) int { return cmp.Compare(a.Job, b.Job) })
 	return beats

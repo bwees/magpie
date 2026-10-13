@@ -5,7 +5,8 @@ import { AttentionAction, AttentionKind } from '$lib/activity/attention';
 import { AttentionList } from '$lib/activity/attention-list.svelte';
 import type { ActivityFeeds } from '$lib/activity/feeds';
 import { LivePipeline } from '$lib/activity/live-pipeline.svelte';
-import { Stage, TranscodeState } from '$lib/activity/pipeline';
+import { Stage, TranscodeState, transcodeChipText } from '$lib/activity/pipeline';
+import { JobState } from '$lib/transcode/gpu-jobs';
 import { TitleDirectory } from '$lib/catalog/title-directory.svelte';
 import { LoadStatus } from '$lib/load-status';
 import { coalesce } from '$lib/live/coalesce';
@@ -273,13 +274,35 @@ describe('Live now', () => {
 		pipeline.watch(live);
 
 		live.emit(LiveEventType.DOWNLOAD_PROGRESSED, { download: 'D1', progress: HALF });
-		live.emit(LiveEventType.JOB_PROGRESSED, { job: 'J1', progress: HALF });
+		live.emit(LiveEventType.JOB_PROGRESSED, {
+			job: 'J1',
+			stage: JobState.ENCODING,
+			progress: HALF
+		});
 		live.emit(LiveEventType.DOWNLOAD_PROGRESSED, { download: 'OTHER', progress: HALF });
 
 		expect(pipeline.progress.of(downloading)).toBe(HALF_PERCENT);
 		expect(pipeline.progress.of(transcoding)).toBe(HALF_PERCENT);
 		expect(active).toHaveBeenCalledTimes(1);
 		expect(pipeline.count).toBe(2);
+	});
+
+	it('restarts the percent with the check once the encode is done', async () => {
+		const pipeline = new LivePipeline(feeds({ active: vi.fn(async () => [transcoding]) }));
+		const live = new FakeLive();
+		await pipeline.load();
+		pipeline.watch(live);
+
+		live.emit(LiveEventType.JOB_PROGRESSED, { job: 'J1', stage: JobState.ENCODING, progress: 1 });
+		live.emit(LiveEventType.JOB_PROGRESSED, {
+			job: 'J1',
+			stage: JobState.CHECKING,
+			progress: HALF
+		});
+
+		const job = pipeline.progress.job(transcoding);
+		expect(job).toEqual({ state: JobState.CHECKING, percent: HALF_PERCENT });
+		expect(transcodeChipText(transcoding.transcode!, job)).toBe('Transcode check 50%');
 	});
 
 	it('refetches when the pipeline projection changes, and shows the empty state', async () => {

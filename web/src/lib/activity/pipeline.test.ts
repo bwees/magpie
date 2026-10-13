@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PipelineRowResponse } from '$lib/sdk';
+import { JobState } from '$lib/transcode/gpu-jobs';
 import {
 	Stage,
 	SubsState,
@@ -64,7 +65,13 @@ describe('chips', () => {
 			jobId: null
 		});
 		expect(transcodeChipText(chip(TranscodeState.QUEUED))).toBe('Transcode queued');
-		expect(transcodeChipText(chip(TranscodeState.RUNNING), LIVE_PERCENT)).toBe('Transcode 41%');
+		const running = chip(TranscodeState.RUNNING);
+		expect(transcodeChipText(running, { state: JobState.ENCODING, percent: LIVE_PERCENT })).toBe(
+			'Transcode 41%'
+		);
+		expect(transcodeChipText(running, { state: JobState.CHECKING, percent: LIVE_PERCENT })).toBe(
+			'Transcode check 41%'
+		);
 		expect(transcodeChipText(chip(TranscodeState.RUNNING))).toBe('Transcoding');
 		expect(transcodeChipText(chip(TranscodeState.DONE, SAVED_PERCENT))).toBe('Transcoded −62%');
 		expect(transcodeChipText(chip(TranscodeState.SKIPPED))).toBe('Original kept');

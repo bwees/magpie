@@ -257,6 +257,112 @@ func TestVerifyChecksHDR10Metadata(t *testing.T) {
 	}
 }
 
+func TestCheckArgsDecodeTheOutputOnTheGPU(t *testing.T) {
+	for _, tt := range []struct {
+		vendor  agentproto.Vendor
+		id      string
+		encoder string
+		want    string
+	}{
+		{agentproto.VendorNVIDIA, "cuda:1", "hevc_nvenc", "-init_hw_device cuda=gpu:1 -filter_hw_device gpu -hwaccel cuda -hwaccel_output_format cuda"},
+		{agentproto.VendorIntel, "/dev/dri/renderD128", "hevc_qsv", "-init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device qsv=qs@va -filter_hw_device qs -hwaccel qsv -hwaccel_output_format qsv"},
+		{agentproto.VendorAMD, "/dev/dri/renderD129", "hevc_vaapi", "-init_hw_device vaapi=va:/dev/dri/renderD129 -filter_hw_device va -hwaccel vaapi -hwaccel_output_format vaapi"},
+	} {
+		t.Run(string(tt.vendor), func(t *testing.T) {
+			j := job(device(tt.vendor, tt.id, agentproto.CapEncHEVC10, agentproto.CapDecHEVC10), tt.encoder, source("h264", "yuv420p10le"))
+
+			if !HardwareCheck(j) {
+				t.Fatal("a device that decodes HEVC 10-bit checks the HEVC 10-bit output itself, whatever the source")
+			}
+			got := strings.Join(CheckArgs(j, true), " ")
+			want := "-hide_banner -nostdin -v error -xerror -progress pipe:1 -nostats " + tt.want +
+				" -i /scratch/jobs/01JOB/output.mkv -map 0:v -map 0:a? -f null -"
+			if got != want {
+				t.Fatalf("args =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestCheckArgsDecodeOnTheCPUWithoutTheDecodeTest(t *testing.T) {
+	av1 := job(device(agentproto.VendorNVIDIA, "cuda:0", agentproto.CapEncAV110, agentproto.CapDecHEVC10), "av1_nvenc", source("hevc", "yuv420p10le"))
+	av1.Spec.Transcode.Codec = "av1"
+	for name, j := range map[string]Job{
+		"decode test failed": job(device(agentproto.VendorAMD, "/dev/dri/renderD128", agentproto.CapEncHEVC10), "hevc_vaapi", source("hevc", "yuv420p10le")),
+		"no AV1 decode test": av1,
+		"CPU encoder":        job(device(agentproto.VendorCPU, "cpu", agentproto.CapEncHEVC10, agentproto.CapDecHEVC10), "libx265", source("h264", "yuv420p")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if HardwareCheck(j) {
+				t.Fatal("checked on the GPU")
+			}
+			got := strings.Join(CheckArgs(j, false), " ")
+			want := "-hide_banner -nostdin -v error -xerror -progress pipe:1 -nostats -i /scratch/jobs/01JOB/output.mkv -map 0:v -map 0:a? -f null -"
+			if got != want {
+				t.Fatalf("args =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
+// checkRunner answers the output's checks, with the hardware decode check as given.
+func checkRunner(hardware rule) *fakeRunner {
+	runner := verifyRunner(sourceHashes)
+	hardware.program, hardware.fragments = DefaultFFmpeg, []string{"-xerror", "-hwaccel"}
+	runner.rules = append([]rule{hardware}, runner.rules...)
+	return runner
+}
+
+func TestTheCheckReportsItsProgress(t *testing.T) {
+	e := &Encoder{Runner: checkRunner(rule{lines: []string{"frame=43200", "speed=11.8x", "out_time_us=1800000000"}}), FFmpeg: DefaultFFmpeg, FFprobe: DefaultFFprobe}
+	j := job(nvidiaFull, "hevc_nvenc", source("h264", "yuv420p"))
+	var fraction, speed float64
+	j.Progress = func(f, s float64) { fraction, speed = f, s }
+
+	report, err := e.Verify(context.Background(), j)
+
+	if err != nil || !report.DecodeOK {
+		t.Fatalf("report = %+v, %v", report, err)
+	}
+	if fraction != 0.5 || speed != 11.8 {
+		t.Fatalf("progress = %v at %vx, want 0.5 at 11.8x", fraction, speed)
+	}
+}
+
+func TestAHardwareCheckThatCannotStartRunsOnTheCPU(t *testing.T) {
+	runner := checkRunner(rule{
+		lines:  []string{"frame=0", "out_time_us=N/A", "progress=end"},
+		stderr: "[AVHWDeviceContext @ 0x1] Failed to initialise VAAPI connection: -1 (unknown libva error).\n", fail: true,
+	})
+	e := &Encoder{Runner: runner, FFmpeg: DefaultFFmpeg, FFprobe: DefaultFFprobe}
+
+	report, err := e.Verify(context.Background(), job(nvidiaFull, "hevc_nvenc", source("h264", "yuv420p")))
+
+	if err != nil || !report.DecodeOK {
+		t.Fatalf("report = %+v, %v; want the CPU's clean decode", report, err)
+	}
+	if calls := runner.called("-xerror"); len(calls) != 2 || strings.Contains(calls[1], "-hwaccel") {
+		t.Fatalf("decode checks = %v, want the GPU then the CPU", calls)
+	}
+}
+
+func TestAHardwareCheckThatHitsAnErrorFailsTheOutput(t *testing.T) {
+	runner := checkRunner(rule{
+		lines:  []string{"frame=51234", "out_time_us=2137000000", "progress=end"},
+		stderr: "[hevc @ 0x1] Error constructing the frame RPS.\n", fail: true,
+	})
+	e := &Encoder{Runner: runner, FFmpeg: DefaultFFmpeg, FFprobe: DefaultFFprobe}
+
+	report, err := e.Verify(context.Background(), job(nvidiaFull, "hevc_nvenc", source("h264", "yuv420p")))
+
+	if err != nil || report.DecodeOK {
+		t.Fatalf("report = %+v, %v; want DecodeOK false", report, err)
+	}
+	if calls := runner.called("-xerror"); len(calls) != 1 {
+		t.Fatalf("decode checks = %v, want no CPU run after a decode error", calls)
+	}
+}
+
 func TestVerifyFailsAWrongStreamMap(t *testing.T) {
 	j := job(nvidiaFull, "hevc_nvenc", source("h264", "yuv420p"))
 	j.Spec.Transcode.KeepAudio = []int{1}

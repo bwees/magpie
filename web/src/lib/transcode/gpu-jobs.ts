@@ -9,6 +9,7 @@ export enum JobState {
 	LEASED = 'LEASED',
 	FETCHING = 'FETCHING',
 	ENCODING = 'ENCODING',
+	CHECKING = 'CHECKING',
 	UPLOADING = 'UPLOADING',
 	VERIFYING = 'VERIFYING',
 	VERIFIED = 'VERIFIED',
@@ -48,6 +49,7 @@ export const RUNNING_STATES: string[] = [
 	JobState.LEASED,
 	JobState.FETCHING,
 	JobState.ENCODING,
+	JobState.CHECKING,
 	JobState.UPLOADING,
 	JobState.VERIFYING,
 	JobState.VERIFIED
@@ -65,6 +67,7 @@ export const STATE_LABELS: Record<string, string> = {
 	[JobState.LEASED]: 'Starting',
 	[JobState.FETCHING]: 'Fetching source',
 	[JobState.ENCODING]: 'Encoding',
+	[JobState.CHECKING]: 'Checking output',
 	[JobState.UPLOADING]: 'Uploading',
 	[JobState.VERIFYING]: 'Verifying',
 	[JobState.VERIFIED]: 'Swapping in',

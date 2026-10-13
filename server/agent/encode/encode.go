@@ -51,7 +51,8 @@ type Job struct {
 	Input  Input
 	Source Media
 	Output string
-	// Progress receives the share of the source encoded and the speed as a multiple of realtime.
+	// Progress receives the share of the source the encode, then the decode check, has done and its
+	// speed as a multiple of realtime.
 	Progress func(fraction, speed float64)
 }
 
@@ -104,12 +105,12 @@ var pipelines = map[agentproto.Vendor]pipeline{
 	},
 }
 
-// decodeCapability is the capability a device must have passed to decode the source video itself.
-func decodeCapability(video Stream) (agentproto.Capability, bool) {
+// decodeCapability is the capability a device must have passed to decode a video itself.
+func decodeCapability(codec string, depth int) (agentproto.Capability, bool) {
 	switch {
-	case video.Codec == "h264" && video.BitDepth() == eightBit:
+	case codec == "h264" && depth == eightBit:
 		return agentproto.CapDecH2648, true
-	case video.Codec == "hevc" && video.BitDepth() <= tenBit:
+	case codec == "hevc" && depth <= tenBit:
 		return agentproto.CapDecHEVC10, true
 	}
 	return "", false
@@ -129,7 +130,7 @@ func HardwareDecode(job Job) bool {
 	if !ok {
 		return false
 	}
-	needs, ok := decodeCapability(video)
+	needs, ok := decodeCapability(video.Codec, video.BitDepth())
 	return ok && passed(job.Device, needs) && passed(job.Device, agentproto.CapPipelineHEVC10)
 }
 
@@ -213,10 +214,13 @@ func (e *Encoder) encode(ctx context.Context, job Job, hardwareDecode bool) erro
 type progressParser struct {
 	duration float64
 	speed    float64
-	report   func(fraction, speed float64)
+	// frames is how many video frames ffmpeg has written so far.
+	frames int
+	report func(fraction, speed float64)
 }
 
 const (
+	progressFrame   = "frame"
 	progressOutTime = "out_time_us"
 	progressSpeed   = "speed"
 	speedSuffix     = "x"
@@ -225,17 +229,21 @@ const (
 
 func (p *progressParser) line(line string) {
 	key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
-	if !ok || p.report == nil {
+	if !ok {
 		return
 	}
 	switch key {
+	case progressFrame:
+		if frames, err := strconv.Atoi(value); err == nil {
+			p.frames = frames
+		}
 	case progressSpeed:
 		if speed, err := strconv.ParseFloat(strings.TrimSuffix(value, speedSuffix), 64); err == nil {
 			p.speed = speed
 		}
 	case progressOutTime:
 		micros, err := strconv.ParseFloat(value, 64)
-		if err != nil || p.duration <= 0 {
+		if err != nil || p.duration <= 0 || p.report == nil {
 			return
 		}
 		p.report(min(1, max(0, micros/microsPerSecond/p.duration)), p.speed)

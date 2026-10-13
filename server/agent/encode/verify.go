@@ -3,6 +3,8 @@ package encode
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"math"
 	"regexp"
 	"slices"
@@ -29,7 +31,7 @@ var vmafScore = regexp.MustCompile(`VMAF score: ([0-9.]+)`)
 func (e *Encoder) Verify(ctx context.Context, job Job) (agentproto.VerifyReport, error) {
 	params := job.params()
 	output := Input{Path: job.Output}
-	report := agentproto.VerifyReport{DecodeOK: e.decodes(ctx, output)}
+	report := agentproto.VerifyReport{DecodeOK: e.decodes(ctx, job)}
 	out, err := e.Probe(ctx, output)
 	if err != nil {
 		return report, nil
@@ -55,11 +57,48 @@ func (e *Encoder) Verify(ctx context.Context, job Job) (agentproto.VerifyReport,
 	return report, ctx.Err()
 }
 
-func (e *Encoder) decodes(ctx context.Context, output Input) bool {
-	args := slices.Concat([]string{"-hide_banner", "-nostdin", "-v", "error", "-xerror"}, output.args(),
-		[]string{"-map", "0:v", "-map", "0:a?", "-f", "null", "-"})
-	_, _, err := e.Runner.Run(ctx, Command{Name: e.FFmpeg, Args: args})
+// HardwareCheck reports whether the decode check can run on the GPU: the device passed the decode test
+// for the output's codec.
+func HardwareCheck(job Job) bool {
+	if _, ok := pipelines[job.Device.Vendor]; !ok {
+		return false
+	}
+	params := job.params()
+	needs, ok := decodeCapability(params.Codec, params.BitDepth)
+	return ok && passed(job.Device, needs)
+}
+
+// CheckArgs builds the decode check: the whole output decoded to the null muxer, stopping at the first
+// error. hardwareDecode keeps the frames on the GPU, since nothing reads them.
+func CheckArgs(job Job, hardwareDecode bool) []string {
+	args := []string{"-hide_banner", "-nostdin", "-v", "error", "-xerror", "-progress", "pipe:1", "-nostats"}
+	if line, ok := pipelines[job.Device.Vendor]; ok && hardwareDecode {
+		args = slices.Concat(args, line.device(job.Device.DeviceID), line.decode)
+	}
+	return slices.Concat(args, Input{Path: job.Output}.args(), []string{"-map", "0:v", "-map", "0:a?", "-f", "null", "-"})
+}
+
+// decodes runs the decode check. A hardware check that fails before its first frame runs again on the
+// CPU: ffmpeg couldn't open the device or its decoder, which says nothing about the file. One that fails
+// after a frame hit an error in the file, and fails the check.
+func (e *Encoder) decodes(ctx context.Context, job Job) bool {
+	hardware := HardwareCheck(job)
+	decoded, err := e.decode(ctx, job, hardware)
+	if err != nil && hardware && !decoded && ctx.Err() == nil {
+		slog.WarnContext(ctx, "agent: the hardware decode check didn't start; checking on the CPU", "job", job.Spec.Job, "error", err)
+		_, err = e.decode(ctx, job, false)
+	}
 	return err == nil
+}
+
+// decode runs the decode check once. decoded reports whether ffmpeg wrote a frame before it stopped.
+func (e *Encoder) decode(ctx context.Context, job Job, hardwareDecode bool) (decoded bool, err error) {
+	progress := progressParser{duration: job.Source.Duration, report: job.Progress}
+	_, stderr, err := e.Runner.Run(ctx, Command{Name: e.FFmpeg, Args: CheckArgs(job, hardwareDecode), OnLine: progress.line})
+	if err != nil {
+		err = fmt.Errorf("ffmpeg: %w: %s", err, firstLine(stderr))
+	}
+	return progress.frames > 0, err
 }
 
 // streamMapOK checks the output holds the encoded video in the target codec and depth, then the kept

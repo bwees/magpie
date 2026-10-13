@@ -127,5 +127,6 @@ func agentFailure(result agentproto.JobResult) failure {
 var stageStates = map[agentproto.Stage]api.JobState{
 	agentproto.StageFetching:  api.StateFetching,
 	agentproto.StageEncoding:  api.StateEncoding,
+	agentproto.StageChecking:  api.StateChecking,
 	agentproto.StageUploading: api.StateUploading,
 }
