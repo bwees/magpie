@@ -1,5 +1,20 @@
 import { INITIAL_RECONNECT_DELAY_MS, nextReconnectDelay, withJitter } from './backoff';
-import { LiveControlType, LiveOp, type LiveClientMessage, type LiveMessage } from './protocol';
+import {
+	HEARTBEAT_INTERVAL_MS,
+	LiveControlType,
+	LiveOp,
+	type LiveClientMessage,
+	type LiveMessage
+} from './protocol';
+
+/** How long a new socket may take to open before it is dropped and retried. */
+export const CONNECT_TIMEOUT_MS = 10_000;
+
+const MISSED_HEARTBEAT_LIMIT = 2;
+
+/** How long an open socket may go without a message before it counts as dead and is replaced. */
+export const SILENCE_TIMEOUT_MS =
+	HEARTBEAT_INTERVAL_MS * MISSED_HEARTBEAT_LIMIT + CONNECT_TIMEOUT_MS;
 
 export enum LiveStatus {
 	CONNECTING = 'CONNECTING',
@@ -32,6 +47,7 @@ export class LiveConnection {
 	#status = LiveStatus.CONNECTING;
 	#socket: WebSocket | undefined;
 	#retryTimer: ReturnType<typeof setTimeout> | undefined;
+	#watchdog: ReturnType<typeof setTimeout> | undefined;
 	#delay = INITIAL_RECONNECT_DELAY_MS;
 	#epoch = '';
 	#seq = 0;
@@ -60,6 +76,7 @@ export class LiveConnection {
 	close(): void {
 		this.#stopped = true;
 		clearTimeout(this.#retryTimer);
+		clearTimeout(this.#watchdog);
 		this.#socket?.close();
 		this.#socket = undefined;
 		this.status = LiveStatus.CLOSED;
@@ -95,9 +112,21 @@ export class LiveConnection {
 		socket.onopen = () => this.#opened();
 		socket.onmessage = (event) => this.#received(event.data);
 		socket.onclose = () => this.#closed(socket);
+		this.#watch(socket, CONNECT_TIMEOUT_MS);
+	}
+
+	/** Drops socket and reconnects when it stays silent for timeout: a hung handshake or a dead network. */
+	#watch(socket: WebSocket, timeout: number): void {
+		clearTimeout(this.#watchdog);
+		this.#watchdog = setTimeout(() => {
+			socket.onopen = socket.onmessage = socket.onclose = null;
+			socket.close();
+			this.#closed(socket);
+		}, timeout);
 	}
 
 	#opened(): void {
+		if (this.#socket) this.#watch(this.#socket, SILENCE_TIMEOUT_MS);
 		this.status = LiveStatus.OPEN;
 		this.#hasConnected = true;
 		this.#delay = INITIAL_RECONNECT_DELAY_MS;
@@ -109,6 +138,7 @@ export class LiveConnection {
 	}
 
 	#received(raw: unknown): void {
+		if (this.#socket) this.#watch(this.#socket, SILENCE_TIMEOUT_MS);
 		const message = JSON.parse(String(raw)) as LiveMessage;
 		switch (message.type) {
 			case LiveControlType.HEARTBEAT:
@@ -131,6 +161,7 @@ export class LiveConnection {
 
 	#closed(socket: WebSocket): void {
 		if (socket !== this.#socket || this.#stopped) return;
+		clearTimeout(this.#watchdog);
 		this.#socket = undefined;
 		this.status = this.#hasConnected ? LiveStatus.RECONNECTING : LiveStatus.CONNECTING;
 		this.#retryTimer = setTimeout(() => this.#open(), withJitter(this.#delay, this.#random));

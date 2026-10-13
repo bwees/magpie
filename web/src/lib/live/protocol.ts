@@ -2,6 +2,9 @@
 
 export const LIVE_PATH = '/api/live';
 
+/** How often the server sends a heartbeat. Mirrors live.DefaultConfig.HeartbeatInterval. */
+export const HEARTBEAT_INTERVAL_MS = 20_000;
+
 export enum LiveControlType {
 	HEARTBEAT = 'live.Heartbeat',
 	RESET = 'live.Reset'

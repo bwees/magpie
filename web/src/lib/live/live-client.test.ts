@@ -6,6 +6,7 @@ import {
 	withJitter
 } from './backoff';
 import { LiveClient, LiveStatus } from './live-client.svelte';
+import { CONNECT_TIMEOUT_MS, SILENCE_TIMEOUT_MS } from './live-connection';
 import {
 	LiveControlType,
 	LiveOp,
@@ -30,7 +31,10 @@ class FakeSocket {
 		this.sent.push(JSON.parse(data));
 	}
 
+	closed = false;
+
 	close() {
+		this.closed = true;
 		this.onclose?.();
 	}
 
@@ -172,6 +176,41 @@ describe('LiveClient', () => {
 
 		client.unsubscribe(topic);
 		expect(latest().sent.at(-1)).toEqual({ op: LiveOp.UNSUBSCRIBE, topics: [topic] });
+	});
+
+	it('drops a socket that never opens and connects again', () => {
+		const { client, sockets, latest } = setup();
+		client.connect();
+		const hung = latest();
+
+		vi.advanceTimersByTime(CONNECT_TIMEOUT_MS);
+		expect(hung.closed).toBe(true);
+		vi.advanceTimersByTime(INITIAL_RECONNECT_DELAY_MS);
+		latest().open();
+
+		expect(sockets).toHaveLength(2);
+		expect(client.status).toBe(LiveStatus.OPEN);
+	});
+
+	it('replaces an open socket that stops sending heartbeats', () => {
+		const { client, sockets, latest } = setup();
+		const refetch = vi.fn();
+		client.onReset(refetch);
+		client.connect();
+		latest().open();
+		vi.advanceTimersByTime(SILENCE_TIMEOUT_MS - 1);
+		latest().receive({ type: LiveControlType.HEARTBEAT });
+		vi.advanceTimersByTime(SILENCE_TIMEOUT_MS - 1);
+		expect(sockets).toHaveLength(1);
+
+		vi.advanceTimersByTime(1);
+		expect(client.status).toBe(LiveStatus.RECONNECTING);
+		vi.advanceTimersByTime(INITIAL_RECONNECT_DELAY_MS);
+		latest().open();
+		latest().receive({ type: LiveControlType.RESET });
+
+		expect(sockets).toHaveLength(2);
+		expect(refetch).toHaveBeenCalledOnce();
 	});
 
 	it('stops reconnecting once closed', () => {
