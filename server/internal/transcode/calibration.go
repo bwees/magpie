@@ -59,9 +59,18 @@ func Calibrations() map[string]EncoderCalibration {
 	return maps.Clone(calibration.Encoders)
 }
 
+const (
+	rateControlArg   = "rc_mode"
+	rateControlQVBR  = "QVBR"
+	rateControlCQP   = "CQP"
+	targetBitrateArg = "b:v"
+	constantQPArg    = "qp"
+	kbpsSuffix       = "k"
+)
+
 // encoderArgs are the options for one encode: the encoder's fixed options plus its quality value for the
 // preset, or the admin's override for that encoder.
-func encoderArgs(encoder string, preset api.Preset, overrides map[string]int) (map[string]string, error) {
+func encoderArgs(encoder string, preset api.Preset, overrides map[string]int, maxRateKbps int) (map[string]string, error) {
 	cal, ok := calibration.Encoders[encoder]
 	if !ok {
 		return nil, fmt.Errorf("transcode: no calibration for encoder %s", encoder)
@@ -75,6 +84,18 @@ func encoderArgs(encoder string, preset api.Preset, overrides map[string]int) (m
 	}
 	args := maps.Clone(cal.Args)
 	args[cal.Quality.Arg] = strconv.Itoa(quality)
+	if args[rateControlArg] != rateControlQVBR {
+		return args, nil
+	}
+	// VAAPI won't open a QVBR encode without a target bitrate. With no cap to aim at, the same quality
+	// value becomes a constant QP.
+	if maxRateKbps > 0 {
+		args[targetBitrateArg] = strconv.Itoa(maxRateKbps) + kbpsSuffix
+		return args, nil
+	}
+	delete(args, cal.Quality.Arg)
+	args[rateControlArg] = rateControlCQP
+	args[constantQPArg] = strconv.Itoa(quality)
 	return args, nil
 }
 

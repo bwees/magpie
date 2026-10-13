@@ -317,7 +317,7 @@ func transcodeParams(policy Policy, plan jobPlan, vendor agentproto.Vendor, sour
 	if !ok {
 		return agentproto.TranscodeParams{}, fmt.Errorf("transcode: no %s encoder for %s devices", plan.TargetCodec, vendor)
 	}
-	args, err := encoderArgs(encoder, policy.Preset, policy.EncoderOverrides)
+	args, err := encoderArgs(encoder, policy.Preset, policy.EncoderOverrides, plan.MaxRateKbps)
 	if err != nil {
 		return agentproto.TranscodeParams{}, err
 	}

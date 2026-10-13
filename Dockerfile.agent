@@ -40,6 +40,8 @@ COPY ${TARGETPLATFORM}/magpie-agent /usr/local/bin/magpie-agent
 ENV VK_ADD_DRIVER_FILES=/usr/lib/jellyfin-ffmpeg/share/vulkan/icd.d/intel_icd.x86_64.json:/usr/lib/jellyfin-ffmpeg/share/vulkan/icd.d/radeon_icd.x86_64.json
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,video,utility,graphics
 ENV MAGPIE_SCRATCH_DIR=/scratch
+# Mesa keeps its shader cache here; the agent's user can't write the default under HOME.
+ENV XDG_CACHE_HOME=/scratch/.cache
 
 VOLUME /scratch
 

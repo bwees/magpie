@@ -433,6 +433,24 @@ func TestOfferUsesTheCalibratedPresetOrTheEncodersOverride(t *testing.T) {
 	}
 }
 
+func TestVAAPIQualityRateControlGetsTheBitrateItRequires(t *testing.T) {
+	const capKbps = 10000
+	balanced := strconv.Itoa(calibration.Encoders[EncoderHEVCVAAPI].Presets[api.PresetBalanced])
+
+	capped, err := encoderArgs(EncoderHEVCVAAPI, api.PresetBalanced, nil, capKbps)
+	if err != nil || capped["rc_mode"] != "QVBR" || capped["global_quality"] != balanced || capped["b:v"] != "10000k" {
+		t.Fatalf("capped VAAPI args = %v, %v; want QVBR at %s with b:v 10000k", capped, err, balanced)
+	}
+	uncapped, err := encoderArgs(EncoderHEVCVAAPI, api.PresetBalanced, nil, 0)
+	if _, hasQuality := uncapped["global_quality"]; err != nil || uncapped["rc_mode"] != "CQP" || uncapped["qp"] != balanced || hasQuality {
+		t.Fatalf("uncapped VAAPI args = %v, %v; want CQP with qp %s", uncapped, err, balanced)
+	}
+	nvenc, err := encoderArgs(EncoderHEVCNVENC, api.PresetBalanced, nil, capKbps)
+	if want := calibration.Encoders[EncoderHEVCNVENC].Args["b:v"]; err != nil || nvenc["b:v"] != want {
+		t.Fatalf("NVENC args = %v, %v; want its calibrated b:v %q kept", nvenc, err, want)
+	}
+}
+
 func TestDecideFollowsTheRulesInOrder(t *testing.T) {
 	policy := policyKey.Default
 	h264 := withVideo(h264Movie(0), "h264", 12)
