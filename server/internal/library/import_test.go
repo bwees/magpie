@@ -29,6 +29,8 @@ import (
 const (
 	downloadsDevice uint64 = 2
 	mediaDevice     uint64 = 3
+	// remountedDevice is mediaDevice's share mounted again, as on another node.
+	remountedDevice uint64 = 4
 
 	duneTmdb     domain.TmdbID = 438631
 	showTmdb     domain.TmdbID = 1399

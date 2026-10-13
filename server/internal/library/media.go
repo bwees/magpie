@@ -35,12 +35,12 @@ func fileKind(path string) FileKind {
 	return FileIgnored
 }
 
-const etagShape = "%d:%d:%d:%d"
+const etagShape = "%d:%d:%d"
 
-// etagOf changes whenever the file at a path is replaced or modified: it hashes the device, inode, size
-// and modification time.
+// etagOf changes whenever the file at a path is replaced or modified: it hashes the inode, size and
+// modification time. The device is left out because an NFS share gets a new one on every mount.
 func etagOf(info FileInfo) string {
-	sum := sha256.Sum256(fmt.Appendf(nil, etagShape, info.Device, info.Inode, info.Size, info.ModTime.UnixNano()))
+	sum := sha256.Sum256(fmt.Appendf(nil, etagShape, info.Inode, info.Size, info.ModTime.UnixNano()))
 	return hex.EncodeToString(sum[:etagBytes])
 }
 

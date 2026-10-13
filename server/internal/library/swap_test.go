@@ -163,6 +163,24 @@ func TestATranscodeOfAChangedFileIsRejected(t *testing.T) {
 	}
 }
 
+// Seed library #22. An NFS share gets a new device number each time a node mounts it, so the server
+// moving to another node doesn't change the file.
+func TestATranscodeIsSwappedInAfterTheLibraryIsRemounted(t *testing.T) {
+	f := newImportFixture(t, oneDevice)
+	file := f.importMP4(t, "h264 original")
+	v := f.stage(t, file)
+	f.files.Remount("/data", remountedDevice)
+
+	f.verify(t, v)
+
+	if got := f.rejections(t); len(got) != 0 {
+		t.Fatalf("rejections = %+v, want none", got)
+	}
+	if got, _ := f.repo.File(context.Background(), file.ID); !got.Transcoded {
+		t.Fatalf("file = %+v, want it transcoded", got)
+	}
+}
+
 // Seed library #11.
 func TestATranscodeWithTheWrongHashIsRejected(t *testing.T) {
 	f := newImportFixture(t, oneDevice)

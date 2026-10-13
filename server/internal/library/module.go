@@ -39,7 +39,9 @@ var Module = fx.Module(string(owner.Library),
 		jobs.AsQueue(newRenameQueue),
 		bus.AsHandler(newTitleRemovedHandler),
 		jobs.AsQueue(newRemoveTitleQueue),
+		jobs.AsQueue(newRestampQueue),
 	),
+	fx.Invoke(restampOnStart),
 )
 
 // Migrations is Library's goose directory, for tests that open a database without the app.

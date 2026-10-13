@@ -90,6 +90,19 @@ func (f *FileSystem) Mount(root string, device uint64) {
 	f.mkdirAll(root)
 }
 
+// Remount moves root and everything under it to device, as when another node mounts the same NFS share.
+func (f *FileSystem) Remount(root string, device uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	root = filepath.Clean(root)
+	f.mounts[root] = device
+	for path, id := range f.entries {
+		if path == root || isUnder(root, path) {
+			f.inodes[id].device = device
+		}
+	}
+}
+
 // WriteFile creates or replaces a file's content with a fresh inode, as a download or upgrade would.
 func (f *FileSystem) WriteFile(path string, content []byte) error {
 	f.mu.Lock()

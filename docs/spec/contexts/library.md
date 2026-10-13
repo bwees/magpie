@@ -30,7 +30,8 @@ Decisions: [04](../../../.scratch/v1-spec/issues/04-qbittorrent-and-import.md), 
 | `imports` | download_id, title_id, release_name, status (PENDING/IMPORTED/FAILED/MANUAL/REMOVED), attempts, last_error, payload (the `DownloadCompleted`), files (json: the last attempt's videos and subtitles with their sample flag and matched episodes), mapping? (json: the user's file → episodes choice), created_at, updated_at |
 | `scan_folders` | path, root_folder_id, kind, status (FOUND/LINKED/IGNORED), title_id? (set on `ScanFolderMatched`), found_at, updated_at |
 
-- `etag` = hash of (device, inode, size, mtime). It changes whenever the file is replaced or modified.
+- `etag` = hash of (inode, size, mtime). It changes whenever the file is replaced or modified. It leaves out the device: an NFS share gets a new device number on each node that mounts it, so a server moved to another node would see every file as changed.
+- An empty `etag` means the file still needs one (migration 00005 cleared the ones that hashed the device). On start, the backlite job `library.restamp-etags` stamps each from the file on disk; a file gone from disk keeps none.
 - `media_files.rename_problem` (default `''`) says why a file kept its old name after an episode-group change; a later successful rename clears it.
 - `os_hash` and `release_name` are captured once at import and never recomputed. Subtitle matching depends on the original file ([16](../../../.scratch/v1-spec/issues/16-subtitle-design.md)).
 
@@ -259,7 +260,7 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 
 **Transcode swap** (on `TranscodeVerified`): the handler queues the backlite job `library.transcode-swap`, which does the disk work. A redelivered event whose staged file is gone while the file is already transcoded is a no-op.
 1. Load the file. If it's gone (record or disk), reject (`FILE_GONE`).
-2. Current ETag must equal `sourceETag`, both the stored one and one computed from the file on disk now, else reject (`SOURCE_CHANGED`, e.g. an upgrade landed meanwhile).
+2. Current ETag must equal `sourceETag`, both the stored one and one computed from the file on disk now, else reject (`SOURCE_CHANGED`, e.g. an upgrade landed meanwhile). Mounting the library again, even on another node, doesn't change it.
 3. The staged file must sit in that file's `StagingDir`, and its SHA-256 must equal the payload's, else reject (`HASH_MISMATCH`).
 4. Probe the staged file. The duration must be within 1 s of the original and the stream count must match `stats`, else reject (`PROBE_FAILED`).
 5. Atomic rename staged → final path (always `.mkv`). If the extension changed, remove the old file after the rename. Sidecars keep their basename, so they stay valid.
@@ -303,3 +304,5 @@ var ErrCrossDevice, ErrProbeFailed, ErrJellyfinUnavailable error
 19. **Given** a series with 10 episodes, 7 with files and 6 of them available, **then** `Coverage` returns `EpisodesWithFile = 7`, `EpisodesAvailable = 6`.
 20. **Given** a `MANUAL` import, **when** the user removes it (Remove & blocklist), **then** the import is `REMOVED` and leaves the imports queue, `ImportRemoved{Download}` is published once, and removing it again answers 409 `import-not-stopped`.
 21. **Given** an S02E01 file with a `.en.srt` sidecar, **when** `EpisodeGroupChanged` maps S02E01→S01E11, **then** `FileRenamed` is published once with the video's and the sidecar's old and new paths and the new numbers; a redelivered `EpisodeGroupChanged` publishes no second one.
+22. **Given** a staged transcode, **when** the library's share is mounted again with a new device number before `TranscodeVerified` arrives, **then** the swap goes through.
+23. **Given** a file with an empty `etag`, **when** `library.restamp-etags` runs, **then** it gets the ETag of the file on disk and a transcode of it swaps in; a stored ETag is kept, and a file gone from disk keeps an empty one.

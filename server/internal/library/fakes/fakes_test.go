@@ -46,6 +46,28 @@ func TestHardlinkSharesTheInodeOnOneDevice(t *testing.T) {
 	}
 }
 
+func TestRemountChangesOnlyTheDevice(t *testing.T) {
+	const remountedDevice uint64 = 9
+	f := newMountedFS(t)
+	before, _ := f.Stat("/downloads/movie.mkv")
+
+	f.Remount("/downloads", remountedDevice)
+
+	after, err := f.Stat("/downloads/movie.mkv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Device != remountedDevice || after.Inode != before.Inode || after.Size != before.Size || !after.ModTime.Equal(before.ModTime) {
+		t.Errorf("before %+v, after %+v: want the same file on the new device", before, after)
+	}
+	if err := f.WriteFile("/downloads/new.mkv", []byte("video")); err != nil {
+		t.Fatal(err)
+	}
+	if created, _ := f.Stat("/downloads/new.mkv"); created.Device != remountedDevice {
+		t.Errorf("a new file is on device %d, want %d", created.Device, remountedDevice)
+	}
+}
+
 func TestRenameIsSameDeviceOnlyAndMoveCopiesAcross(t *testing.T) {
 	f := newMountedFS(t)
 	if err := f.Rename("/downloads/movie.mkv", "/media/movie.mkv"); !errors.Is(err, library.ErrCrossDevice) {

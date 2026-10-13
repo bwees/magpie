@@ -27,7 +27,7 @@ type FileSystem interface {
 	Walk(root string, fn func(path string, info FileInfo) error) error
 }
 
-// FileInfo describes one path; ETag is derived from (Device, Inode, Size, ModTime).
+// FileInfo describes one path; ETag is derived from (Inode, Size, ModTime).
 type FileInfo struct {
 	Path    string
 	Size    int64
