@@ -178,18 +178,23 @@ func (s *Service) UpdatePipeline(ctx context.Context, tx *gorm.DB, ev bus.Event)
 		}
 	}
 	for _, title := range touched {
-		failed, err := s.repo.titleFailed(tx, title)
-		if err != nil {
-			return err
-		}
-		if err := s.applyAttention(tx, ev, pipelineAttention(title, failed)); err != nil {
-			return err
-		}
-		if err := s.announce(tx, api.ProjectionPipeline, &title); err != nil {
+		if err := s.pipelineChanged(tx, ev, title); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// pipelineChanged opens or clears the title's PIPELINE_FAILED item and announces its pipeline.
+func (s *Service) pipelineChanged(tx *gorm.DB, ev bus.Event, title domain.TitleID) error {
+	failed, err := s.repo.titleFailed(tx, title)
+	if err != nil {
+		return err
+	}
+	if err := s.applyAttention(tx, ev, pipelineAttention(title, failed)); err != nil {
+		return err
+	}
+	return s.announce(tx, api.ProjectionPipeline, &title)
 }
 
 // UpdateAttention opens and clears attention items. PIPELINE_FAILED items follow the pipeline instead.
@@ -330,6 +335,9 @@ func (s *Service) targetRows(ctx context.Context, tx *gorm.DB, change pipelineCh
 	target := change.Target
 	if target.File != "" {
 		return s.repo.pipelineRowsOfFile(tx, target.File)
+	}
+	if target.Downloading != "" {
+		return s.repo.pipelineRowsDownloading(tx, target.Downloading)
 	}
 	for _, ref := range []struct {
 		kind refKind

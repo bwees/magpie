@@ -246,7 +246,7 @@ func TestAFailedImportIsBlocklistedDeletedAndTheNextReleaseGrabbed(t *testing.T)
 	if next.Release != otherName {
 		t.Errorf("next grab = %+v, want %s", next, otherName)
 	}
-	f.assertRejected(t, api.RejectImportFailed, &next.Download)
+	f.assertRejected(t, api.RejectImportFailed, &id, &next.Download)
 	if d := f.download(t, id); d.State != api.StateImportFailed || d.RemovedAt == nil {
 		t.Errorf("download = %+v, want IMPORT_FAILED and removed", d)
 	}
@@ -369,7 +369,7 @@ func TestRemovingAWaitingImportBlocklistsDeletesAndGrabsTheNext(t *testing.T) {
 	if next.Release != otherName {
 		t.Errorf("next grab = %+v, want %s", next, otherName)
 	}
-	f.assertRejected(t, api.RejectImportFailed, &next.Download)
+	f.assertRejected(t, api.RejectImportFailed, &id, &next.Download)
 	if d := f.download(t, id); d.State != api.StateImportFailed || d.RemovedAt == nil {
 		t.Errorf("download = %+v, want IMPORT_FAILED and removed", d)
 	}

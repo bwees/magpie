@@ -9,6 +9,8 @@ import (
 	"magpie/internal/acquisition"
 	acquisitionapi "magpie/internal/acquisition/api"
 	acquisitionfakes "magpie/internal/acquisition/fakes"
+	"magpie/internal/activity"
+	activityapi "magpie/internal/activity/api"
 	"magpie/internal/domain"
 	"magpie/internal/library"
 	libraryapi "magpie/internal/library/api"
@@ -101,6 +103,42 @@ func TestBlockedFileInMetadataGrabsTheNextCachedRelease(t *testing.T) {
 
 	f.redeliverAll()
 	settles(t, "the blocked release after redelivery", rejected)
+}
+
+// With no cached release to fall back to, the rejected download leaves Live now and the fresh search finds
+// nothing it may grab.
+func TestABlockedReleaseWithoutAFallbackStopsDownloading(t *testing.T) {
+	s := newStack(t)
+	blocked := release(blockedRelease, topSeeders)
+	s.movieOnTMDB(blockedTmdb, blockedName, movieYear)
+	s.answer(blocked)
+	s.request(s.session, blockedTmdb)
+	title := s.titleAdded(blockedTmdb)
+	grab := s.grabbed(blocked)
+
+	s.receiveMetadata(blocked, torrentFiles(blocked, archiveFile, videoOf(blocked))...)
+	pollForEvent(s, acquisitionapi.TypeReleaseRejected, func(e acquisitionapi.ReleaseRejected) bool { return e.Release == blockedRelease })
+
+	stopped := func() []string {
+		var problems []string
+		rejected := published(s.harness, acquisitionapi.TypeReleaseRejected, func(e acquisitionapi.ReleaseRejected) bool { return e.Release == blockedRelease })
+		if len(rejected) != 1 || rejected[0].Download == nil || *rejected[0].Download != grab.Download || rejected[0].Next != nil {
+			problems = append(problems, fmt.Sprintf("rejected = %+v, want the grabbed download and no fallback", rejected))
+		}
+		rows := getJSON[[]activity.PipelineRowResponse](s.harness, pipelinePath+titleQuery+string(title))
+		if len(rows) != 1 || rows[0].Stage != string(activityapi.StageSearching) || !rows[0].Failed || rows[0].DownloadID != nil {
+			problems = append(problems, fmt.Sprintf("pipeline = %+v, want one failed SEARCHING row without a download", rows))
+		}
+		active := getJSON[[]activity.PipelineRowResponse](s.harness, pipelinePath+activeQuery)
+		if slices.ContainsFunc(active, func(r activity.PipelineRowResponse) bool { return r.TitleID == string(title) }) {
+			problems = append(problems, fmt.Sprintf("Live now = %+v, want the title gone", active))
+		}
+		return problems
+	}
+	settles(t, "the blocked release without a fallback", stopped)
+
+	s.redeliverAll()
+	settles(t, "the blocked release without a fallback after redelivery", stopped)
 }
 
 // Flow 2's backstop: the metadata looked clean, but the finished torrent holds an installer, so

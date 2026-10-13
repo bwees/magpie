@@ -155,6 +155,7 @@ type ReleaseRejected struct {
     Indexer     string
     Reason      RejectionReason // BLOCKED_FILE, METADATA_TIMEOUT, STALLED, IMPORT_FAILED, DOWNLOAD_FAILED
     BlockedFile *string         // matched file path inside the torrent
+    Download    *domain.DownloadID // the rejected download; nil when rejected before it reached qBittorrent
     Next        *domain.DownloadID // the fallback grab, if one was made
 }
 

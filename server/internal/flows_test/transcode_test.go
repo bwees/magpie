@@ -9,12 +9,16 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"magpie/internal/acquisition"
 	acquisitionapi "magpie/internal/acquisition/api"
+	"magpie/internal/activity"
+	activityapi "magpie/internal/activity/api"
 	"magpie/internal/domain"
 	"magpie/internal/library"
 	libraryapi "magpie/internal/library/api"
+	"magpie/internal/transcode"
 	transcodeapi "magpie/internal/transcode/api"
 	"magpie/internal/transcode/api/agentproto"
 
@@ -29,6 +33,12 @@ const (
 	uhdGroup         = "2160p"
 	uhdResolution    = 2160
 	editedSource     = "edited after the transcode was verified"
+
+	// shortLease lets an agent that never sends a heartbeat lose its job within the flow.
+	shortLease = 500 * time.Millisecond
+	shortSweep = 50 * time.Millisecond
+	// longAvoid keeps the job away from the only agent until the flow ends.
+	longAvoid = time.Hour
 )
 
 // transcoded is a downloaded movie and the agent's job that transcoded it.
@@ -201,4 +211,37 @@ func TestASourceChangedBeforeTheSwapIsKept(t *testing.T) {
 
 	s.redeliverAll()
 	settles(t, "the refused swap after redelivery", rejected)
+}
+
+// A lost lease puts the job back in the queue, away from the silent agent, so the file leaves Live now.
+func TestALostLeaseTakesTheTranscodeOffLiveNow(t *testing.T) {
+	s := newStack(t, fx.Decorate(func(timings transcode.Timings) transcode.Timings {
+		timings.LeaseTTL, timings.SweepEvery, timings.AvoidAgent = shortLease, shortSweep, longAvoid
+		return timings
+	}))
+	agent := connectAgent(s.harness, agentproto.CapEncHEVC10)
+	title, _ := s.downloadMovie(transcodeTmdb, transcodeName, transcodeRelease, h264Movie())
+	offer := agent.offer()
+	agent.accept(offer.Spec)
+
+	queued := func() []string {
+		var problems []string
+		failed := published(s.harness, transcodeapi.TypeJobFailed, func(e transcodeapi.JobFailed) bool { return e.Job == offer.Spec.Job })
+		if len(failed) != 1 || failed[0].Final {
+			problems = append(problems, fmt.Sprintf("job failures = %+v, want one to retry", failed))
+		}
+		rows := getJSON[[]activity.PipelineRowResponse](s.harness, pipelinePath+titleQuery+string(title))
+		if len(rows) != 1 || rows[0].Transcode == nil || rows[0].Transcode.State != activityapi.TranscodeQueued {
+			problems = append(problems, fmt.Sprintf("pipeline = %+v, want the transcode queued", rows))
+		}
+		active := getJSON[[]activity.PipelineRowResponse](s.harness, pipelinePath+activeQuery)
+		if slices.ContainsFunc(active, func(r activity.PipelineRowResponse) bool { return r.TitleID == string(title) }) {
+			problems = append(problems, fmt.Sprintf("Live now = %+v, want the title gone", active))
+		}
+		return problems
+	}
+	settles(t, "the lost lease", queued)
+
+	s.redeliverAll()
+	settles(t, "the lost lease after redelivery", queued)
 }

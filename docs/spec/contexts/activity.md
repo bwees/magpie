@@ -2,7 +2,7 @@
 
 What happened, and telling the right people. Activity records every durable event onto title timelines and the global history, keeps the per-movie/episode pipeline status the UI shows, and delivers notifications in-app and to each user's external URLs.
 
-- **Depends on (Readers):** `catalog.Reader`, `identity.Reader`, `requests.Reader`.
+- **Depends on (Readers):** `catalog.Reader`, `identity.Reader`, `requests.Reader`; `acquisition.Reader` and `transcode.Reader` for the pipeline repair only.
 - **Publishes:** `activity.NotificationCreated`, `activity.AttentionChanged`, and the ephemeral `activity.ProjectionUpdated`.
 - **Consumes:** every durable event in the [event catalog](../00-context-map.md#event-catalog), including `platform.ServiceHealthChanged`.
 - **Importer entrypoint:** `api.Importer` (migration job only): Sonarr/Radarr grab and import history onto timelines.
@@ -187,7 +187,7 @@ Every durable event other contexts and the platform publish is handled by the ha
 | `catalog.MonitoringChanged` (−) | `wanted=false` (row kept, shown as unmonitored) |
 | `acquisition.SearchStarted` | `search=RUNNING` |
 | `acquisition.SearchCompleted` | `Outcome = NOTHING_ACCEPTED` → `search=NOTHING_ACCEPTED`; `GRABBED`, `PENDING_DELAY` or `RELEASES_FOUND` → `search` cleared (detail "Waiting for a better release" when pending) |
-| `acquisition.ReleaseRejected` | Detail "Rejected: <reason>", search stays `RUNNING` |
+| `acquisition.ReleaseRejected` | Rows downloading its `Download`: `download=` cleared, detail "Rejected: <reason>". Other searching or downloading rows: detail only; search stays `RUNNING` |
 | `acquisition.ReleaseGrabbed` | `download=ACTIVE` |
 | `acquisition.DownloadFailed` | `download=FAILED` |
 | `acquisition.DownloadCompleted` | `download=DONE` |
@@ -198,6 +198,7 @@ Every durable event other contexts and the platform publish is handled by the ha
 | `transcode.JobStarted` (transcode kind) | `transcode=RUNNING`, job ID stored |
 | `transcode.TranscodeSkipped` | `transcode=SKIPPED` with reason |
 | `transcode.JobFailed` (transcode kind, `Final`) | `transcode=FAILED` |
+| `transcode.JobFailed` (transcode kind, not `Final`) | `transcode=QUEUED`: the job waits for its next attempt, whose `JobStarted` sets `RUNNING` again |
 | `library.FileTranscoded` | `transcode=DONE`, saved % from sizes |
 | `library.ItemAvailable` | `jellyfin=true` |
 | `library.FileDeleted` | `REMOVED` / `TITLE_REMOVED`: `file=NONE`, transcode/subtitles/jellyfin cleared. `UPGRADED`: no change, because the row already reflects the replacing file from its `FileImported`. |
@@ -206,7 +207,7 @@ Which rows an event changes:
 - Events with episodes change those episodes' rows; events with a title and no episodes change every row of the title (a movie has one).
 - `SearchCompleted` and `DownloadFailed` use the episodes their `SearchStarted` / `ReleaseGrabbed` named; `ImportFailed` finds its title through the download.
 - File events (`CoverageSettled`, `Job…`, `TranscodeSkipped`, `FileTranscoded`, `FileDeleted`) change the rows whose `media_file_id` is that file, so late events for a replaced file change nothing.
-- `ReleaseRejected` sets its detail only on rows that are searching or downloading.
+- `ReleaseRejected` with a `Download` changes the rows whose current download is that ID, whatever its order against the fallback's `ReleaseGrabbed`; rows the fallback covers are moved by that `ReleaseGrabbed`. Its detail then goes on the title's other rows that are searching or downloading. Without a `Download` (rejected before the grab, or stored before the field existed), only the detail changes.
 - `FileImported` also stores `media_file_id` and clears the transcode chip: the new file isn't eligible yet.
 - The detail is the latest event's note ("Rejected: …", "No accepted release", a failure reason) unless a stage rule names one.
 
@@ -330,6 +331,10 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 - **Severity:** `*Failed`, `ReleaseRejected`, `AgentOffline`, `SearchCompleted` with nothing accepted → `WARN` or `ERROR`. The rest are `INFO`.
   - `ERROR`: `DownloadFailed`, `ImportFailed`, `TitleAddFailed`, final `JobFailed`, `ServiceHealthChanged{Healthy: false}`.
   - `WARN`: `ReleaseRejected`, `TranscodeSwapRejected`, `AgentOffline`, `SearchCompleted{NOTHING_ACCEPTED}`, non-final `JobFailed`.
+- **Pipeline repair:** once per boot, a backlite job (`activity.repair-pipeline`) checks the rows still waiting on a download or a running transcode against their owners. Earlier releases left such rows behind, because `ReleaseRejected` carried no download and a non-final `JobFailed` changed nothing.
+  - `download=ACTIVE` whose download isn't in `acquisition.Reader.ActiveDownloads` → `download=` cleared.
+  - `transcode=RUNNING` whose job (`transcode.Reader.Job`) is `QUEUED` or `OFFERED` → `QUEUED`; cancelled or unknown → chip cleared. Other states keep the chip.
+  - A row an event changed since the job read it is left alone. `last_event_id` is kept, so events still queued apply after the repair. Changed titles get their `PIPELINE_FAILED` item opened or cleared and a `ProjectionUpdated`.
 - **"Needs you"** (home screen) is the attention list Activity owns (table above). The UI reads `GET /api/activity/attention`, updates it from `AttentionChanged`, and calls the owning context's API for each action (approve → Requests, search again → Acquisition, view agent → Transcode).
 - **Limits:** at most 10 notification URLs per user. A URL is validated on save; invalid → `422`. The 11th URL, and a kind the caller's role may not hold, are also `422`, each with its own problem type (`invalid-notification-url`, `notification-url-limit`, `notification-kind-not-allowed`).
 - **Labels:** trimmed, at most 60 characters; a blank label becomes the service name (`Ntfy`). Kinds are deduped and stored in the table's order.
@@ -358,7 +363,10 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 18. **Given** `RequestCreated` for request R, **then** one `REQUEST_PENDING` attention item opens and `AttentionChanged{Open: true, Count: n+1}` is published; **when** `RequestApproved` for R arrives, **then** it clears with `AttentionChanged{Open: false}`; redelivery of either changes nothing.
 19. **Given** `AgentOffline` for agent A delivered twice, **then** one `AGENT_OFFLINE` item exists; `AgentOnline` clears it.
 20. **Given** `transcode.JobFailed{Final: false}`, **then** no notification and no attention item; with `Final: true`, both.
-21. **Contract (Reader fake vs real):**
+21. **Given** a running transcode, **when** `JobFailed{Final: false}` arrives, **then** the Transcode chip is `QUEUED` and the row leaves "Live now"; the next attempt's `JobStarted` sets `RUNNING` again.
+22. **Given** a season pack D downloading two episodes and a fallback grab covering the first, **when** `ReleaseRejected{Download: D, Next: fallback}` arrives, **then** the first episode keeps downloading the fallback and the second has no download, with detail "Rejected: <reason>".
+23. **Given** a row downloading a download that left qBittorrent, or running a job back in `QUEUED`, **when** the pipeline repair runs, **then** the download is cleared or the chip is `QUEUED`; an event read before the repair still applies after it.
+24. **Contract (Reader fake vs real):**
     - Ordering: newest first.
     - Unknown title → empty slice, no error.
     - `Page.Limit` is capped at 200.

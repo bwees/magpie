@@ -458,6 +458,20 @@ func (r *Repository) pipelineRowsOfFile(tx *gorm.DB, file domain.MediaFileID) ([
 	return rows, tx.Where("media_file_id = ?", file).Order("season, number, episode_id").Find(&rows).Error
 }
 
+func (r *Repository) pipelineRowsDownloading(tx *gorm.DB, download domain.DownloadID) ([]pipelineRow, error) {
+	var rows []pipelineRow
+	return rows, tx.Where("download_id = ?", download).Order("season, number, episode_id").Find(&rows).Error
+}
+
+// unsettledRows are the rows waiting on a download or on a running transcode job.
+func (r *Repository) unsettledRows(ctx context.Context) ([]pipelineRow, error) {
+	var rows []pipelineRow
+	err := r.db.Read(ctx).
+		Where("download = ? OR json_extract(transcode_chip, '$.State') = ?", downloadActive, api.TranscodeRunning).
+		Find(&rows).Error
+	return rows, err
+}
+
 // savePipelineRow upserts: a movie's episode key is "", which gorm's Save would take for an unset key.
 func (r *Repository) savePipelineRow(tx *gorm.DB, row *pipelineRow) error {
 	return tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(row).Error

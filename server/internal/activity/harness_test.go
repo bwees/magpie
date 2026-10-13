@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	acquisitiontest "magpie/internal/acquisition/api/contracttest"
 	"magpie/internal/activity/api"
 	catalogapi "magpie/internal/catalog/api"
 	catalogtest "magpie/internal/catalog/api/contracttest"
@@ -18,6 +19,7 @@ import (
 	"magpie/internal/platform/db/dbtest"
 	"magpie/internal/platform/settings"
 	requeststest "magpie/internal/requests/api/contracttest"
+	transcodetest "magpie/internal/transcode/api/contracttest"
 
 	"github.com/mikestefanello/backlite"
 	"gorm.io/gorm"
@@ -30,17 +32,20 @@ const (
 
 // harness runs Activity's handlers against a migrated temp database, the way the dispatcher would.
 type harness struct {
-	t        *testing.T
-	db       *db.DB
-	bus      *bus.Bus
-	catalog  *catalogtest.Fake
-	requests *requeststest.Fake
-	identity *identitytest.Fake
-	sender   *sender
-	jobs     *queued
-	repo     *Repository
-	service  *Service
-	handlers []bus.Handler
+	t           *testing.T
+	db          *db.DB
+	bus         *bus.Bus
+	catalog     *catalogtest.Fake
+	requests    *requeststest.Fake
+	identity    *identitytest.Fake
+	acquisition *acquisitiontest.Fake
+	transcode   *transcodetest.Fake
+	sender      *sender
+	jobs        *queued
+	repo        *Repository
+	service     *Service
+	repairer    *PipelineRepair
+	handlers    []bus.Handler
 
 	mu        sync.Mutex
 	published []bus.Event
@@ -127,15 +132,17 @@ func newHarness(t *testing.T) *harness {
 	d := dbtest.Open(t, Migrations())
 	b := bus.New()
 	h := &harness{
-		t:        t,
-		db:       d,
-		bus:      b,
-		catalog:  catalogtest.NewFake(catalogtest.Fixture{}),
-		requests: requeststest.NewFake(requeststest.Fixture{}),
-		identity: identitytest.NewFake(identitytest.Fixture{}),
-		sender:   &sender{},
-		jobs:     &queued{},
-		repo:     NewRepository(d),
+		t:           t,
+		db:          d,
+		bus:         b,
+		catalog:     catalogtest.NewFake(catalogtest.Fixture{}),
+		requests:    requeststest.NewFake(requeststest.Fixture{}),
+		identity:    identitytest.NewFake(identitytest.Fixture{}),
+		acquisition: acquisitiontest.NewFake(acquisitiontest.Fixture{}),
+		transcode:   transcodetest.NewFake(transcodetest.Fixture{}),
+		sender:      &sender{},
+		jobs:        &queued{},
+		repo:        NewRepository(d),
 	}
 	h.service = NewService(ServiceParams{
 		Repository: h.repo,
@@ -147,6 +154,9 @@ func newHarness(t *testing.T) *harness {
 		Settings:   settings.NewStore(d),
 		Sender:     h.sender,
 		Jobs:       h.jobs,
+	})
+	h.repairer = NewPipelineRepair(PipelineRepairParams{
+		Repository: h.repo, DB: d, Acquisition: h.acquisition, Transcode: h.transcode, Service: h.service,
 	})
 	h.handlers = []bus.Handler{
 		NewTimelineHandler(h.service),

@@ -198,9 +198,11 @@ type ReleaseRejected struct {
 	InfoHash string         `json:"infoHash"`
 	Indexer  string         `json:"indexer"`
 	// Reason is BLOCKED_FILE, METADATA_TIMEOUT, STALLED, IMPORT_FAILED or DOWNLOAD_FAILED.
-	Reason      RejectionReason    `json:"reason"`
-	BlockedFile *string            `json:"blockedFile"` // matched file path inside the torrent
-	Next        *domain.DownloadID `json:"next"`        // the fallback grab, if one was made
+	Reason      RejectionReason `json:"reason"`
+	BlockedFile *string         `json:"blockedFile"` // matched file path inside the torrent
+	// Download is the rejected download; nil when the release was rejected before it reached qBittorrent.
+	Download *domain.DownloadID `json:"download"`
+	Next     *domain.DownloadID `json:"next"` // the fallback grab, if one was made
 }
 
 func (ReleaseRejected) Type() string          { return TypeReleaseRejected }

@@ -51,13 +51,14 @@ Acquisition → Catalog, Library
 Requests    → Catalog, Identity, Acquisition
 Subtitles   → Catalog, Library
 Transcode   → Catalog, Library
-Activity    → Catalog, Identity, Requests
+Activity    → Catalog, Identity, Requests, Acquisition, Transcode
 Platform    → Identity, Requests   (live gateway role filter only)
 ```
 
 - Library never reads Acquisition: everything it needs about a download comes in the `DownloadCompleted` payload.
 - Transcode never reads Subtitles or Acquisition: wanted languages come from Catalog, and cutoff arrives as `CutoffMet`.
 - `acquisition.Reader` exists for Acquisition's own HTTP layer, plus Requests reading `DefaultProfile` for new requests and `DownloadsForTitle` for the REGRAB check on downloads waiting for mapping. The UI reads profiles from `GET /api/acquisition/profiles`.
+- Activity reads `acquisition.Reader.ActiveDownloads` and `transcode.Reader.Job` only for the pipeline repair at boot ([activity › Behaviour](contexts/activity.md#behaviour)). Its projections otherwise follow events alone.
 - Importing an `api` for its event structs or command is not a query dependency. For example, Library imports `acquisition/api` for `DownloadCompleted` but never uses `acquisition.Reader`, and the live gateway imports `acquisition/api` only for the search event-type constants.
 
 Reader contents other contexts rely on:
@@ -156,7 +157,7 @@ type Event struct {
 | `acquisition.SearchResultsReceived` *(ephemeral)* | Acquisition | search, indexer, status, releases[] | live gateway (topic `search:<id>`) |
 | `acquisition.SearchCompleted` | Acquisition | search, title, counts, failed indexers, outcome `GRABBED` \| `NOTHING_ACCEPTED` \| `PENDING_DELAY` \| `RELEASES_FOUND` (interactive only) | Activity |
 | `acquisition.ReleaseGrabbed` | Acquisition | download, release, indexer, infoHash, title, episodes, quality, cfScore | Activity |
-| `acquisition.ReleaseRejected` | Acquisition | release, infoHash, reason, blockedFile?, next? | Activity → timeline |
+| `acquisition.ReleaseRejected` | Acquisition | release, infoHash, reason, blockedFile?, download? (nil when rejected before the grab), next? | Activity → timeline; pipeline rows downloading `download` go idle |
 | `acquisition.DownloadProgressed` *(ephemeral)* | Acquisition | download, state, progress, speed, eta | live gateway |
 | `acquisition.DownloadCompleted` | Acquisition | download, title, episodes, contentPath, files[], releaseName, infoHash, quality, cfScore, seedingMode (published only after the blocked-file backstop passes) | Library → import |
 | `acquisition.DownloadFailed` | Acquisition | download, reason | Activity → notify |
@@ -178,7 +179,7 @@ type Event struct {
 | `transcode.JobProgressed` *(ephemeral)* | Transcode | job, stage, progress | live gateway |
 | `transcode.TranscodeVerified` | Transcode | job, mediaFile, stagedPath, sha256, sourceETag, stats | Library → swap file |
 | `transcode.TranscodeSkipped` | Transcode | mediaFile, reason (not worth it, DV, under cap, low bitrate…) | Activity |
-| `transcode.JobFailed` | Transcode | job, kind, mediaFile, reason, final, language (Whisper) | Subtitles (Whisper jobs); Activity → notify + attention when final |
+| `transcode.JobFailed` | Transcode | job, kind, mediaFile, reason, final, language (Whisper) | Subtitles (Whisper jobs); Activity → notify + attention when final; Transcode chip back to queued when not |
 | `transcode.WhisperCompleted` | Transcode | job, mediaFile, language, stagedPath | Subtitles → store sidecar |
 | `transcode.AgentOnline` / `AgentOffline` | Transcode | agent | Activity → notify / attention on offline, clear on online |
 | `activity.NotificationCreated` | Activity | notification, user, kind, title, link | live gateway (to that user only) |

@@ -152,16 +152,25 @@ func torrentHash(name string, files ...string) string {
 	return fakes.HashOf(acquisition.AddRequest{Torrent: torrentFile(name, files...)})
 }
 
-func (f searchFixture) assertRejected(t *testing.T, reason api.RejectionReason, next *domain.DownloadID) api.ReleaseRejected {
+// assertRejected checks the one ReleaseRejected: dropped is the rejected download and next its fallback, each
+// nil when there is none.
+func (f searchFixture) assertRejected(t *testing.T, reason api.RejectionReason, dropped, next *domain.DownloadID) api.ReleaseRejected {
 	t.Helper()
 	rejected := payload[api.ReleaseRejected](t, f.events.waitFor(t, api.TypeReleaseRejected, 1)[0])
 	if rejected.Reason != reason || rejected.Title != f.title.ID {
 		t.Errorf("ReleaseRejected = %+v, want %s", rejected, reason)
 	}
-	if (next == nil) != (rejected.Next == nil) || (next != nil && *next != *rejected.Next) {
+	if !sameDownload(rejected.Download, dropped) {
+		t.Errorf("ReleaseRejected.Download = %v, want %v", rejected.Download, dropped)
+	}
+	if !sameDownload(rejected.Next, next) {
 		t.Errorf("ReleaseRejected.Next = %v, want %v", rejected.Next, next)
 	}
 	return rejected
+}
+
+func sameDownload(got, want *domain.DownloadID) bool {
+	return (got == nil) == (want == nil) && (want == nil || *got == *want)
 }
 
 func (f searchFixture) assertBlocklisted(t *testing.T, reason api.BlocklistReason, expires *time.Time) api.BlocklistEntry {
@@ -195,7 +204,7 @@ func TestABlockedTorrentIsNeverAddedAndTheNextReleaseIsGrabbed(t *testing.T) {
 	if added, ok := f.qbit.Added(nextHash); !ok || !added.Stopped || !f.qbit.Started(nextHash) {
 		t.Errorf("next release added %+v (found %v), want added stopped and then started", added, ok)
 	}
-	rejected := f.assertRejected(t, api.RejectBlockedFile, result.Next)
+	rejected := f.assertRejected(t, api.RejectBlockedFile, nil, result.Next)
 	if rejected.BlockedFile == nil || *rejected.BlockedFile != "Movie.exe" || rejected.Release != acceptedName || rejected.InfoHash == "" {
 		t.Errorf("ReleaseRejected = %+v", rejected)
 	}
@@ -254,7 +263,7 @@ func TestABlockedMagnetIsDeletedWhenItsMetadataArrives(t *testing.T) {
 	f.assertBlocklisted(t, api.BlocklistBlockedFile, nil)
 	grabbed := f.events.waitFor(t, api.TypeReleaseGrabbed, 2)
 	next := payload[api.ReleaseGrabbed](t, grabbed[1])
-	rejected := f.assertRejected(t, api.RejectBlockedFile, &next.Download)
+	rejected := f.assertRejected(t, api.RejectBlockedFile, result.Download, &next.Download)
 	if rejected.BlockedFile == nil || *rejected.BlockedFile != "Show.S01E01.rar" {
 		t.Errorf("BlockedFile = %v", rejected.BlockedFile)
 	}
@@ -291,7 +300,7 @@ func TestACleanMagnetStartsAfterItsCheck(t *testing.T) {
 func TestAMetadataTimeoutDeletesAndBlocklistsFor24Hours(t *testing.T) {
 	f := newSearchFixture(t)
 	s := f.searched(t, release(acceptedName))
-	f.grab(t, s, acceptedName)
+	result := f.grab(t, s, acceptedName)
 	hash := magnetHash(acceptedName)
 
 	f.clock.Advance(acquisition.DefaultMetadataTimeout - time.Second)
@@ -307,7 +316,7 @@ func TestAMetadataTimeoutDeletesAndBlocklistsFor24Hours(t *testing.T) {
 	}
 	expires := f.clock.Now().UTC().Add(acquisition.TemporaryBlockFor)
 	f.assertBlocklisted(t, api.BlocklistMetadataTimeout, &expires)
-	f.assertRejected(t, api.RejectMetadataTimeout, nil)
+	f.assertRejected(t, api.RejectMetadataTimeout, result.Download, nil)
 
 	var searches []acquisition.SearchRequest
 	for _, task := range f.jobs.tasks {
@@ -393,7 +402,7 @@ func TestTheCompletionBackstopRejectsALateBlockedFile(t *testing.T) {
 	}
 	f.assertBlocklisted(t, api.BlocklistBlockedFile, nil)
 	next := payload[api.ReleaseGrabbed](t, f.events.waitFor(t, api.TypeReleaseGrabbed, 2)[1])
-	rejected := f.assertRejected(t, api.RejectBlockedFile, &next.Download)
+	rejected := f.assertRejected(t, api.RejectBlockedFile, &id, &next.Download)
 	if rejected.BlockedFile == nil || *rejected.BlockedFile != "extras/setup.exe" || next.Release != otherName {
 		t.Errorf("rejected %+v, next %+v", rejected, next)
 	}
@@ -447,7 +456,7 @@ func TestAStalledDownloadFailsAfterTheLimit(t *testing.T) {
 	expires := f.clock.Now().UTC().Add(acquisition.TemporaryBlockFor)
 	f.assertBlocklisted(t, api.BlocklistStalled, &expires)
 	next := payload[api.ReleaseGrabbed](t, f.events.waitFor(t, api.TypeReleaseGrabbed, 2)[1])
-	f.assertRejected(t, api.RejectStalled, &next.Download)
+	f.assertRejected(t, api.RejectStalled, result.Download, &next.Download)
 	if !slices.Contains(f.qbit.Deletions(), fakes.Deletion{Hash: hash, DeleteFiles: true}) {
 		t.Errorf("deletions = %+v", f.qbit.Deletions())
 	}
@@ -482,7 +491,7 @@ func TestAnErroredDownloadFailsAndIsBlocklistedPermanently(t *testing.T) {
 		t.Errorf("DownloadFailed = %+v", failed)
 	}
 	f.assertBlocklisted(t, api.BlocklistDownloadFailed, nil)
-	f.assertRejected(t, api.RejectDownloadFailed, nil)
+	f.assertRejected(t, api.RejectDownloadFailed, result.Download, nil)
 }
 
 func TestProgressIsEmittedOnlyWhenItChanges(t *testing.T) {

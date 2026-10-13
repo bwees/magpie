@@ -76,6 +76,7 @@ const (
 	profilesPath      = "/api/acquisition/profiles"
 	qualitiesPath     = "/api/acquisition/qualities"
 	titleQuery        = "?title="
+	activeQuery       = "?active=true"
 )
 
 // stack is the whole app with every external system faked: TMDB, Prowlarr, qBittorrent, ffprobe, Jellyfin

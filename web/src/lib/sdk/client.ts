@@ -1620,6 +1620,7 @@ export type ReleaseGrabbed = {
 };
 export type ReleaseRejected = {
     blockedFile: string | null;
+    download: string | null;
     indexer: string;
     infoHash: string;
     next: string | null;

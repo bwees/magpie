@@ -12,16 +12,18 @@ import (
 )
 
 // rowTarget selects the pipeline rows an event changes. Exactly one way of selecting is set:
-// a file, a download or search (falling back to the title's rows), or the title itself.
+// a file, the rows downloading a download now, a download or search (falling back to the title's rows),
+// or the title itself.
 type rowTarget struct {
 	Title domain.TitleID
 	// Movie selects the movie's single row.
 	Movie bool
 	// Episodes selects these episodes' rows; empty selects every row of the title.
-	Episodes []domain.EpisodeID
-	File     domain.MediaFileID
-	Download domain.DownloadID
-	Search   domain.SearchID
+	Episodes    []domain.EpisodeID
+	File        domain.MediaFileID
+	Downloading domain.DownloadID
+	Download    domain.DownloadID
+	Search      domain.SearchID
 }
 
 // pipelineChange is one facet change. Create adds the target's missing rows first.
@@ -94,11 +96,20 @@ func init() {
 		})
 	})
 	onPipeline(func(e acquisitionapi.ReleaseRejected) []pipelineChange {
-		return change(rowTarget{Title: e.Title}, func(f *facets) {
+		note := rejectedNote(e.Reason)
+		changes := change(rowTarget{Title: e.Title}, func(f *facets) {
 			if f.Search == searchRunning || f.Download == downloadActive {
-				f.Note = rejectedNote(e.Reason)
+				f.Note = note
 			}
 		})
+		if e.Download == nil {
+			return changes
+		}
+		// Dropped rows go first: a row takes one change per event, so the title's note-only change would claim them.
+		dropped := pipelineChange{Target: rowTarget{Downloading: *e.Download}, Apply: func(f *facets) {
+			f.Download, f.Note = downloadIdle, note
+		}}
+		return append([]pipelineChange{dropped}, changes...)
 	})
 	onPipeline(func(e acquisitionapi.ReleaseGrabbed) []pipelineChange {
 		return change(rowTarget{Title: e.Title, Episodes: e.Episodes}, func(f *facets) {
@@ -169,8 +180,11 @@ func init() {
 		return change(rowTarget{File: e.MediaFile}, setTranscode(api.TranscodeChip{State: api.TranscodeSkipped, Reason: skipDetail(e)}))
 	})
 	onPipeline(func(e transcodeapi.JobFailed) []pipelineChange {
-		if e.Kind != transcodeapi.JobKindTranscode || !e.Final {
+		switch {
+		case e.Kind != transcodeapi.JobKindTranscode:
 			return nil
+		case !e.Final:
+			return change(rowTarget{File: e.MediaFile}, setTranscode(api.TranscodeChip{State: api.TranscodeQueued}))
 		}
 		return change(rowTarget{File: e.MediaFile}, setTranscode(api.TranscodeChip{State: api.TranscodeFailed, Reason: e.Reason}))
 	})

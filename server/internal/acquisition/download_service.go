@@ -391,16 +391,20 @@ func (s *DownloadService) storeRejection(tx *gorm.DB, r rejection, next *domain.
 	if _, err := insertBlocklistEntry(tx, entry); err != nil {
 		return err
 	}
+	rejected := api.ReleaseRejected{
+		Title: r.Title, Release: r.Release, InfoHash: r.InfoHash, Indexer: r.Indexer,
+		Reason: r.Reason, BlockedFile: r.BlockedFile, Next: next,
+	}
+	if r.Download != nil {
+		rejected.Download = &r.Download.ID
+	}
 	if r.Download != nil && r.Failure != "" {
 		failed := api.DownloadFailed{Download: r.Download.ID, Title: r.Title, Reason: r.Failure}
 		if err := s.deps.Bus.Publish(tx, bus.EventOf(failed)); err != nil {
 			return err
 		}
 	}
-	return s.deps.Bus.Publish(tx, bus.EventOf(api.ReleaseRejected{
-		Title: r.Title, Release: r.Release, InfoHash: r.InfoHash, Indexer: r.Indexer,
-		Reason: r.Reason, BlockedFile: r.BlockedFile, Next: next,
-	}))
+	return s.deps.Bus.Publish(tx, bus.EventOf(rejected))
 }
 
 func grabbedEvent(d download) api.ReleaseGrabbed {
