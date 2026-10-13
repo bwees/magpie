@@ -3,6 +3,8 @@ package encode
 import (
 	"context"
 	"errors"
+	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -186,6 +188,26 @@ func TestAFailedHardwarePipelineRetriesWithTheCPUDecoding(t *testing.T) {
 	}
 	if fraction != 0.5 || speed != 2.5 {
 		t.Fatalf("progress = %v at %vx, want 0.5 at 2.5x", fraction, speed)
+	}
+}
+
+// ffmpeg 8 prints out_time_us=N/A while it copies subtitle streams, so progress falls back to frames.
+func TestProgressCountsFramesWhenFFmpegHasNoOutputTime(t *testing.T) {
+	const halfOfAnHourAt23976 = 43157
+	runner := &fakeRunner{rules: []rule{
+		{program: DefaultFFmpeg, lines: []string{"frame=" + strconv.Itoa(halfOfAnHourAt23976), "out_time_us=N/A", "speed=3x"}},
+	}}
+	e := &Encoder{Runner: runner, FFmpeg: DefaultFFmpeg, FFprobe: DefaultFFprobe}
+	j := job(device(agentproto.VendorCPU, "cpu", agentproto.CapEncHEVC10), "libx265", source("h264", "yuv420p"))
+	var fraction float64
+	j.Progress = func(f, _ float64) { fraction = f }
+
+	if err := e.Transcode(context.Background(), j); err != nil {
+		t.Fatal(err)
+	}
+
+	if math.Abs(fraction-0.5) > 0.001 {
+		t.Fatalf("progress = %v, want 0.5 from the frame count", fraction)
 	}
 }
 

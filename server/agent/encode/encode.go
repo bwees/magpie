@@ -202,7 +202,7 @@ func (e *Encoder) Transcode(ctx context.Context, job Job) error {
 }
 
 func (e *Encoder) encode(ctx context.Context, job Job, hardwareDecode bool) error {
-	progress := progressParser{duration: job.Source.Duration, report: job.Progress}
+	progress := newProgressParser(job)
 	_, stderr, err := e.Runner.Run(ctx, Command{Name: e.FFmpeg, Args: Args(job, hardwareDecode), OnLine: progress.line})
 	if err != nil {
 		return fmt.Errorf("ffmpeg: %w: %s", err, firstLine(stderr))
@@ -213,6 +213,7 @@ func (e *Encoder) encode(ctx context.Context, job Job, hardwareDecode bool) erro
 // progressParser reads ffmpeg's -progress key=value lines.
 type progressParser struct {
 	duration float64
+	fps      float64
 	speed    float64
 	// frames is how many video frames ffmpeg has written so far.
 	frames int
@@ -242,10 +243,27 @@ func (p *progressParser) line(line string) {
 			p.speed = speed
 		}
 	case progressOutTime:
-		micros, err := strconv.ParseFloat(value, 64)
-		if err != nil || p.duration <= 0 || p.report == nil {
+		seconds, ok := p.outSeconds(value)
+		if !ok || p.duration <= 0 || p.report == nil {
 			return
 		}
-		p.report(min(1, max(0, micros/microsPerSecond/p.duration)), p.speed)
+		p.report(min(1, max(0, seconds/p.duration)), p.speed)
 	}
+}
+
+// outSeconds is how far into the output ffmpeg has got. ffmpeg 8 reports no output time while it copies a
+// subtitle stream, so the frame count stands in for it.
+func (p *progressParser) outSeconds(outTime string) (float64, bool) {
+	if micros, err := strconv.ParseFloat(outTime, 64); err == nil {
+		return micros / microsPerSecond, true
+	}
+	if p.fps <= 0 || p.frames <= 0 {
+		return 0, false
+	}
+	return float64(p.frames) / p.fps, true
+}
+
+func newProgressParser(job Job) progressParser {
+	video, _ := job.Source.Video()
+	return progressParser{duration: job.Source.Duration, fps: video.FramesPerSecond(), report: job.Progress}
 }

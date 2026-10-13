@@ -61,6 +61,19 @@ func (s Stream) BitDepth() int {
 	return eightBit
 }
 
+// FramesPerSecond is the stream's average frame rate, or 0 when ffprobe gave none.
+func (s Stream) FramesPerSecond() float64 {
+	for _, rate := range []string{s.AvgFrameRate, s.FrameRate} {
+		num, den, ok := strings.Cut(rate, "/")
+		n, nErr := strconv.ParseFloat(num, 64)
+		d, dErr := strconv.ParseFloat(den, 64)
+		if ok && nErr == nil && dErr == nil && n > 0 && d > 0 {
+			return n / d
+		}
+	}
+	return 0
+}
+
 // ConstantRate reports whether the stream's frame rate is constant, so frame counts compare.
 func (s Stream) ConstantRate() bool {
 	return s.FrameRate != "" && s.FrameRate == s.AvgFrameRate

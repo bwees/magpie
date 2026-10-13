@@ -93,7 +93,7 @@ func (e *Encoder) decodes(ctx context.Context, job Job) bool {
 
 // decode runs the decode check once. decoded reports whether ffmpeg wrote a frame before it stopped.
 func (e *Encoder) decode(ctx context.Context, job Job, hardwareDecode bool) (decoded bool, err error) {
-	progress := progressParser{duration: job.Source.Duration, report: job.Progress}
+	progress := newProgressParser(job)
 	_, stderr, err := e.Runner.Run(ctx, Command{Name: e.FFmpeg, Args: CheckArgs(job, hardwareDecode), OnLine: progress.line})
 	if err != nil {
 		err = fmt.Errorf("ffmpeg: %w: %s", err, firstLine(stderr))
