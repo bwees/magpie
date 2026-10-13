@@ -73,7 +73,10 @@ export class RequestsPage {
 		return this.load();
 	}
 
-	/** Refetches the rows; the newest call wins when several overlap. */
+	/**
+	 * Refetches the rows; the newest call wins when several overlap. A failed load shows the error; a
+	 * failed refetch keeps the rows shown.
+	 */
 	async refresh(): Promise<void> {
 		const request = this.#api.list(FILTER_STATUSES[this.filter]);
 		this.#latest = request;
@@ -88,7 +91,9 @@ export class RequestsPage {
 		} catch (error) {
 			if (this.#latest !== request) return;
 			this.error = apiErrorMessage(error, 'Could not load requests.');
-			if (this.items.length === 0) this.status = LoadStatus.ERROR;
+			if (this.status === LoadStatus.LOADING || this.items.length === 0) {
+				this.status = LoadStatus.ERROR;
+			}
 		}
 	}
 

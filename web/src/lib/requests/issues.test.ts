@@ -249,6 +249,18 @@ describe('IssuesTab', () => {
 		expect(tab.items).toHaveLength(1);
 	});
 
+	it('shows the error when switching filter fails, even with rows shown', async () => {
+		const api = new FakeIssues();
+		const tab = new IssuesTab(ADMIN, api);
+		await tab.load();
+
+		vi.spyOn(api, 'list').mockRejectedValueOnce(new Error('down'));
+		await tab.select(IssueFilter.RESOLVED);
+
+		expect(tab.status).toBe(LoadStatus.ERROR);
+		expect(tab.error).toBe('Could not load issues.');
+	});
+
 	it('lets admins fix open issues and requesters only talk about their own', () => {
 		const open = issue();
 		const pending = issue({ status: IssueStatus.ACTION_PENDING });

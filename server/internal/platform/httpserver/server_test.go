@@ -7,12 +7,20 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/problem"
 
 	"github.com/coder/websocket"
 	"github.com/go-fuego/fuego"
+)
+
+const (
+	// shortServerTimeout stands in for the server's read and write timeouts, which socketIdle outlasts.
+	shortServerTimeout = 100 * time.Millisecond
+	socketIdle         = 3 * shortServerTimeout
+	echoMessage        = "still here"
 )
 
 type failingController struct{ err error }
@@ -44,6 +52,23 @@ func (socketController) Register(api *fuego.Server) {
 			return
 		}
 		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}), fuego.OptionHide())
+}
+
+type echoSocketController struct{}
+
+func (echoSocketController) Register(api *fuego.Server) {
+	fuego.Handle(api, "/echo", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.CloseNow() }()
+		kind, message, err := conn.Read(r.Context())
+		if err != nil {
+			return
+		}
+		_ = conn.Write(r.Context(), kind, message)
 	}), fuego.OptionHide())
 }
 
@@ -133,6 +158,38 @@ func TestWebSocketUpgradeGoesThrough(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	_ = conn.CloseNow()
+}
+
+func TestServerBoundsHeadersBodiesAndResponses(t *testing.T) {
+	built := Build(config.Env{}, ModeServe, nil)
+
+	if built.ReadHeaderTimeout != readHeaderTimeout || built.ReadTimeout != readTimeout || built.WriteTimeout != writeTimeout {
+		t.Errorf("timeouts = %v/%v/%v, want %v/%v/%v", built.ReadHeaderTimeout, built.ReadTimeout, built.WriteTimeout,
+			readHeaderTimeout, readTimeout, writeTimeout)
+	}
+}
+
+func TestWebSocketOutlastsTheServerTimeouts(t *testing.T) {
+	server := httptest.NewUnstartedServer(newTestServer(t, echoSocketController{}))
+	server.Config.ReadTimeout = shortServerTimeout
+	server.Config.WriteTimeout = shortServerTimeout
+	server.Start()
+	t.Cleanup(server.Close)
+
+	conn, _, err := websocket.Dial(t.Context(), "ws"+strings.TrimPrefix(server.URL, "http")+"/api/echo", nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = conn.CloseNow() }()
+	time.Sleep(socketIdle)
+
+	if err := conn.Write(t.Context(), websocket.MessageText, []byte(echoMessage)); err != nil {
+		t.Fatalf("write after %v: %v", socketIdle, err)
+	}
+	_, got, err := conn.Read(t.Context())
+	if err != nil || string(got) != echoMessage {
+		t.Fatalf("echo after %v = %q, %v", socketIdle, got, err)
+	}
 }
 
 func TestErrorOnCreatedRouteIsProblemJSON(t *testing.T) {

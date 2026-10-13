@@ -72,12 +72,15 @@ func (l *Lifetime) finish(set tracked, done chan struct{}) {
 	close(done)
 }
 
-// Bind returns the request's context, which also ends when the lifetime does. Ending the lifetime also
-// breaks off a read or write the request is stuck in, since a stalled agent never lets it check the
-// context again.
+// Bind returns the request's context, which also ends when the lifetime does. It lifts the server's
+// read and write timeouts, which would cut a whole-file transfer short; the transfer handlers cut one
+// that stops moving for TransferIdleTimeout instead. Ending the lifetime breaks off
+// a read or write the request is stuck in, since a stalled agent never lets it check the context again.
 func (l *Lifetime) Bind(w http.ResponseWriter, r *http.Request) (context.Context, context.CancelFunc) {
 	bound, cancel := context.WithCancel(r.Context())
 	control := http.NewResponseController(w)
+	_ = control.SetReadDeadline(time.Time{})
+	_ = control.SetWriteDeadline(time.Time{})
 	interrupted := make(chan struct{})
 	stop := context.AfterFunc(l.ctx, func() {
 		defer close(interrupted)

@@ -135,6 +135,18 @@ describe('TitlePipeline', () => {
 		expect(manager.transcodePercent).toBe(HALF_PERCENT);
 	});
 
+	it('shows the error when a reload fails, and keeps the rows when a refetch fails', async () => {
+		const pipeline = vi.fn().mockResolvedValueOnce([row()]).mockRejectedValue(new Error('down'));
+		const manager = new TitlePipeline(TITLE, source({ pipeline }));
+		await manager.load();
+
+		await manager.refresh();
+		expect(manager.status).toBe(LoadStatus.READY);
+
+		await manager.load();
+		expect(manager.status).toBe(LoadStatus.ERROR);
+	});
+
 	it('shows an error until a retry succeeds', async () => {
 		const pipeline = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue([]);
 		const manager = new TitlePipeline(TITLE, source({ pipeline }));

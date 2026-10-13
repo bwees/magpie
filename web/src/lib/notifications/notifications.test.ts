@@ -126,6 +126,22 @@ describe('NotificationInbox', () => {
 		expect(inbox.error).toBe('database gone');
 	});
 
+	it('shows the error when a reload fails, and keeps the list when a refetch fails', async () => {
+		const list = vi
+			.fn()
+			.mockResolvedValueOnce({ notifications: [notification('a')], unreadCount: 1 })
+			.mockRejectedValue(problem(500, 'database gone'));
+		const inbox = new NotificationInbox(source({ list }));
+		await inbox.load();
+
+		await inbox.refresh();
+		expect(inbox.status).toBe(LoadStatus.READY);
+
+		await inbox.load();
+		expect(inbox.status).toBe(LoadStatus.ERROR);
+		expect(inbox.error).toBe('database gone');
+	});
+
 	it('marks one read once', async () => {
 		const markRead = vi.fn(async () => undefined);
 		const inbox = new NotificationInbox(

@@ -250,6 +250,25 @@ describe('RequestsPage', () => {
 		expect(page.count(StatusFilter.DECLINED)).toBe(1);
 	});
 
+	it('shows the error when switching filter fails, and keeps rows when a refetch fails', async () => {
+		const page = new RequestsPage(ADMIN, api);
+		await page.load();
+
+		vi.spyOn(api, 'list').mockRejectedValueOnce(new Error('down'));
+		await page.refresh();
+		expect(page.status).toBe(LoadStatus.READY);
+		expect(page.items).toHaveLength(2);
+
+		vi.spyOn(api, 'list').mockRejectedValueOnce(new Error('down'));
+		await page.select(StatusFilter.ALL);
+		expect(page.status).toBe(LoadStatus.ERROR);
+		expect(page.error).toBe('Could not load requests.');
+
+		await page.load();
+		expect(page.status).toBe(LoadStatus.READY);
+		expect(page.items).toHaveLength(3);
+	});
+
 	it('offers each action only where it applies', async () => {
 		const admin = new RequestsPage(ADMIN, api);
 		const alice = new RequestsPage(ALICE, api);

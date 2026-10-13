@@ -43,7 +43,9 @@ export class NotificationInbox {
 		} catch (error) {
 			if (this.#latest !== request) return;
 			this.error = apiErrorMessage(error, 'Could not load notifications.');
-			if (this.items.length === 0) this.status = LoadStatus.ERROR;
+			if (this.status === LoadStatus.LOADING || this.items.length === 0) {
+				this.status = LoadStatus.ERROR;
+			}
 		}
 	}
 

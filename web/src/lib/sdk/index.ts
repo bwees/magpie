@@ -1,11 +1,14 @@
 import * as client from './client';
+import { REQUEST_TIMEOUT_MS, RequestTimeoutError, withTimeout } from './request-timeout';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 
 client.defaults.baseUrl = apiBaseUrl;
+client.defaults.fetch = withTimeout(REQUEST_TIMEOUT_MS);
 
 export * from './client';
 export { apiBaseUrl };
+export { REQUEST_TIMEOUT_MS, RequestTimeoutError };
 
 /** Problem types the server sends in RFC 9457 `type`. Mirrors the Go `problem.Type` constants. */
 export enum ProblemType {
@@ -41,6 +44,7 @@ export function apiErrorMessage(
 	error: unknown,
 	fallback = 'Something went wrong. Please try again.'
 ): string {
+	if (error instanceof RequestTimeoutError) return error.message;
 	const data = problemOf(error);
 	return data?.detail || data?.title || fallback;
 }

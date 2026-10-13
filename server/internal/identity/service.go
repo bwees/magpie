@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -26,6 +27,9 @@ const (
 	SessionLifetime = 30 * 24 * time.Hour
 	// SessionTouchInterval bounds how often a session's last_seen_at is written.
 	SessionTouchInterval = 5 * time.Minute
+	// SessionWriteWait bounds how long a request waits for the writer to slide or delete its session. A
+	// busy writer skips the write, and a later request tries again.
+	SessionWriteWait = 500 * time.Millisecond
 
 	sessionTokenBytes = 32
 )
@@ -197,7 +201,8 @@ func (s *Service) SignOut(ctx context.Context, token string) error {
 }
 
 // Authenticate resolves a session token. Expired sessions are deleted; live ones slide their expiry,
-// writing at most once per SessionTouchInterval.
+// writing at most once per SessionTouchInterval. Either write is skipped when the writer isn't free
+// within SessionWriteWait.
 func (s *Service) Authenticate(ctx context.Context, token string) (activeSession, error) {
 	tokenHash := hashToken(token)
 	session, err := s.repo.session(s.db.Read(ctx), tokenHash)
@@ -210,7 +215,13 @@ func (s *Service) Authenticate(ctx context.Context, token string) (activeSession
 
 	now := s.now()
 	if !now.Before(session.ExpiresAt) {
-		return activeSession{}, errors.Join(ErrNoSession, s.SignOut(ctx, token))
+		err := s.sessionWrite(ctx, func(tx *gorm.DB) error {
+			return s.repo.deleteSession(tx, tokenHash)
+		})
+		if err != nil {
+			slog.WarnContext(ctx, "identity: expired session delete skipped", "error", err)
+		}
+		return activeSession{}, ErrNoSession
 	}
 	user, err := s.repo.User(ctx, session.UserID)
 	if errors.Is(err, api.ErrNotFound) {
@@ -231,12 +242,24 @@ func (s *Service) Authenticate(ctx context.Context, token string) (activeSession
 	if now.Sub(session.LastSeenAt) < SessionTouchInterval {
 		return active, nil
 	}
-	active.ExpiresAt = now.Add(SessionLifetime)
-	active.Renewed = true
-	err = s.db.Write(ctx, func(tx *gorm.DB) error {
-		return s.repo.touchSession(tx, tokenHash, now, active.ExpiresAt)
+	expiresAt := now.Add(SessionLifetime)
+	err = s.sessionWrite(ctx, func(tx *gorm.DB) error {
+		return s.repo.touchSession(tx, tokenHash, now, expiresAt)
 	})
-	return active, err
+	if err != nil {
+		slog.WarnContext(ctx, "identity: session touch skipped", "error", err)
+		return active, nil
+	}
+	active.ExpiresAt = expiresAt
+	active.Renewed = true
+	return active, nil
+}
+
+// sessionWrite is a write Authenticate can do without: it gives up after SessionWriteWait.
+func (s *Service) sessionWrite(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	ctx, cancel := context.WithTimeout(ctx, SessionWriteWait)
+	defer cancel()
+	return s.db.Write(ctx, fn)
 }
 
 // Me returns the signed-in user with effective permissions.

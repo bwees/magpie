@@ -105,6 +105,19 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
+// withServerTimeouts serves the fixture with read and write timeouts, as the real server has. Call it
+// before an agent connects.
+func (f *fixture) withServerTimeouts(timeout time.Duration) {
+	f.t.Helper()
+	handler := f.server.Config.Handler
+	f.server.Close()
+	f.server = httptest.NewUnstartedServer(handler)
+	f.server.Config.ReadTimeout = timeout
+	f.server.Config.WriteTimeout = timeout
+	f.server.Start()
+	f.t.Cleanup(f.server.Close)
+}
+
 // osFileStat is the disk adapter's FileStat, which the transcode package can't import.
 type osFileStat struct{}
 

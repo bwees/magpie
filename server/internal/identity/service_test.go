@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +46,8 @@ const (
 	tokenBytes      = 32
 	argon2idPrefix  = "$argon2id$"
 	failedSignInCap = 10
+	// busyWriterLimit is well past SessionWriteWait, so a request that waits out the writer fails.
+	busyWriterLimit = 5 * time.Second
 )
 
 var startOfTest = time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
@@ -376,6 +379,98 @@ func TestSessionSlidesAndIsTouchedAtMostEveryFiveMinutes(t *testing.T) {
 	env.advance(SessionLifetime - time.Minute)
 	if rec := env.do(http.MethodGet, pathMe, nil, cookie); rec.Code != http.StatusOK {
 		t.Errorf("me inside the slid window = %d, want 200", rec.Code)
+	}
+}
+
+// holdWriter keeps a write transaction open until release is called or the test ends.
+func (e *testEnv) holdWriter() (release func()) {
+	e.t.Helper()
+	held := make(chan struct{})
+	released := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- e.db.Write(context.Background(), func(*gorm.DB) error {
+			close(held)
+			<-released
+			return nil
+		})
+	}()
+	<-held
+	release = sync.OnceFunc(func() {
+		close(released)
+		if err := <-done; err != nil {
+			e.t.Errorf("held write: %v", err)
+		}
+	})
+	e.t.Cleanup(release)
+	return release
+}
+
+func TestSessionTouchIsSkippedWhileTheWriterIsBusy(t *testing.T) {
+	env := newTestEnv(t)
+	cookie := env.setup()
+	created := env.storedSession(cookie.Value)
+	env.advance(SessionTouchInterval)
+
+	release := env.holdWriter()
+	stuck := time.AfterFunc(busyWriterLimit, release)
+	defer stuck.Stop()
+	begun := time.Now()
+	rec := env.do(http.MethodGet, pathMe, nil, cookie)
+	took := time.Since(begun)
+	release()
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("me with a busy writer = %d, want 200", rec.Code)
+	}
+	if took >= busyWriterLimit {
+		t.Errorf("waited %v for a busy writer", took)
+	}
+	if renewed := rec.Result().Cookies(); len(renewed) != 0 {
+		t.Errorf("renewed the cookie without touching the session: %v", renewed)
+	}
+	if got := env.storedSession(cookie.Value); !got.LastSeenAt.Equal(created.LastSeenAt) {
+		t.Errorf("last_seen_at = %v, want it untouched", got.LastSeenAt)
+	}
+
+	if rec := env.do(http.MethodGet, pathMe, nil, cookie); rec.Code != http.StatusOK {
+		t.Fatalf("me with the writer free = %d", rec.Code)
+	}
+	if got := env.storedSession(cookie.Value); !got.LastSeenAt.Equal(env.clock) {
+		t.Errorf("last_seen_at = %v once the writer is free, want %v", got.LastSeenAt, env.clock)
+	}
+}
+
+func TestExpiredSessionIsRejectedWhileTheWriterIsBusy(t *testing.T) {
+	env := newTestEnv(t)
+	cookie := env.setup()
+	env.advance(SessionLifetime)
+
+	release := env.holdWriter()
+	stuck := time.AfterFunc(busyWriterLimit, release)
+	defer stuck.Stop()
+	begun := time.Now()
+	rec := env.do(http.MethodGet, pathMe, nil, cookie)
+	took := time.Since(begun)
+	release()
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("me with an expired session and a busy writer = %d, want 401", rec.Code)
+	}
+	if took >= busyWriterLimit {
+		t.Errorf("waited %v for a busy writer", took)
+	}
+	env.storedSession(cookie.Value) // fails the test if the skipped delete ran anyway
+
+	if rec := env.do(http.MethodGet, pathMe, nil, cookie); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("me with the writer free = %d, want 401", rec.Code)
+	}
+	var left int64
+	if err := env.db.Read(context.Background()).Table("identity_sessions").Count(&left).Error; err != nil {
+		t.Fatal(err)
+	}
+	if left != 0 {
+		t.Errorf("%d expired sessions left once the writer is free", left)
 	}
 }
 

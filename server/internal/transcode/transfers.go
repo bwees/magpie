@@ -31,6 +31,10 @@ const (
 	stagingDirPerm  = 0o755
 	stagingFilePerm = 0o644
 
+	// TransferIdleTimeout cuts a transfer that moves no bytes for this long, so a dead agent's connection
+	// gives back its handler and transfer slot.
+	TransferIdleTimeout = 2 * time.Minute
+
 	TypeJobNotLeased    problem.Type = "urn:magpie:problem:job-not-leased"
 	TypeTransferBusy    problem.Type = "urn:magpie:problem:transfer-cap-full"
 	TypeUploadOffset    problem.Type = "urn:magpie:problem:upload-offset-mismatch"
@@ -51,10 +55,11 @@ type Transfers struct {
 	secret   AgentSecret
 	lifetime *Lifetime
 	now      func() time.Time
+	idle     time.Duration
 }
 
 func NewTransfers(service *JobService, gate *TransferGate, secret AgentSecret, lifetime *Lifetime) *Transfers {
-	return &Transfers{service: service, gate: gate, secret: secret, lifetime: lifetime, now: time.Now}
+	return &Transfers{service: service, gate: gate, secret: secret, lifetime: lifetime, now: time.Now, idle: TransferIdleTimeout}
 }
 
 // leased authenticates the agent and returns the job leased to it.
@@ -134,7 +139,7 @@ func (t *Transfers) ServeSource(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := t.lifetime.Bind(w, r)
 	defer cancel()
 	w.Header().Set("ETag", info.ETag())
-	counted := &countingWriter{ResponseWriter: w, ctx: ctx}
+	counted := &countingWriter{ResponseWriter: w, deadline: t.idleDeadline(ctx, http.NewResponseController(w).SetWriteDeadline)}
 	started := t.now()
 	http.ServeContent(counted, r.WithContext(ctx), filepath.Base(source.Path), info.ModTime, file)
 	t.observe(ctx, agent, counted.written, started)
@@ -248,7 +253,8 @@ func (t *Transfers) PutOutput(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := t.lifetime.Bind(w, r)
 	defer cancel()
 	started := t.now()
-	written, err := t.write(ctx, file, r.Body, chunk)
+	body := contextReader{deadline: t.idleDeadline(ctx, http.NewResponseController(w).SetReadDeadline), r: r.Body}
+	written, err := t.write(file, body, chunk)
 	t.observe(ctx, agent, written, started)
 	if err != nil {
 		problem.Write(w, r, err)
@@ -266,12 +272,12 @@ func (t *Transfers) PutOutput(w http.ResponseWriter, r *http.Request) {
 
 // write appends the body at the chunk's offset and flushes it, keeping what arrived if the body breaks
 // off so the agent can resume from there.
-func (t *Transfers) write(ctx context.Context, file *os.File, body io.Reader, chunk upload) (int64, error) {
+func (t *Transfers) write(file *os.File, body io.Reader, chunk upload) (int64, error) {
 	if _, err := file.Seek(chunk.offset, io.SeekStart); err != nil {
 		return 0, err
 	}
 	limit := chunk.length - chunk.offset
-	written, err := io.Copy(file, io.LimitReader(contextReader{ctx: ctx, r: body}, limit+1))
+	written, err := io.Copy(file, io.LimitReader(body, limit+1))
 	if syncErr := file.Sync(); syncErr != nil {
 		err = errors.Join(err, syncErr)
 	}
@@ -321,15 +327,37 @@ func digestOf(path string) ([]byte, error) {
 	return hash.Sum(nil), nil
 }
 
-// countingWriter stops a download when its context ends and counts what it sent.
+// idleDeadline gives each read or write of a transfer idle to make progress, through set, and starts
+// none once ctx has ended.
+type idleDeadline struct {
+	ctx  context.Context
+	set  func(time.Time) error
+	idle time.Duration
+}
+
+func (t *Transfers) idleDeadline(ctx context.Context, set func(time.Time) error) idleDeadline {
+	return idleDeadline{ctx: ctx, set: set, idle: t.idle}
+}
+
+func (d idleDeadline) next() error {
+	_ = d.set(time.Now().Add(d.idle))
+	// Checked after setting, so the deadline Bind sets as the lifetime ends is never pushed back out.
+	if err := d.ctx.Err(); err != nil {
+		_ = d.set(time.Now())
+		return err
+	}
+	return nil
+}
+
+// countingWriter stops a download when its context ends or it stops moving, and counts what it sent.
 type countingWriter struct {
 	http.ResponseWriter
-	ctx     context.Context
-	written int64
+	deadline idleDeadline
+	written  int64
 }
 
 func (w *countingWriter) Write(p []byte) (int, error) {
-	if err := w.ctx.Err(); err != nil {
+	if err := w.deadline.next(); err != nil {
 		return 0, err
 	}
 	n, err := w.ResponseWriter.Write(p)
@@ -339,14 +367,14 @@ func (w *countingWriter) Write(p []byte) (int, error) {
 
 func (w *countingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// contextReader stops an upload when its context ends.
+// contextReader stops an upload when its context ends or it stops moving.
 type contextReader struct {
-	ctx context.Context
-	r   io.Reader
+	deadline idleDeadline
+	r        io.Reader
 }
 
 func (r contextReader) Read(p []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
+	if err := r.deadline.next(); err != nil {
 		return 0, err
 	}
 	return r.r.Read(p)

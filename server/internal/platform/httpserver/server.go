@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/problem"
@@ -33,6 +34,13 @@ const (
 
 	listenNetwork  = "tcp"
 	listenAllHosts = ""
+
+	// The read and write timeouts bound every ordinary request. A WebSocket is hijacked, which clears
+	// them, and the agent byte endpoints lift them for a whole-file transfer.
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 30 * time.Second
+	idleTimeout       = 30 * time.Second
 )
 
 // Mode picks between serving HTTP and writing the OpenAPI spec to SpecFile and exiting.
@@ -92,6 +100,12 @@ func Build(env config.Env, mode Mode, all []Controller, middlewares ...Middlewar
 		fuego.WithSerializer(fuego.SendJSON),
 		fuego.WithErrorSerializer(problem.Send),
 		fuego.WithoutStartupMessages(),
+		fuego.WithTimeouts(fuego.ServerTimeouts{
+			ReadHeader: readHeaderTimeout,
+			Read:       readTimeout,
+			Write:      writeTimeout,
+			Idle:       idleTimeout,
+		}),
 		fuego.WithEngineOptions(
 			fuego.WithRequestContentType(jsonContent),
 			fuego.WithResponseContentType(jsonContent),

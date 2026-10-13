@@ -85,7 +85,9 @@ export class TitlePipeline {
 		} catch (error) {
 			if (this.#latest !== request) return;
 			this.error = apiErrorMessage(error);
-			if (this.rows.length === 0) this.status = LoadStatus.ERROR;
+			if (this.status === LoadStatus.LOADING || this.rows.length === 0) {
+				this.status = LoadStatus.ERROR;
+			}
 		}
 	}
 
