@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/bwees/magpie/compare/v0.4.0...v0.5.0) (2026-10-13)
+
+
+### Features
+
+* **web:** show episode files in a dialog and compact the file card ([4f58813](https://github.com/bwees/magpie/commit/4f58813883baad363688ae3cc67dd28aaa284f33))
+
+
+### Bug Fixes
+
+* **activity:** stop counting unmonitored episodes without a file as failed ([b717258](https://github.com/bwees/magpie/commit/b71725808ad6355d239f3f21329b23b39a3df359))
+* **web:** reconnect live sockets that hang on connect or go silent ([746fe8c](https://github.com/bwees/magpie/commit/746fe8c293f177cad4f4cf77ad7fca3eefcd0884))
+
 ## [0.4.0](https://github.com/bwees/magpie/compare/v0.3.1...v0.4.0) (2026-10-13)
 
 
