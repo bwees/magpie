@@ -252,6 +252,8 @@ Shown beside the bar; they never change the main stage.
 | `transcode.AgentOffline` | `transcode.AgentOnline` | `AGENT_OFFLINE` |
 | `platform.ServiceHealthChanged{Healthy: false}` | same with `Healthy: true` | `SERVICE_DOWN` |
 
+An admin can also dismiss every open item with `POST /api/activity/attention/clear`. A dismissed item gets `cleared_at` and no `cleared_event_id`, and Activity publishes `AttentionChanged{Open: false}` for it. Its clearing event then changes nothing, and its next opening event opens a new item.
+
 ### Notification kinds and recipients
 
 | Kind | From event | Recipients | Role scope |
@@ -314,6 +316,7 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 | `GET /api/activity/pipeline?recent=true` | signed in (requesters: own titles, found among the latest 500) | Summary row of the 24 titles whose pipeline changed most recently, newest first (Home "Recently active"; Catalog can't sort by activity) |
 | `GET /api/activity/history?severity=&before=&limit=` | admin | Global feed |
 | `GET /api/activity/attention` | admin | Open attention items ("Needs you") |
+| `POST /api/activity/attention/clear` | admin | Dismiss every open attention item (`204`) |
 | `GET /api/activity/notifications?unread=&before=&limit=` | signed in | Own in-app notifications, newest first, plus `unreadCount` |
 | `POST /api/activity/notifications/{id}/read`, `POST …/read-all` | signed in | Mark read (`204`; someone else's notification is `404`) |
 | `GET /api/activity/notification-kinds` | signed in | Kinds the caller's role may subscribe to: `kind`, `label`, `scope` (`REQUESTER` \| `ADMIN`), `optIn` |
@@ -368,7 +371,8 @@ Implemented in `internal/adapters/shoutrrr` with the nicholas-fedor fork of shou
 21. **Given** a running transcode, **when** `JobFailed{Final: false}` arrives, **then** the Transcode chip is `QUEUED` and the row leaves "Live now"; the next attempt's `JobStarted` sets `RUNNING` again.
 22. **Given** a season pack D downloading two episodes and a fallback grab covering the first, **when** `ReleaseRejected{Download: D, Next: fallback}` arrives, **then** the first episode keeps downloading the fallback and the second has no download, with detail "Rejected: <reason>".
 23. **Given** a row downloading a download that left qBittorrent, or running a job back in `QUEUED`, **when** the pipeline repair runs, **then** the download is cleared or the chip is `QUEUED`; an event read before the repair still applies after it.
-24. **Contract (Reader fake vs real):**
+24. **Given** open `AGENT_OFFLINE` and `REQUEST_PENDING` items, **when** an admin clears attention, **then** both close with `AttentionChanged{Open: false, Count: 0}`; a later `AgentOnline` changes nothing and a later `AgentOffline` opens a new item. A requester gets `403`.
+25. **Contract (Reader fake vs real):**
     - Ordering: newest first.
     - Unknown title → empty slice, no error.
     - `Page.Limit` is capped at 200.

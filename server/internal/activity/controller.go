@@ -126,6 +126,12 @@ func (c *Controller) Register(server *fuego.Server) {
 		fuego.OptionSummary("Open attention items, oldest first (admin)"),
 		fuego.OptionTags(tagActivity),
 	)
+	fuego.Post(server, "/activity/attention/clear", c.clearAttention,
+		fuego.OptionOperationID("clearAttention"),
+		fuego.OptionSummary("Dismiss every open attention item (admin)"),
+		fuego.OptionTags(tagActivity),
+		fuego.OptionDefaultStatusCode(http.StatusNoContent),
+	)
 	c.registerNotifications(server)
 }
 
@@ -267,6 +273,13 @@ func (c *Controller) attention(ctx fuego.ContextNoBody) ([]AttentionItemResponse
 		return nil, err
 	}
 	return mapAll(items, attentionItemResponse), nil
+}
+
+func (c *Controller) clearAttention(ctx fuego.ContextNoBody) (any, error) {
+	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+		return nil, err
+	}
+	return nil, c.service.ClearAttention(ctx.Context())
 }
 
 func mapAll[T, R any](items []T, fn func(T) R) []R {

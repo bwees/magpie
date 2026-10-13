@@ -547,6 +547,20 @@ func (r *Repository) clearAttention(tx *gorm.DB, row *attentionRow, eventID stri
 	return tx.Save(row).Error
 }
 
+// dismissAttention clears every open item without a clearing event and returns them.
+func (r *Repository) dismissAttention(tx *gorm.DB, at time.Time) ([]attentionRow, error) {
+	var rows []attentionRow
+	if err := tx.Where("cleared_at IS NULL").Order("opened_at, id").Find(&rows).Error; err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	err := tx.Model(&attentionRow{}).Where("id IN ?", ids).Update("cleared_at", at.UTC()).Error
+	return rows, err
+}
+
 func (r *Repository) openAttentionCount(tx *gorm.DB) (int, error) {
 	var count int64
 	err := tx.Model(&attentionRow{}).Where("cleared_at IS NULL").Count(&count).Error

@@ -2674,6 +2674,29 @@ export function getAttention({ accept }: {
     }));
 }
 /**
+ * Dismiss every open attention item (admin)
+ */
+export function clearAttention({ accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 204;
+        data: UnknownInterface;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>("/api/activity/attention/clear", {
+        ...opts,
+        method: "POST",
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
+/**
  * The global history, newest first (admin)
  */
 export function getHistory({ severity, before, limit, accept }: {

@@ -3,6 +3,7 @@ import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import {
 	apiErrorMessage,
 	approveRequest,
+	clearAttention,
 	getDiscoverDetail,
 	getRequest,
 	type AttentionItemResponse,
@@ -26,6 +27,8 @@ export interface NeedsYouApi {
 	searchAgain(titleId: string, label: string): Promise<void>;
 	request(id: string): Promise<RequestResponse>;
 	media(kind: string, tmdbId: number): Promise<DiscoverDetailResponse>;
+	/** Dismisses every open item. */
+	clear(): Promise<unknown>;
 }
 
 const automatic = new AutomaticSearch();
@@ -34,7 +37,8 @@ export const SDK_NEEDS_YOU_API: NeedsYouApi = {
 	approve: (id) => approveRequest(id, {}),
 	searchAgain: (titleId, label) => automatic.search({ titleId, label }),
 	request: (id) => getRequest(id),
-	media: (kind, tmdbId) => getDiscoverDetail(kind, String(tmdbId))
+	media: (kind, tmdbId) => getDiscoverDetail(kind, String(tmdbId)),
+	clear: () => clearAttention()
 };
 
 export const AGENTS_PATH = `${Route.ACTIVITY}/agents`;
@@ -62,6 +66,7 @@ export class NeedsYou {
 	readonly requestNames = new SvelteMap<string, string>();
 	/** An issue's re-grab, with the warning for a download still waiting for mapping. */
 	readonly fix: IssueFix;
+	clearing = $state(false);
 
 	readonly #api: NeedsYouApi;
 
@@ -79,6 +84,22 @@ export class NeedsYou {
 
 	get items(): AttentionItemResponse[] {
 		return this.list.items;
+	}
+
+	get canClear(): boolean {
+		return this.list.block.ready && this.items.length > 0;
+	}
+
+	async clear(): Promise<void> {
+		this.clearing = true;
+		try {
+			await this.#api.clear();
+			await this.list.block.refresh();
+		} catch (error) {
+			toast.error(apiErrorMessage(error));
+		} finally {
+			this.clearing = false;
+		}
 	}
 
 	/** Looks up the titles and requests the rows name. */

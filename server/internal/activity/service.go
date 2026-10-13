@@ -52,6 +52,7 @@ type ServiceParams struct {
 
 type Service struct {
 	repo     *Repository
+	db       *db.DB
 	bus      *bus.Bus
 	catalog  catalogapi.Reader
 	requests requestsapi.Reader
@@ -67,6 +68,7 @@ type Service struct {
 func NewService(p ServiceParams) *Service {
 	return &Service{
 		repo:     p.Repository,
+		db:       p.DB,
 		bus:      p.Bus,
 		catalog:  p.Catalog,
 		requests: p.Requests,
@@ -626,4 +628,27 @@ func (s *Service) History(ctx context.Context, minSeverity string, p api.Page) (
 
 func (s *Service) Attention(ctx context.Context) ([]api.AttentionItem, error) {
 	return s.repo.Attention(ctx)
+}
+
+// ClearAttention dismisses every open item. A later event can open the same item again.
+func (s *Service) ClearAttention(ctx context.Context) error {
+	return s.db.Write(ctx, func(tx *gorm.DB) error {
+		dismissed, err := s.repo.dismissAttention(tx, s.now())
+		if err != nil || len(dismissed) == 0 {
+			return err
+		}
+		count, err := s.repo.openAttentionCount(tx)
+		if err != nil {
+			return err
+		}
+		for _, item := range dismissed {
+			err := s.bus.Publish(tx, bus.EventOf(api.AttentionChanged{
+				Item: item.ID, Kind: item.Kind, Ref: item.Ref, Open: false, Count: count,
+			}))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

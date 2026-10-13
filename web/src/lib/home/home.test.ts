@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { toast } from 'svelte-sonner';
 import type { AttentionItemResponse, PipelineRowResponse } from '$lib/sdk';
 import { LiveEventType, Projection } from '$lib/activity/activity-source';
 import { AttentionAction, AttentionKind } from '$lib/activity/attention';
@@ -133,6 +134,7 @@ describe('Needs you', () => {
 			searchAgain: vi.fn(async () => {}),
 			request: vi.fn(async () => request({ kind: 'MOVIE', tmdbId: 7 })),
 			media: vi.fn(async () => media({ name: 'Conclave' })),
+			clear: vi.fn(async () => undefined),
 			...api
 		};
 		return { list, attention, api: fullApi, block: new NeedsYou(list, directory, fullApi) };
@@ -180,6 +182,39 @@ describe('Needs you', () => {
 		expect(api.approve).toHaveBeenCalledWith('R1');
 		expect(attention).toHaveBeenCalledTimes(2);
 		expect(block.busy.size).toBe(0);
+	});
+
+	it('offers Clear only once items are shown', async () => {
+		const { list, block } = needsYou([attentionItem()]);
+		expect(block.canClear).toBe(false);
+		await list.load();
+		expect(block.canClear).toBe(true);
+	});
+
+	it('clears every item through Activity and empties the list', async () => {
+		const { list, block, api, attention } = needsYou([attentionItem()]);
+		await list.load();
+		attention.mockResolvedValue([]);
+
+		await block.clear();
+
+		expect(api.clear).toHaveBeenCalledOnce();
+		expect(list.count).toBe(0);
+		expect(block.canClear).toBe(false);
+		expect(block.clearing).toBe(false);
+	});
+
+	it('keeps the items and shows an error when Clear fails', async () => {
+		const { list, block } = needsYou([attentionItem()], {
+			clear: vi.fn(async () => Promise.reject(new Error('down')))
+		});
+		await list.load();
+
+		await block.clear();
+
+		expect(toast.error).toHaveBeenCalled();
+		expect(list.count).toBe(1);
+		expect(block.clearing).toBe(false);
 	});
 
 	it('searches again through Acquisition for a title with no accepted release', async () => {

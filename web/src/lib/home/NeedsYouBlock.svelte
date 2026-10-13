@@ -20,12 +20,25 @@
 </script>
 
 <section aria-labelledby="needs-you">
-	<h2 id="needs-you" class="mb-3 flex items-center gap-2 text-sm font-semibold">
-		<Inbox class="size-4" /> Needs you
-		{#if block.ready && needsYou.items.length > 0}
-			<Badge class="tabular-nums">{needsYou.items.length}</Badge>
+	<div class="mb-3 flex items-center justify-between gap-2">
+		<h2 id="needs-you" class="flex items-center gap-2 text-sm font-semibold">
+			<Inbox class="size-4" /> Needs you
+			{#if needsYou.canClear}
+				<Badge class="tabular-nums">{needsYou.items.length}</Badge>
+			{/if}
+		</h2>
+		{#if needsYou.canClear}
+			<Button
+				size="sm"
+				variant="ghost"
+				class="-my-1.5 pointer-coarse:-my-2.5"
+				disabled={needsYou.clearing}
+				onclick={() => needsYou.clear()}
+			>
+				Clear
+			</Button>
 		{/if}
-	</h2>
+	</div>
 	<BlockState {block} label="what needs you" empty="All clear" onRetry={() => needsYou.list.load()}>
 		{#snippet skeleton()}
 			<div class="flex flex-col gap-2">
