@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0](https://github.com/bwees/magpie/compare/v0.5.0...v0.6.0) (2026-10-13)
+
+
+### Features
+
+* **transcode:** dismiss failed jobs ([142dd41](https://github.com/bwees/magpie/commit/142dd4116985fc8ea4ab6fbf23f9a08a29c6fa3c))
+* **web:** collapse the title timeline to its latest four events ([cb2b9b5](https://github.com/bwees/magpie/commit/cb2b9b52bd25b51c5c094d8adc207252feeacd90))
+* **web:** split GPU jobs into queued and failed tabs with paging and a skipped popover ([8816cd6](https://github.com/bwees/magpie/commit/8816cd6eec714e7e0d538e2c79548c0581bb6635))
+
 ## [0.5.0](https://github.com/bwees/magpie/compare/v0.4.0...v0.5.0) (2026-10-13)
 
 
