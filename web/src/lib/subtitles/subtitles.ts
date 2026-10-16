@@ -165,6 +165,16 @@ export function embeddedLanguages(subs: SubtitleResponse[]): LanguageCount[] {
 		.toSorted((a, b) => languageName(a.language).localeCompare(languageName(b.language)));
 }
 
+/** "English and 12 others", led by the first wanted language the video embeds. */
+export function embeddedSummary(embedded: LanguageCount[], wanted: string[]): string {
+	const lead = wanted.find((w) => embedded.some((e) => e.language === w)) ?? embedded[0].language;
+	const others = embedded.length - 1;
+	if (others === 0) {
+		return languageName(lead);
+	}
+	return `${languageName(lead)} and ${others} ${others === 1 ? 'other' : 'others'}`;
+}
+
 /** The distinct wanted languages of a file, in wanted order, for the candidate picker. */
 export function wantedLanguages(coverage: CoverageResponse[]): string[] {
 	return [...new Set(coverage.map((c) => c.language))];

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Info from '@lucide/svelte/icons/info';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Search from '@lucide/svelte/icons/search';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -16,12 +15,14 @@
 	import {
 		CoverageStatus,
 		coverageLabel,
+		embeddedSummary,
 		fileName,
 		languageName,
 		SOURCE_LABELS,
 		SubtitleSource,
 		syncLabel,
-		trackLabel
+		trackLabel,
+		wantedLanguages
 	} from './subtitles';
 
 	let { fileId }: { fileId: string } = $props();
@@ -146,23 +147,18 @@
 				</li>
 			{/each}
 			{#if subs.embedded.length > 0}
-				<li class="flex items-center gap-2 py-1 pr-1 pl-3">
-					<span class="text-sm font-medium">{SOURCE_LABELS[SubtitleSource.EMBEDDED]}</span>
-					<span class="flex-1 text-xs text-muted-foreground">
-						{subs.embedded.length}
-						{subs.embedded.length === 1 ? 'language' : 'languages'}
-					</span>
-					<HoverPopover class="w-72 p-3">
+				{@const summary = embeddedSummary(subs.embedded, wantedLanguages(subs.data.coverage))}
+				<li class="flex min-h-10 items-center gap-2 py-1 pr-1 pl-3">
+					<HoverPopover class="w-72 p-3" align="start">
 						{#snippet trigger(props)}
-							<Button
+							<button
 								{...props}
-								size="icon-sm"
-								variant="ghost"
-								class="text-muted-foreground"
-								aria-label="Embedded subtitle languages"
+								type="button"
+								class="text-sm font-medium underline decoration-muted-foreground decoration-dotted underline-offset-4"
+								aria-label="Embedded subtitle languages: {summary}"
 							>
-								<Info />
-							</Button>
+								{summary}
+							</button>
 						{/snippet}
 						<ul class="flex flex-wrap gap-x-3 gap-y-1 text-xs" aria-label="Embedded subtitles">
 							{#each subs.embedded as { language, count } (language)}
@@ -174,6 +170,8 @@
 							{/each}
 						</ul>
 					</HoverPopover>
+					<span class="text-xs text-muted-foreground">{SOURCE_LABELS[SubtitleSource.EMBEDDED]}</span
+					>
 				</li>
 			{/if}
 		</ul>

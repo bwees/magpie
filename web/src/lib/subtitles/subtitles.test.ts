@@ -14,6 +14,7 @@ import {
 	CoverageStatus,
 	coverageLabel,
 	embeddedLanguages,
+	embeddedSummary,
 	externalTracks,
 	MissingReason,
 	quotaLabel,
@@ -142,6 +143,16 @@ describe('subtitle labels', () => {
 			{ language: 'de', count: 1 }
 		]);
 		expect(externalTracks(subs)).toEqual([PROVIDER]);
+	});
+
+	it('sums up embedded languages, led by a wanted one', () => {
+		const zh = { language: 'zh', count: 2 };
+		const en = { language: 'en', count: 1 };
+		const de = { language: 'de', count: 1 };
+
+		expect(embeddedSummary([zh, en, de], ['ja', 'en'])).toBe('English and 2 others');
+		expect(embeddedSummary([zh, de], ['en'])).toBe('Chinese and 1 other');
+		expect(embeddedSummary([zh], [])).toBe('Chinese');
 	});
 
 	it('labels the quota badge', () => {
