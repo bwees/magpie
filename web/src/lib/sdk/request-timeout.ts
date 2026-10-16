@@ -34,9 +34,12 @@ export function withTimeout(timeoutMs: number, base: typeof fetch = globalFetch)
 	};
 }
 
+// Statuses a Response can't be built with a body for, not even an empty one.
+const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
+
 // The generated client swallows a body that fails to read, so the body is read while the timeout runs.
 async function buffered(response: Response): Promise<Response> {
-	if (response.body === null) return response;
+	if (response.body === null || NULL_BODY_STATUSES.has(response.status)) return response;
 	return new Response(await response.arrayBuffer(), {
 		status: response.status,
 		statusText: response.statusText,

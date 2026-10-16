@@ -4,16 +4,19 @@ import {
 	REQUEST_TIMEOUT_MS,
 	RequestTimeoutError,
 	apiErrorMessage,
+	deleteSubtitle,
 	startSearch,
 	type SearchResponse
 } from '$lib/sdk';
 
 const CREATED = 201;
+const NO_CONTENT = 204;
 const NOT_FOUND = 404;
 const JSON_CONTENT = 'application/json';
 const PROBLEM_CONTENT = 'application/problem+json';
 const TITLE_NOT_FOUND = 'urn:magpie:problem:title-not-found';
 const TITLE = '01TITLE';
+const SUBTITLE = '01SUBTITLE';
 
 const SEARCH: SearchResponse = {
 	searchId: '01SEARCH',
@@ -96,6 +99,17 @@ describe('request timeout', () => {
 		vi.stubGlobal('fetch', answer(CREATED, JSON_CONTENT, SEARCH));
 
 		expect(await startSearch(START)).toEqual(SEARCH);
+	});
+
+	it('returns a 204 whose body the browser hands over as an empty stream', async () => {
+		const noContent = new Response(null, { status: NO_CONTENT });
+		Object.defineProperty(noContent, 'body', { value: new ReadableStream() });
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => noContent)
+		);
+
+		await expect(deleteSubtitle(SUBTITLE)).resolves.not.toThrow();
 	});
 });
 
