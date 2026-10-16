@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0](https://github.com/bwees/magpie/compare/v0.6.0...v0.7.0) (2026-10-16)
+
+
+### Features
+
+* **web:** name embedded subtitle languages and show the list on hover ([74926f5](https://github.com/bwees/magpie/commit/74926f501a6bcb816f2fbfbfb509f0b280a82464))
+
+
+### Bug Fixes
+
+* **acquisition:** add torrents to qBittorrent started ([2f6597d](https://github.com/bwees/magpie/commit/2f6597d6d564a0b98cda017b1b3e95792ac93ded))
+* **web:** stop deletes erroring on 204 responses ([e49eaaf](https://github.com/bwees/magpie/commit/e49eaafea95c6323a96b8cd9dfd9cbb9f34c8955))
+
 ## [0.6.0](https://github.com/bwees/magpie/compare/v0.5.0...v0.6.0) (2026-10-13)
 
 
