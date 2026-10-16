@@ -122,12 +122,12 @@ func (q *QBittorrent) Added(hash string) (acquisition.AddRequest, bool) {
 	return t.added, true
 }
 
-// Started reports whether Start was called for a torrent.
-func (q *QBittorrent) Started(hash string) bool {
+// Running reports whether a torrent was added without a stop condition or started since.
+func (q *QBittorrent) Running(hash string) bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	t, ok := q.torrents[hash]
-	return ok && t.started
+	return ok && (t.started || t.added.StopCondition != acquisition.StopMetadataReceived)
 }
 
 // ShareLimits returns the last limits set on a torrent.
@@ -168,10 +168,13 @@ func (q *QBittorrent) AddTorrent(ctx context.Context, r acquisition.AddRequest) 
 	defer q.mu.Unlock()
 	hash := HashOf(r)
 	_, hasMetadata := q.files[hash]
-	status := acquisition.TorrentMetaDL
-	if hasMetadata || len(r.Torrent) > 0 {
-		hasMetadata = true
-		status = acquisition.TorrentStoppedDL
+	hasMetadata = hasMetadata || len(r.Torrent) > 0
+	status := acquisition.TorrentDownloading
+	if r.StopCondition == acquisition.StopMetadataReceived {
+		status = acquisition.TorrentMetaDL
+		if hasMetadata {
+			status = acquisition.TorrentStoppedDL
+		}
 	}
 	q.torrents[hash] = &torrent{
 		added: r,

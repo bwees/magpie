@@ -201,8 +201,11 @@ func TestABlockedTorrentIsNeverAddedAndTheNextReleaseIsGrabbed(t *testing.T) {
 		t.Errorf("AddTorrent called %d times, want once, for the next release", n)
 	}
 	nextHash := torrentHash(otherName, clean...)
-	if added, ok := f.qbit.Added(nextHash); !ok || !added.Stopped || !f.qbit.Started(nextHash) {
-		t.Errorf("next release added %+v (found %v), want added stopped and then started", added, ok)
+	if !f.qbit.Running(nextHash) {
+		t.Error("next release wasn't added running")
+	}
+	if n := f.qbit.Called(fakes.QBittorrentStart); n != 0 {
+		t.Errorf("Start called %d times; a checked .torrent is added running", n)
 	}
 	rejected := f.assertRejected(t, api.RejectBlockedFile, nil, result.Next)
 	if rejected.BlockedFile == nil || *rejected.BlockedFile != "Movie.exe" || rejected.Release != acceptedName || rejected.InfoHash == "" {
@@ -279,13 +282,13 @@ func TestACleanMagnetStartsAfterItsCheck(t *testing.T) {
 	hash := magnetHash(acceptedName)
 
 	f.poll(t)
-	if f.qbit.Started(hash) {
+	if f.qbit.Running(hash) {
 		t.Fatal("started before the metadata arrived")
 	}
 	f.qbit.SetFiles(hash, acquisition.TorrentFile{Path: "Movie.mkv", Size: 1, Priority: 1})
 	f.poll(t)
 
-	if !f.qbit.Started(hash) {
+	if !f.qbit.Running(hash) {
 		t.Error("a clean magnet wasn't started")
 	}
 	if d := f.download(t, *result.Download); d.State != api.StateDownloading {
@@ -339,7 +342,7 @@ func TestWithTheCheckOffABlockedTorrentIsAddedAndStarted(t *testing.T) {
 
 	result := f.grab(t, s, acceptedName)
 
-	if result.Status != acquisition.GrabDownloading || !f.qbit.Started(torrentHash(acceptedName, files...)) {
+	if result.Status != acquisition.GrabDownloading || !f.qbit.Running(torrentHash(acceptedName, files...)) {
 		t.Errorf("grab = %+v, want it added and started", result)
 	}
 }
@@ -371,7 +374,7 @@ func (f searchFixture) startedMagnet(t *testing.T, s acquisition.SearchSnapshot,
 	result := f.grab(t, s, name)
 	f.qbit.SetFiles(magnetHash(name), files...)
 	f.poll(t)
-	if !f.qbit.Started(magnetHash(name)) {
+	if !f.qbit.Running(magnetHash(name)) {
 		t.Fatalf("%s didn't pass its check", name)
 	}
 	return *result.Download

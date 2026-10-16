@@ -158,24 +158,24 @@ func TestAMagnetIsAddedToStopAtItsMetadata(t *testing.T) {
 	}
 	form := w.last(pathAdd).form
 	if form.Get(formURLs) != testMagnet || form.Get(formStopCondition) != stopMetadataReceived ||
-		form.Get(formCategory) != settings.DefaultQBittorrentCategory || form.Get(formStopped) != "" {
+		form.Get(formCategory) != settings.DefaultQBittorrentCategory || form.Get(formStopped) != formFalse {
 		t.Errorf("add form = %v", form)
 	}
 }
 
-func TestATorrentFileIsUploadedStopped(t *testing.T) {
+func TestATorrentFileIsUploadedStartedWhateverQBittorrentDefaultsTo(t *testing.T) {
 	w := newWebAPI(t)
 	w.replies[pathAdd] = reply{http.StatusOK, "add_success.json"}
 	client := newClient(t, w, settings.QBittorrentConnection{})
 	torrent := []byte("d4:infod6:lengthi1e4:name9:Movie.mkv12:piece lengthi16384e6:pieces20:xxxxxxxxxxxxxxxxxxxxee")
 
-	hash, err := client.AddTorrent(context.Background(), acquisition.AddRequest{Torrent: torrent, Stopped: true, Category: "movies"})
+	hash, err := client.AddTorrent(context.Background(), acquisition.AddRequest{Torrent: torrent, StopCondition: acquisition.StopNone, Category: "movies"})
 
 	if err != nil || hash != downloadingHash {
 		t.Fatalf("hash = %s, %v; want added_torrent_ids[0]", hash, err)
 	}
 	sent := w.last(pathAdd)
-	if string(sent.torrent) != string(torrent) || sent.form.Get(formStopped) != formTrue || sent.form.Get(formCategory) != "movies" || sent.form.Get(formURLs) != "" {
+	if string(sent.torrent) != string(torrent) || sent.form.Get(formStopped) != formFalse || sent.form.Get(formStopCondition) != stopNone || sent.form.Get(formCategory) != "movies" || sent.form.Get(formURLs) != "" {
 		t.Errorf("add = %+v", sent.form)
 	}
 }

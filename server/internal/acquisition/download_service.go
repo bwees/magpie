@@ -327,12 +327,9 @@ func (s *DownloadService) attempt(ctx context.Context, st *search, d decidedRele
 		r.Reason, r.BlockedFile = api.RejectBlockedFile, &file
 		return nil, &r, nil
 	}
-	hash, err := s.deps.QBittorrent.AddTorrent(ctx, AddRequest{Torrent: source.torrent, Stopped: true})
+	hash, err := s.deps.QBittorrent.AddTorrent(ctx, AddRequest{Torrent: source.torrent, StopCondition: StopNone})
 	if err != nil {
 		return nil, nil, err
-	}
-	if err := s.deps.QBittorrent.Start(ctx, hash); err != nil {
-		return nil, nil, errors.Join(err, s.deps.QBittorrent.Delete(ctx, true, hash))
 	}
 	return s.newDownload(st, d, override, hash, meta.InfoHash, api.StateDownloading, cfg), nil, nil
 }

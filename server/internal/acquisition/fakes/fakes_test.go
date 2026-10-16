@@ -75,7 +75,7 @@ func TestQBittorrentMagnetLifecycle(t *testing.T) {
 	if err := q.Delete(ctx, true, hash); err != nil {
 		t.Fatal(err)
 	}
-	if q.Started(hash) {
+	if q.Running(hash) {
 		t.Error("deleted torrent was started")
 	}
 	if got := q.Deletions(); !slices.Equal(got, []Deletion{{Hash: hash, DeleteFiles: true}}) {
@@ -89,7 +89,7 @@ func TestQBittorrentMagnetLifecycle(t *testing.T) {
 func TestQBittorrentSyncReflectsUpdates(t *testing.T) {
 	ctx := context.Background()
 	q := NewQBittorrent()
-	hash, _ := q.AddTorrent(ctx, acquisition.AddRequest{Torrent: []byte("d4:info"), Stopped: true})
+	hash, _ := q.AddTorrent(ctx, acquisition.AddRequest{Torrent: []byte("d4:info")})
 	if err := q.Start(ctx, hash); err != nil {
 		t.Fatal(err)
 	}

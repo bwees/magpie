@@ -115,8 +115,8 @@ type TorrentPayload struct {
 type QBittorrent interface {
 	// Version is the startup check; below MinWebAPIVersion it returns the version and ErrUnsupportedVersion.
 	Version(ctx context.Context) (WebAPIVersion, error)
-	// AddTorrent adds a parsed .torrent or magnet in the configured category with stopCondition=MetadataReceived
-	// (magnets) or stopped=true (.torrent files whose file list was already checked). Returns the info hash.
+	// AddTorrent adds a parsed .torrent or magnet in the configured category, started, whatever qBittorrent's
+	// own defaults say. Magnets stop at StopMetadataReceived for their file check. Returns the info hash.
 	AddTorrent(ctx context.Context, t AddRequest) (InfoHash string, err error)
 	Start(ctx context.Context, hashes ...string) error
 	Delete(ctx context.Context, deleteFiles bool, hashes ...string) error
@@ -149,7 +149,6 @@ type AddRequest struct {
 	Magnet        string
 	Category      string
 	SavePath      string // "" = qBittorrent's default for the category
-	Stopped       bool
 	StopCondition StopCondition
 }
 

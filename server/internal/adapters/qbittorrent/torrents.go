@@ -31,8 +31,9 @@ const (
 	formShareLimitsMode          = "shareLimitsMode"
 	torrentFileName              = "release.torrent"
 	torrentContentType           = "application/x-bittorrent"
+	stopNone                     = "None"
 	stopMetadataReceived         = "MetadataReceived"
-	formTrue                     = "true"
+	formFalse                    = "false"
 
 	// Share limit values qBittorrent reads as "the global limit" and "no limit".
 	limitGlobal    = -2
@@ -47,6 +48,13 @@ var shareActions = map[acquisition.ShareLimitAction]string{
 	acquisition.ShareRemove:            "Remove",
 	acquisition.ShareRemoveWithContent: "RemoveWithContent",
 	acquisition.ShareSuperSeeding:      "EnableSuperSeeding",
+}
+
+func stopCondition(c acquisition.StopCondition) string {
+	if c == acquisition.StopMetadataReceived {
+		return stopMetadataReceived
+	}
+	return stopNone
 }
 
 func (c *Client) Version(ctx context.Context) (acquisition.WebAPIVersion, error) {
@@ -138,12 +146,7 @@ func addForm(t acquisition.AddRequest, category string) (*bytes.Buffer, string, 
 	if t.SavePath != "" {
 		fields = append(fields, [2]string{formSavePath, t.SavePath})
 	}
-	if t.Stopped {
-		fields = append(fields, [2]string{formStopped, formTrue})
-	}
-	if t.StopCondition == acquisition.StopMetadataReceived {
-		fields = append(fields, [2]string{formStopCondition, stopMetadataReceived})
-	}
+	fields = append(fields, [2]string{formStopped, formFalse}, [2]string{formStopCondition, stopCondition(t.StopCondition)})
 	if len(t.Torrent) == 0 {
 		fields = append(fields, [2]string{formURLs, t.Magnet})
 	}
