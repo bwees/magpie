@@ -336,6 +336,8 @@ func (st *search) completion() (api.SearchCompleted, bool) {
 		done.Outcome = api.OutcomePendingDelay
 	case st.settle == settleNever && done.Accepted > 0:
 		done.Outcome = api.OutcomeReleasesFound
+	case done.Total == 0:
+		done.Outcome = api.OutcomeNoReleases
 	default:
 		done.Outcome = api.OutcomeNothingAccepted
 	}

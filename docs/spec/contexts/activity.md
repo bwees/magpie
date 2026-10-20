@@ -186,7 +186,7 @@ Every durable event other contexts and the platform publish is handled by the ha
 | `catalog.TitleAdded`, `MonitoringChanged` (+) | Create rows: `wanted=true`, everything else empty |
 | `catalog.MonitoringChanged` (−) | `wanted=false` (row kept, shown as unmonitored) |
 | `acquisition.SearchStarted` | `search=RUNNING` |
-| `acquisition.SearchCompleted` | `Outcome = NOTHING_ACCEPTED` → `search=NOTHING_ACCEPTED`; `GRABBED`, `PENDING_DELAY` or `RELEASES_FOUND` → `search` cleared (detail "Waiting for a better release" when pending) |
+| `acquisition.SearchCompleted` | `Outcome = NOTHING_ACCEPTED` → `search=NOTHING_ACCEPTED`; `GRABBED`, `PENDING_DELAY`, `RELEASES_FOUND` or `NO_RELEASES` → `search` cleared (detail "Waiting for a better release" when pending, "No releases found" when none came back) |
 | `acquisition.ReleaseRejected` | Rows downloading its `Download`: `download=` cleared, detail "Rejected: <reason>". Other searching or downloading rows: detail only; search stays `RUNNING` |
 | `acquisition.ReleaseGrabbed` | `download=ACTIVE` |
 | `acquisition.DownloadFailed` | `download=FAILED` on the rows still on that download (a fallback grab keeps its rows) |

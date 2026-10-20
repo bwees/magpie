@@ -132,7 +132,7 @@ type SearchCompleted struct {
     Title           domain.TitleID
     Accepted, Total int
     FailedIndexers  []string
-    Outcome         SearchOutcome      // GRABBED | NOTHING_ACCEPTED | PENDING_DELAY | RELEASES_FOUND (interactive searches: GRABBED after a user grab, else RELEASES_FOUND when any release was accepted, else NOTHING_ACCEPTED)
+    Outcome         SearchOutcome      // GRABBED | NOTHING_ACCEPTED | NO_RELEASES | PENDING_DELAY | RELEASES_FOUND (NO_RELEASES when no indexer returned a release; interactive searches: GRABBED after a user grab, else RELEASES_FOUND when any release was accepted, else NOTHING_ACCEPTED)
     Grabbed         *domain.DownloadID // set when Outcome = GRABBED
 }
 
@@ -582,7 +582,7 @@ The check is on by default and can be turned off in settings.
 29. **Scan origin:** given `TitleAdded{Origin: LIBRARY_SCAN}` for a released movie, then no search is enqueued. Given `FileImported{Origin: LIBRARY_SCAN}` below cutoff, then the title appears in the next cutoff-unmet sweep and `CutoffMet` carries `Origin: LIBRARY_SCAN` when met.
 30. **Upgrade cleanup:** given `FileImported{Replaces: F1}` for F2 and then `FileDeleted{File: F1, Reason: UPGRADED}`, then `file_scores` has F2 and not F1; redelivering `FileDeleted` changes nothing.
 31. **Resolution preset:** given the `1080p` preset, when `FileImported` brings Bluray 1080p with CF 0, then `CutoffMet` is published; a WEB 2160p release is rejected `QUALITY_NOT_ALLOWED`; between two 1080p releases with CF 1700 (WEB) and 300 (Bluray) the WEB one ranks first.
-32. **SearchCompleted outcome:** given an AUTO search with no accepted releases, then `SearchCompleted{Outcome: NOTHING_ACCEPTED}`; given a delay profile holding the best release, then `Outcome: PENDING_DELAY`; given a grab, then `Outcome: GRABBED` with `Grabbed` set. Given an interactive search with an accepted release and no grab, then `Outcome: RELEASES_FOUND`.
+32. **SearchCompleted outcome:** given an AUTO search with no accepted releases, then `SearchCompleted{Outcome: NOTHING_ACCEPTED}`; given an AUTO search where no indexer returns a release, then `Outcome: NO_RELEASES`; given a delay profile holding the best release, then `Outcome: PENDING_DELAY`; given a grab, then `Outcome: GRABBED` with `Grabbed` set. Given an interactive search with an accepted release and no grab, then `Outcome: RELEASES_FOUND`.
 33. **ProfileChanged:** given a Title moved from profile `2160p` to `1080p` with a WEB 1080p file, when `ProfileChanged` arrives, then `CutoffMet` is published once.
 34. **Indexer sync:**
     - Given Prowlarr lists a new indexer, when the sync runs, then it is stored with priority 25, minimum seeders 1, override `USE_GLOBAL`, status `OK` and its caps.

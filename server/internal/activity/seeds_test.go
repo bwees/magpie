@@ -210,6 +210,18 @@ func TestNothingAcceptedIsAFailedSearch(t *testing.T) {
 	}
 }
 
+func TestNoReleasesIsNotAFailedSearch(t *testing.T) {
+	h := newHarness(t)
+	title := h.movie()
+	search := domain.NewID[domain.SearchID]()
+	h.deliver(titleAdded(title, domain.MediaKindMovie))
+	h.deliver(acquisitionapi.SearchStarted{Search: search, Title: title})
+
+	h.deliver(acquisitionapi.SearchCompleted{Search: search, Title: title, Outcome: acquisitionapi.OutcomeNoReleases})
+
+	assertStage(t, h.row(title), api.StageRequested, false, detailNoReleases)
+}
+
 // Seed 8.
 func TestOlderEventArrivingLateIsIgnored(t *testing.T) {
 	h := newHarness(t)
@@ -363,6 +375,7 @@ func TestSeverity(t *testing.T) {
 		{libraryapi.TranscodeSwapRejected{MediaFile: file}, api.SeverityWarn},
 		{transcodeapi.AgentOffline{}, api.SeverityWarn},
 		{acquisitionapi.SearchCompleted{Title: title, Outcome: acquisitionapi.OutcomeNothingAccepted}, api.SeverityWarn},
+		{acquisitionapi.SearchCompleted{Title: title, Outcome: acquisitionapi.OutcomeNoReleases}, api.SeverityInfo},
 		{acquisitionapi.SearchCompleted{Title: title, Outcome: acquisitionapi.OutcomeGrabbed}, api.SeverityInfo},
 		{acquisitionapi.ReleaseGrabbed{Title: title}, api.SeverityInfo},
 		{requestsapi.RequestDeclined{}, api.SeverityInfo},

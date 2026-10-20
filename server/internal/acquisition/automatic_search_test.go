@@ -288,6 +288,15 @@ func TestSearchCompletedOutcome(t *testing.T) {
 			t.Errorf("SearchCompleted = %+v, want NOTHING_ACCEPTED", done)
 		}
 	})
+	t.Run("no releases", func(t *testing.T) {
+		f := newSearchFixture(t)
+		f.indexer(t, fastID, "Fast", idCaps, 0)
+		f.startAuto(t, api.TriggerAuto)
+		f.settle(t)
+		if done := f.completed(t); done.Outcome != api.OutcomeNoReleases || done.Grabbed != nil {
+			t.Errorf("SearchCompleted = %+v, want NO_RELEASES", done)
+		}
+	})
 	t.Run("pending delay", func(t *testing.T) {
 		f := newSearchFixture(t)
 		f.useTieredProfile(t)

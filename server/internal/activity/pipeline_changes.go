@@ -88,6 +88,8 @@ func init() {
 			switch e.Outcome {
 			case acquisitionapi.OutcomeNothingAccepted:
 				f.Search, f.Note = searchNothingAccepted, detailNoAcceptedRelease
+			case acquisitionapi.OutcomeNoReleases:
+				f.Search, f.Note = searchIdle, detailNoReleases
 			case acquisitionapi.OutcomePendingDelay:
 				f.Search, f.Note = searchIdle, detailWaitingForBetterRelease
 			default:
