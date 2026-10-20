@@ -330,7 +330,7 @@ Adding a Title from the top-bar search goes through Requests (`POST /api/request
   - If the region has neither, the earliest Digital/Physical date in any region counts.
   - With no Digital/Physical date anywhere, the movie counts as released at its earliest Theatrical date + 90 days. Theatrical means TMDB types 2 (limited) and 3, from the region if it has one, else any region.
   - With no date at all, it stays unreleased. A manual search is still allowed.
-- An episode is released when its `airDate` (a date, read in the server's time zone) is today or earlier. Episodes that have aired when a series is added are released at once. Episodes a refresh finds are released by the clock, so already-aired ones publish `WantedReleased` on its next run. A series is released once any episode is.
+- An episode is released when its `airDate` (a date, read in the server's time zone) is today or earlier. Episodes that have aired when a series is added are released at once. Episodes a refresh finds are released by the clock, so already-aired ones publish `WantedReleased` on its next run. A refresh that moves a released episode's air date into the future makes it unreleased again, so the clock releases it on the new date. A series is released once any episode is.
 - An hourly release-clock job finds monitored items that just crossed their release point, sets `releasedAt`, and publishes one `WantedReleased` per Title.
 - `TitleAdded.Released` tells Acquisition whether to search straight away (only for `Origin` REQUEST or MANUAL).
 

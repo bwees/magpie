@@ -383,6 +383,35 @@ func TestReleaseClockReleasesAnEpisodeOnItsAirDateOnce(t *testing.T) {
 	}
 }
 
+func TestRefreshUnreleasesAnEpisodeWhoseAirDateMovesIntoTheFuture(t *testing.T) {
+	h := newHarness(t)
+	seasons := []catalog.TmdbSeason{tmdbSeason(1, 1, startOfTest)}
+	title := addSeries(t, h, seriesRequest(profileP, requestsapi.ScopeAllSeasons), seasons...)
+	episode, _ := h.repo.EpisodeByNumber(context.Background(), title.ID, 1, 1)
+	if !episode.Released {
+		t.Fatal("not released on its air date")
+	}
+
+	seasons = []catalog.TmdbSeason{tmdbSeason(1, 1, startOfTest.Add(week))}
+	putSeries(h, severanceSeries(seasons...), seasons...)
+	h.clock.Advance(day)
+	h.tmdb.MarkChanged(domain.MediaKindSeries, severanceTmdb, h.clock.Now())
+	h.runTask(catalog.SeriesRefreshTask{Status: api.SeriesStatusContinuing})
+
+	if got, _ := h.repo.Episode(context.Background(), episode.ID); got.Released {
+		t.Error("still released after its air date moved a week out")
+	}
+	h.clock.Advance(week - day)
+	h.runTask(catalog.ReleaseClockTask{})
+	if got, _ := h.repo.Episode(context.Background(), episode.ID); !got.Released {
+		t.Error("not released on its new air date")
+	}
+	released := events[api.WantedReleased](h)
+	if len(released) != 1 || !slices.Equal(released[0].Episodes, []domain.EpisodeID{episode.ID}) {
+		t.Errorf("WantedReleased = %+v, want one for %s on the new date", released, episode.ID)
+	}
+}
+
 func TestReleaseClockLeavesUnmonitoredEpisodesOutOfWantedReleased(t *testing.T) {
 	h := newHarness(t)
 	seasons := []catalog.TmdbSeason{
