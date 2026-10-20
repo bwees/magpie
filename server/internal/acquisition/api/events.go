@@ -43,7 +43,9 @@ type SearchOutcome string
 const (
 	OutcomeGrabbed         SearchOutcome = "GRABBED"
 	OutcomeNothingAccepted SearchOutcome = "NOTHING_ACCEPTED"
-	OutcomePendingDelay    SearchOutcome = "PENDING_DELAY"
+	// OutcomeNoReleases: the indexers returned nothing, so there was nothing to reject.
+	OutcomeNoReleases   SearchOutcome = "NO_RELEASES"
+	OutcomePendingDelay SearchOutcome = "PENDING_DELAY"
 	// OutcomeReleasesFound: an interactive search found accepted releases and leaves the pick to the user.
 	OutcomeReleasesFound SearchOutcome = "RELEASES_FOUND"
 )

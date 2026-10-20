@@ -276,6 +276,8 @@ func init() {
 		case acquisitionapi.OutcomeNothingAccepted:
 			d.Severity = api.SeverityWarn
 			d.Text = detailNoAcceptedRelease
+		case acquisitionapi.OutcomeNoReleases:
+			d.Text = detailNoReleases
 		case acquisitionapi.OutcomePendingDelay:
 			d.Text = detailWaitingForBetterRelease
 		default:

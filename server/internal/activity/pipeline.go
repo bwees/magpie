@@ -35,6 +35,7 @@ const (
 	detailUpgrade                 = "Upgrade"
 	detailWaitingForJellyfin      = "Waiting for Jellyfin"
 	detailNoAcceptedRelease       = "No accepted release"
+	detailNoReleases              = "No releases found"
 	detailWaitingForBetterRelease = "Waiting for a better release"
 )
 
