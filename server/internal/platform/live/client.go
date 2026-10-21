@@ -173,7 +173,7 @@ func (c *client) allows(ctx context.Context, e entry) bool {
 		return false
 	}
 	if e.msg.Topic != "" {
-		return c.subscribed(e.msg.Topic) && access.seesTopics()
+		return c.subscribed(e.msg.Topic) && c.hub.filter.seesTopic(ctx, c.principal, access, e.scope)
 	}
 	return c.hub.filter.allows(ctx, c.principal, access, e.scope)
 }

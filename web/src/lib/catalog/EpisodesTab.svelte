@@ -15,7 +15,6 @@
 	import { AutomaticSearch } from '$lib/search/automatic-search.svelte';
 	import InteractiveSearchDialog from '$lib/search/InteractiveSearchDialog.svelte';
 	import type { SearchTarget } from '$lib/search/search-target';
-	import { getSession } from '$lib/session/session.svelte';
 	import {
 		airDateLabel,
 		AVAILABLE_UNKNOWN,
@@ -27,7 +26,12 @@
 	import EpisodeFilesDialog from '$lib/library/EpisodeFilesDialog.svelte';
 	import type { OpenEpisode, TitleFiles } from '$lib/library/title-files.svelte';
 
-	let { page, pipeline, files }: { page: TitlePage; pipeline: TitlePipeline; files: TitleFiles } =
+	let {
+		page,
+		pipeline,
+		files,
+		manageFiles
+	}: { page: TitlePage; pipeline: TitlePipeline; files: TitleFiles; manageFiles: boolean } =
 		$props();
 
 	const SEARCH_LABEL = 'Search episode';
@@ -35,7 +39,6 @@
 	/** Shown for a released episode nobody wants, which has no pipeline row. */
 	const NO_STAGE = '—';
 
-	const session = getSession();
 	const automatic = new AutomaticSearch();
 	let interactiveTarget = $state.raw<SearchTarget>();
 	let searching = $state(false);
@@ -92,7 +95,7 @@
 							</span>
 						</div>
 						<div class="flex items-center gap-3">
-							{#if session.isAdmin && season.episodes.length > 0}
+							{#if manageFiles && season.episodes.length > 0}
 								{@const target = seasonTarget(page.title, season)}
 								<Tooltip.Root>
 									<Tooltip.Trigger>
@@ -176,7 +179,7 @@
 												onCheckedChange={(checked) => page.setEpisodeMonitored(episode.id, checked)}
 											/>
 										</Table.Cell>
-										{#if session.isAdmin}
+										{#if manageFiles}
 											{@const target = episodeTarget(page.title, episode, season.number)}
 											{@const code = episodeCode(season.number, episode.number)}
 											<Table.Cell class="pr-4" onclick={stopRowClick}>

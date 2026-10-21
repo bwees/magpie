@@ -13,6 +13,7 @@ import (
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	libraryapi "magpie/internal/library/api"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/httpserver"
@@ -349,7 +350,7 @@ func TestTheTitlePageReadsEachFilesCutoffStatus(t *testing.T) {
 	f.deliverScores(t, met)
 	f.deliverScores(t, below)
 	serve := func(principal *domain.Principal) http.Handler {
-		controllers := []httpserver.Controller{acquisition.NewCutoffController(f.cutoff)}
+		controllers := []httpserver.Controller{acquisition.NewCutoffController(f.cutoff, access.NewFileGate(nil))}
 		mux := httpserver.Build(config.Env{}, httpserver.ModeServe, controllers).Mux
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r = r.WithContext(domain.WithPrincipal(r.Context(), *principal))

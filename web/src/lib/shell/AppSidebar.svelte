@@ -8,7 +8,7 @@
 
 	const shell = getShell();
 	const session = getSession();
-	const groups = $derived(sidebarGroupsFor(session.isAdmin));
+	const groups = $derived(sidebarGroupsFor(session.navRole));
 </script>
 
 <Sidebar.Root collapsible="icon">

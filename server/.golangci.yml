@@ -147,11 +147,11 @@ linters:
           list-mode: lax
           files: ["**/internal/platform/**", "!**/internal/platform/migrate/**", "**/internal/lintfixture/platform/**"]
           deny:
-            - { pkg: magpie/internal/catalog/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
-            - { pkg: magpie/internal/library/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
-            - { pkg: magpie/internal/subtitles/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
-            - { pkg: magpie/internal/transcode/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
-            - { pkg: magpie/internal/activity/api, desc: "the platform reads only Identity and Requests (live role filter); migrate calls Importers" }
+            - { pkg: magpie/internal/catalog/api, desc: "the platform reads only Identity and Requests (live role filter, file access gate); migrate calls Importers" }
+            - { pkg: magpie/internal/library/api, desc: "the platform reads only Identity and Requests (live role filter, file access gate); migrate calls Importers" }
+            - { pkg: magpie/internal/subtitles/api, desc: "the platform reads only Identity and Requests (live role filter, file access gate); migrate calls Importers" }
+            - { pkg: magpie/internal/transcode/api, desc: "the platform reads only Identity and Requests (live role filter, file access gate); migrate calls Importers" }
+            - { pkg: magpie/internal/activity/api, desc: "the platform reads only Identity and Requests (live role filter, file access gate); migrate calls Importers" }
 
 formatters:
   enable:

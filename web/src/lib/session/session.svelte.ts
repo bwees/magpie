@@ -8,7 +8,7 @@ import {
 	signOut
 } from '$lib/sdk';
 import type { MeResponse } from '$lib/sdk';
-import { isAdminOnly } from '$lib/navigation/nav';
+import { mayOpen, NavRole } from '$lib/navigation/nav';
 
 export enum SessionStatus {
 	LOADING = 'LOADING',
@@ -40,13 +40,13 @@ export function isAuthRoute(pathname: string): boolean {
 /**
  * Where a visitor on pathname must go, or undefined to stay. The wizard is reachable only while no admin
  * exists, or right after the admin was created in this tab; once left, it can't be reopened.
- * Requesters are sent home from admin-only pages.
+ * Non-admins are sent home from pages their role may not open.
  */
 export function redirectFor(
 	status: SessionStatus,
 	pathname: string,
 	wizardActive: boolean,
-	admin: boolean
+	role: NavRole
 ): string | undefined {
 	switch (status) {
 		case SessionStatus.SETUP_REQUIRED:
@@ -56,7 +56,7 @@ export function redirectFor(
 		case SessionStatus.SIGNED_IN:
 			if (pathname === AuthRoute.SIGN_IN) return HOME;
 			if (pathname === AuthRoute.SETUP && !wizardActive) return HOME;
-			if (!admin && isAdminOnly(pathname)) return HOME;
+			if (!mayOpen(pathname, role)) return HOME;
 			return undefined;
 		default:
 			return undefined;
@@ -108,8 +108,18 @@ export class SessionState {
 		return this.isAdmin || (this.user?.permissions.reportIssues ?? false);
 	}
 
+	/** Admins always may; requesters need the "manage files" toggle, and then only for titles they may see. */
+	get canManageFiles(): boolean {
+		return this.isAdmin || (this.user?.permissions.manageFiles ?? false);
+	}
+
+	get navRole(): NavRole {
+		if (this.isAdmin) return NavRole.ADMIN;
+		return this.canManageFiles ? NavRole.FILE_MANAGER : NavRole.REQUESTER;
+	}
+
 	redirectFor(pathname: string): string | undefined {
-		return redirectFor(this.status, pathname, this.wizardActive, this.isAdmin);
+		return redirectFor(this.status, pathname, this.wizardActive, this.navRole);
 	}
 
 	#failed(error: unknown): void {

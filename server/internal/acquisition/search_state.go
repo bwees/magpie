@@ -250,7 +250,7 @@ func (st *search) fail(ix Indexer, message string) searchStep {
 		return searchStep{}
 	}
 	st.runs[i].Status, st.runs[i].Message = api.IndexerFailed, message
-	st.emit(api.SearchResultsReceived{Search: st.id, Indexer: ix.Name, Status: api.IndexerFailed, Message: message, Releases: []api.ReleaseDecision{}})
+	st.emit(api.SearchResultsReceived{Search: st.id, Title: st.input.Title.ID, Indexer: ix.Name, Status: api.IndexerFailed, Message: message, Releases: []api.ReleaseDecision{}})
 	return st.step()
 }
 
@@ -271,7 +271,7 @@ func (st *search) answer(ix Indexer, status api.IndexerRunStatus, message string
 	for _, d := range st.releases[len(st.releases)-len(added):] {
 		decisions = append(decisions, d.decision(current[d.ID]))
 	}
-	st.emit(api.SearchResultsReceived{Search: st.id, Indexer: ix.Name, Status: status, Message: message, Releases: decisions})
+	st.emit(api.SearchResultsReceived{Search: st.id, Title: st.input.Title.ID, Indexer: ix.Name, Status: status, Message: message, Releases: decisions})
 	return st.step()
 }
 
@@ -305,7 +305,7 @@ func (st *search) cancelPending(message string) searchStep {
 			continue
 		}
 		st.runs[i].Status, st.runs[i].Message = api.IndexerFailed, message
-		st.emit(api.SearchResultsReceived{Search: st.id, Indexer: run.Indexer.Name, Status: api.IndexerFailed, Message: message, Releases: []api.ReleaseDecision{}})
+		st.emit(api.SearchResultsReceived{Search: st.id, Title: st.input.Title.ID, Indexer: run.Indexer.Name, Status: api.IndexerFailed, Message: message, Releases: []api.ReleaseDecision{}})
 	}
 	return st.step()
 }

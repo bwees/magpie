@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	BOTTOM_TABS,
 	NAV_ITEMS,
+	NavRole,
 	NOTIFICATION_SETTINGS_PATH,
 	SEARCH_TAB,
 	SIDEBAR_GROUPS,
@@ -56,14 +57,29 @@ describe('navigation layout', () => {
 	});
 
 	it('gives requesters Home and Requests, with Search between them on phones', () => {
-		expect(sidebarGroupsFor(false).flatMap((group) => group.items.map((i) => i.label))).toEqual([
+		expect(
+			sidebarGroupsFor(NavRole.REQUESTER).flatMap((group) => group.items.map((i) => i.label))
+		).toEqual(['Home', 'Requests']);
+		expect(bottomTabsFor(NavRole.REQUESTER).map((tab) => tab.label)).toEqual([
 			'Home',
+			'Search',
 			'Requests'
 		]);
-		expect(bottomTabsFor(false).map((tab) => tab.label)).toEqual(['Home', 'Search', 'Requests']);
-		expect(bottomTabsFor(false).filter(isActionTab)).toEqual([SEARCH_TAB]);
-		expect(sidebarGroupsFor(true)).toBe(SIDEBAR_GROUPS);
-		expect(bottomTabsFor(true)).toBe(BOTTOM_TABS);
+		expect(bottomTabsFor(NavRole.REQUESTER).filter(isActionTab)).toEqual([SEARCH_TAB]);
+		expect(sidebarGroupsFor(NavRole.ADMIN)).toBe(SIDEBAR_GROUPS);
+		expect(bottomTabsFor(NavRole.ADMIN)).toBe(BOTTOM_TABS);
+	});
+
+	it('adds Activity for file managers', () => {
+		expect(
+			sidebarGroupsFor(NavRole.FILE_MANAGER).flatMap((group) => group.items.map((i) => i.label))
+		).toEqual(['Home', 'Requests', 'Activity']);
+		expect(bottomTabsFor(NavRole.FILE_MANAGER).map((tab) => tab.label)).toEqual([
+			'Home',
+			'Search',
+			'Requests',
+			'Activity'
+		]);
 	});
 
 	it('puts five tabs on phones and leaves Settings to the avatar menu', () => {

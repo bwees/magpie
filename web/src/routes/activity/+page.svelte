@@ -11,21 +11,25 @@
 	import AgentsTab from '$lib/transcode/AgentsTab.svelte';
 	import GpuJobsTab from '$lib/transcode/GpuJobsTab.svelte';
 	import {
-		ACTIVITY_TABS,
+		activityTabsFor,
 		ACTIVITY_TAB_QUERY,
 		ActivityTab,
 		TAB_LABELS
 	} from '$lib/activity/activity-tabs';
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { NAV_ITEMS } from '$lib/navigation/nav';
+	import { getSession } from '$lib/session/session.svelte';
 
+	const session = getSession();
+	const tabs = activityTabsFor(session.isAdmin);
 	const linked = page.url.searchParams.get(ACTIVITY_TAB_QUERY) as ActivityTab | null;
-	let tab = $state(linked && ACTIVITY_TABS.includes(linked) ? linked : ActivityTab.DOWNLOADS);
+	let tab = $state(linked && tabs.includes(linked) ? linked : ActivityTab.DOWNLOADS);
 
 	const imports = new ImportsManager();
 	const live = getLive();
 
 	onMount(() => {
+		if (!session.isAdmin) return;
 		void imports.load();
 		return imports.watch(live);
 	});
@@ -38,7 +42,7 @@
 <Tabs.Root bind:value={tab} class="gap-4">
 	<div class="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
 		<Tabs.List>
-			{#each ACTIVITY_TABS as value (value)}
+			{#each tabs as value (value)}
 				<Tabs.Trigger {value}>
 					{TAB_LABELS[value]}
 					{#if value === ActivityTab.IMPORTS && imports.count > 0}
@@ -53,7 +57,7 @@
 			{/each}
 		</Tabs.List>
 	</div>
-	{#each ACTIVITY_TABS as value (value)}
+	{#each tabs as value (value)}
 		<Tabs.Content {value}>
 			{#if value === ActivityTab.DOWNLOADS}
 				<DownloadsTab />

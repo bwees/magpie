@@ -9,6 +9,13 @@ export enum ActivityTab {
 
 export const ACTIVITY_TABS: ActivityTab[] = Object.values(ActivityTab);
 
+/** File managers see only the downloads of titles they may manage. */
+export const FILE_MANAGER_ACTIVITY_TABS: ActivityTab[] = [ActivityTab.DOWNLOADS];
+
+export function activityTabsFor(admin: boolean): ActivityTab[] {
+	return admin ? ACTIVITY_TABS : FILE_MANAGER_ACTIVITY_TABS;
+}
+
 /** The query parameter that opens Activity on a tab, e.g. ?tab=imports. */
 export const ACTIVITY_TAB_QUERY = 'tab';
 

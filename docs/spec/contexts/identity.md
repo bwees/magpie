@@ -37,6 +37,7 @@ type Permissions struct {
     AutoApproveTV      bool
     ViewOthersRequests bool
     ReportIssues       bool
+    ManageFiles        bool
 }
 
 type User struct {
@@ -73,7 +74,7 @@ Request principal (set by Identity's HTTP middleware, read by every controller):
 type Principal struct {
     User        UserID
     Admin       bool
-    Permissions struct{ AutoApproveMovies, AutoApproveTV, ViewOthersRequests, ReportIssues bool }
+    Permissions struct{ AutoApproveMovies, AutoApproveTV, ViewOthersRequests, ReportIssues, ManageFiles bool }
 }
 func PrincipalFrom(ctx context.Context) (Principal, bool)
 ```
@@ -165,13 +166,13 @@ var ErrInvalidCredentials, ErrUnavailable, ErrExpired error
   - Cookie `magpie_session`; `Secure` when the request is HTTPS or `X-Forwarded-Proto: https`.
 - **Roles:**
   - `ADMIN` can do everything; their toggles read as all true.
-  - `REQUESTER` sees Discover/search, their own requests (or all requests when `ViewOthersRequests` is set), and issue reporting (when `ReportIssues` is set).
+  - `REQUESTER` sees Discover/search, their own requests (or all requests when `ViewOthersRequests` is set), and issue reporting (when `ReportIssues` is set). With `ManageFiles` they also manage the media files of the titles whose requests they see: view and delete files, search and grab replacements (no override of rejected releases), remove those titles' downloads and fetch or remove subtitles. The platform `access.FileGate` enforces it.
   - Requesters have no access to settings, indexers, activity internals or other users' notification URLs.
 - **Invariants** (checked in this order inside the write transaction):
   - At least one enabled admin always exists. Demoting or disabling the last admin returns `409 last-admin`.
   - The local admin can't be demoted, disabled or deleted: any `PATCH` of it returns `409 local-admin-locked`.
   - Users can't change their own role or toggles: requesters get `403` from the admin check, admins `403 own-account`.
-- **Defaults** (`identity.defaults`): `AutoApproveMovies=false`, `AutoApproveTV=false`, `ViewOthersRequests=false`, `ReportIssues=true`.
+- **Defaults** (`identity.defaults`): `AutoApproveMovies=false`, `AutoApproveTV=false`, `ViewOthersRequests=false`, `ReportIssues=true`, `ManageFiles=false`.
 - **No quotas in v1.**
 - **Rate limit:** 10 failed sign-ins per IP per 10 minutes return `429` (`urn:magpie:problem:too-many-sign-ins`), even for correct credentials. The IP is the connecting address; behind a reverse proxy all clients share it. Failures are kept in memory.
 

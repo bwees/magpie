@@ -20,9 +20,15 @@
 		title,
 		pipeline,
 		posterUrl,
-		tint
-	}: { title: TitleResponse; pipeline: TitlePipeline; posterUrl?: string; tint?: string } =
-		$props();
+		tint,
+		manageFiles
+	}: {
+		title: TitleResponse;
+		pipeline: TitlePipeline;
+		posterUrl?: string;
+		tint?: string;
+		manageFiles: boolean;
+	} = $props();
 
 	/** A dark teal used until the poster colour is known. */
 	const DEFAULT_TINT = '24 72 80';
@@ -81,9 +87,9 @@
 				{/if}
 			</div>
 		</div>
-		{#if session.isAdmin || session.canReportIssues}
+		{#if manageFiles || session.canReportIssues}
 			<div class="grid grid-cols-2 gap-2 lg:flex lg:shrink-0">
-				{#if session.isAdmin}
+				{#if manageFiles}
 					<Button
 						variant="secondary"
 						class={isSeries ? 'col-span-2' : undefined}
@@ -123,6 +129,6 @@
 	<ReportIssueDialog {report} titleName={title.name} seasons={title.seasons} />
 {/if}
 
-{#if session.isAdmin && !isSeries}
+{#if manageFiles && !isSeries}
 	<InteractiveSearchDialog bind:open={searching} {target} />
 {/if}

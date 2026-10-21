@@ -23,7 +23,8 @@ const NO_PERMISSIONS = {
 	autoApproveMovies: false,
 	autoApproveTv: false,
 	viewOthersRequests: false,
-	reportIssues: true
+	reportIssues: true,
+	manageFiles: false
 };
 const ADMIN: UserResponse = {
 	id: 'admin',

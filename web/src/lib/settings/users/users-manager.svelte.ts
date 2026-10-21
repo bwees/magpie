@@ -19,7 +19,8 @@ export const PERMISSION_TOGGLES: { key: PermissionKey; label: string }[] = [
 	{ key: 'autoApproveMovies', label: 'Auto-approve movies' },
 	{ key: 'autoApproveTv', label: 'Auto-approve TV' },
 	{ key: 'viewOthersRequests', label: "View others' requests" },
-	{ key: 'reportIssues', label: 'Report issues' }
+	{ key: 'reportIssues', label: 'Report issues' },
+	{ key: 'manageFiles', label: 'Manage files' }
 ];
 
 /** Switch columns are narrow and centred. */

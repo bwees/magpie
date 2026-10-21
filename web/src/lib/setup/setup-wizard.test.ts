@@ -14,7 +14,8 @@ const ADMIN: MeResponse = {
 		autoApproveMovies: true,
 		autoApproveTv: true,
 		reportIssues: true,
-		viewOthersRequests: true
+		viewOthersRequests: true,
+		manageFiles: true
 	}
 };
 const EMPTY_CONNECTIONS: ConnectionsResponse = {

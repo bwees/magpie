@@ -98,7 +98,8 @@ export const ME: MeResponse = {
 		autoApproveMovies: true,
 		autoApproveTv: true,
 		reportIssues: true,
-		viewOthersRequests: true
+		viewOthersRequests: true,
+		manageFiles: true
 	}
 };
 

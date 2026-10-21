@@ -130,6 +130,7 @@ type UpdateUserRequest struct {
 	AutoApproveTV      *bool     `json:"autoApproveTv,omitempty"`
 	ViewOthersRequests *bool     `json:"viewOthersRequests,omitempty"`
 	ReportIssues       *bool     `json:"reportIssues,omitempty"`
+	ManageFiles        *bool     `json:"manageFiles,omitempty"`
 	Disabled           *bool     `json:"disabled,omitempty"`
 }
 

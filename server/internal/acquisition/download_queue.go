@@ -39,6 +39,11 @@ func (s *DownloadService) Downloads(ctx context.Context) ([]DownloadView, error)
 	return views, nil
 }
 
+func (s *DownloadService) DownloadTitle(ctx context.Context, id domain.DownloadID) (domain.TitleID, error) {
+	d, err := s.deps.Repo.Download(ctx, id)
+	return d.Title, err
+}
+
 // Remove takes a download out of qBittorrent, with its data when deleteData is set. Nothing is blocklisted.
 func (s *DownloadService) Remove(ctx context.Context, id domain.DownloadID, deleteData bool) (DownloadView, error) {
 	d, err := s.deps.Repo.Download(ctx, id)

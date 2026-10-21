@@ -14,6 +14,7 @@ import (
 	"magpie/internal/library"
 	"magpie/internal/library/api"
 	"magpie/internal/library/api/contracttest"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/db/dbtest"
 	"magpie/internal/platform/httpserver"
@@ -42,7 +43,7 @@ func serveLibrary(t *testing.T, admin bool, files ...contracttest.StoredFile) ht
 		t.Fatal(err)
 	}
 	service := library.NewService(library.Deps{DB: d, Repo: library.NewRepository(d)})
-	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{library.NewController(service)}).Mux
+	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{library.NewController(service, access.NewFileGate(nil))}).Mux
 	principal := domain.Principal{User: domain.NewID[domain.UserID](), Admin: admin}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r.WithContext(domain.WithPrincipal(r.Context(), principal)))

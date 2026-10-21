@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"magpie/internal/domain"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/subtitles"
@@ -15,7 +16,7 @@ import (
 )
 
 func (h *harness) serve(admin bool) http.Handler {
-	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{subtitles.NewController(h.service)}).Mux
+	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{subtitles.NewController(h.service, access.NewFileGate(nil))}).Mux
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(domain.WithPrincipal(r.Context(), domain.Principal{User: domain.NewID[domain.UserID](), Admin: admin}))
 		mux.ServeHTTP(w, r)

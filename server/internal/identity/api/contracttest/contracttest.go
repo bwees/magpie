@@ -20,7 +20,7 @@ type Fixture struct {
 // Factory returns a Reader holding exactly the fixture's state.
 type Factory func(t *testing.T, f Fixture) api.Reader
 
-var allPermissions = api.Permissions{AutoApproveMovies: true, AutoApproveTV: true, ViewOthersRequests: true, ReportIssues: true}
+var allPermissions = api.Permissions{AutoApproveMovies: true, AutoApproveTV: true, ViewOthersRequests: true, ReportIssues: true, ManageFiles: true}
 
 // Run checks a Reader against the identity contract.
 func Run(t *testing.T, newReader Factory) {

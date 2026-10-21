@@ -144,6 +144,7 @@ class FakeLive implements SearchLive {
 	results(indexerName: string, status: IndexerStatus, releases: ReleaseDecision[]): void {
 		const event: SearchResultsReceived = {
 			search: SEARCH,
+			title: TITLE,
 			indexer: indexerName,
 			status,
 			message: '',

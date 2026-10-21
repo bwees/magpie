@@ -92,7 +92,7 @@ type Language string       // ISO 639-1
 type Origin string
 
 // Principal is the signed-in user, set by Identity's middleware, read by every controller.
-type Principal struct { User UserID; Admin bool; Permissions struct{ AutoApproveMovies, AutoApproveTV, ViewOthersRequests, ReportIssues bool } }
+type Principal struct { User UserID; Admin bool; Permissions struct{ AutoApproveMovies, AutoApproveTV, ViewOthersRequests, ReportIssues, ManageFiles bool } }
 
 // SourceKey identifies a migrated record in its source app: "sonarr:12" | "radarr:40". Importers are idempotent on it.
 type SourceKey string

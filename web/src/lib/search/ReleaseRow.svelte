@@ -7,6 +7,7 @@
 	import Star from '@lucide/svelte/icons/star';
 	import { Button } from '$lib/components/ui/button';
 	import type { ReleaseDecision } from '$lib/sdk';
+	import { getSession } from '$lib/session/session.svelte';
 	import { formatSize } from './format';
 	import { GrabState, isAccepted, type InteractiveSearch } from './interactive-search.svelte';
 
@@ -19,6 +20,7 @@
 	const ENTER_OFFSET_PX = 8;
 	const ENTER_DURATION_MS = 300;
 
+	const session = getSession();
 	const rejected = $derived(!isAccepted(release));
 	const reasons = $derived((release.rejections ?? []).map((r) => r.message).join(' · '));
 	const grabState = $derived(search.grabState(release));
@@ -88,7 +90,7 @@
 		<Button size="sm" variant="outline" class="border-destructive/50 text-destructive" disabled>
 			<Ban />Rejected
 		</Button>
-	{:else}
+	{:else if !rejected || session.isAdmin}
 		<Button
 			size="sm"
 			variant={rejected ? 'ghost' : 'default'}

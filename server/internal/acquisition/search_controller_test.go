@@ -10,13 +10,14 @@ import (
 	catalogapi "magpie/internal/catalog/api"
 	catalogtest "magpie/internal/catalog/api/contracttest"
 	"magpie/internal/domain"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/problem"
 )
 
 func serveSearches(f searchFixture, principal *domain.Principal) http.Handler {
-	controllers := []httpserver.Controller{acquisition.NewSearchController(f.searches, f.downloads), acquisition.NewDownloadController(f.downloads)}
+	controllers := []httpserver.Controller{acquisition.NewSearchController(f.searches, f.downloads, access.NewFileGate(nil)), acquisition.NewDownloadController(f.downloads, access.NewFileGate(nil))}
 	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, controllers).Mux
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if principal != nil {

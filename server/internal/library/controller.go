@@ -1,6 +1,7 @@
 package library
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"magpie/internal/domain"
 	"magpie/internal/library/api"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/problem"
 
@@ -168,10 +170,11 @@ type ManualImportRequest struct {
 
 type Controller struct {
 	library *Service
+	gate    *access.FileGate
 }
 
-func NewController(s *Service) *Controller {
-	return &Controller{library: s}
+func NewController(s *Service, g *access.FileGate) *Controller {
+	return &Controller{library: s, gate: g}
 }
 
 func (c *Controller) Register(s *fuego.Server) {
@@ -180,7 +183,7 @@ func (c *Controller) Register(s *fuego.Server) {
 
 	fuego.Get(s, "/library/files", c.files, tags,
 		fuego.OptionOperationID("listMediaFiles"),
-		fuego.OptionSummary("One title's media files, or several titles' files in input order; newest first per title (admin)"),
+		fuego.OptionSummary("One title's media files (file managers), or several titles' files in input order (admin); newest first per title"),
 		fuego.OptionQuery(queryTitle, "One title's files"),
 		fuego.OptionQueryArray(queryTitles, "Several titles' files, at most 500 titles", reflect.String),
 		fuego.OptionQueryBool(queryTranscoded, "With titles: only transcoded (true) or not transcoded (false) files"))
@@ -191,11 +194,11 @@ func (c *Controller) Register(s *fuego.Server) {
 	fuego.Get(s, "/library/files/{id}", c.file, tags,
 		fuego.OptionPath(pathFileID, "Media file ID"),
 		fuego.OptionOperationID("getMediaFile"),
-		fuego.OptionSummary("One media file with its media info (admin)"))
+		fuego.OptionSummary("One media file with its media info (file managers)"))
 	fuego.Delete(s, "/library/files/{id}", c.deleteFile, tags,
 		fuego.OptionPath(pathFileID, "Media file ID"),
 		fuego.OptionOperationID("deleteMediaFile"),
-		fuego.OptionSummary("Delete a media file from disk; other contexts drop what they keep for it (admin)"),
+		fuego.OptionSummary("Delete a media file from disk; other contexts drop what they keep for it (file managers)"),
 		fuego.OptionDefaultStatusCode(http.StatusNoContent))
 	fuego.Get(s, "/library/root-folders", c.rootFolders, tags,
 		fuego.OptionOperationID("listRootFolders"),
@@ -231,9 +234,6 @@ func (c *Controller) Register(s *fuego.Server) {
 }
 
 func (c *Controller) files(ctx fuego.ContextNoBody) ([]MediaFileResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
-		return nil, err
-	}
 	title := domain.TitleID(ctx.QueryParam(queryTitle))
 	raw := ctx.QueryParamArr(queryTitles)
 	if (title == "") == (len(raw) == 0) {
@@ -242,8 +242,14 @@ func (c *Controller) files(ctx fuego.ContextNoBody) ([]MediaFileResponse, error)
 	var files []api.MediaFile
 	var err error
 	if title != "" {
+		if err := c.gate.Require(ctx.Context(), title); err != nil {
+			return nil, err
+		}
 		files, err = c.library.FilesForTitle(ctx.Context(), title)
 	} else {
+		if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+			return nil, err
+		}
 		var titles []domain.TitleID
 		if titles, err = batchTitles(raw); err != nil {
 			return nil, err
@@ -305,14 +311,22 @@ func batchTitles(raw []string) ([]domain.TitleID, error) {
 }
 
 func (c *Controller) file(ctx fuego.ContextNoBody) (MediaFileResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	f, err := c.managedFile(ctx.Context(), domain.MediaFileID(ctx.PathParam(pathFileID)))
+	if err != nil {
 		return MediaFileResponse{}, err
 	}
-	f, err := c.library.File(ctx.Context(), domain.MediaFileID(ctx.PathParam(pathFileID)))
-	if err != nil {
-		return MediaFileResponse{}, libraryProblem(err)
-	}
 	return mediaFileResponse(f), nil
+}
+
+func (c *Controller) managedFile(ctx context.Context, id domain.MediaFileID) (api.MediaFile, error) {
+	if err := access.RequireManager(ctx); err != nil {
+		return api.MediaFile{}, err
+	}
+	f, err := c.library.File(ctx, id)
+	if err != nil {
+		return api.MediaFile{}, libraryProblem(err)
+	}
+	return f, c.gate.Require(ctx, f.Title)
 }
 
 func (c *Controller) rootFolders(ctx fuego.ContextNoBody) ([]RootFolderResponse, error) {
@@ -342,10 +356,11 @@ func (c *Controller) addRootFolder(ctx fuego.ContextWithBody[AddRootFolderReques
 }
 
 func (c *Controller) deleteFile(ctx fuego.ContextNoBody) (any, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	f, err := c.managedFile(ctx.Context(), domain.MediaFileID(ctx.PathParam(pathFileID)))
+	if err != nil {
 		return nil, err
 	}
-	return nil, libraryProblem(c.library.DeleteFile(ctx.Context(), domain.MediaFileID(ctx.PathParam(pathFileID))))
+	return nil, libraryProblem(c.library.DeleteFile(ctx.Context(), f.ID))
 }
 
 func (c *Controller) removeRootFolder(ctx fuego.ContextNoBody) (any, error) {

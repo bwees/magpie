@@ -12,16 +12,8 @@ export const defaults: Oazapfts.Defaults<Oazapfts.CustomHeaders> = {
 };
 const oazapfts = Oazapfts.runtime(defaults);
 export const servers = {};
-export type BlocklistEntryResponse = {
-    at: string;
-    expiresAt?: string;
-    id: string;
-    indexer: string;
-    infoHash: string;
-    reason: string;
-    releaseName: string;
-    title: string;
-    titleName: string;
+export type TitleAccessResponse = {
+    manageFiles: boolean;
 };
 export type ErrorItem = {
     /** Additional information about the error */
@@ -46,6 +38,17 @@ export type HttpError = {
     title?: string;
     /** URL of the error type. Can be used to lookup the error in a documentation */
     "type"?: string;
+};
+export type BlocklistEntryResponse = {
+    at: string;
+    expiresAt?: string;
+    id: string;
+    indexer: string;
+    infoHash: string;
+    reason: string;
+    releaseName: string;
+    title: string;
+    titleName: string;
 };
 export type UnknownInterface = any;
 export type FormatSpecDto = {
@@ -623,6 +626,7 @@ export type HealthResponse = {
 export type Permissions = {
     autoApproveMovies: boolean;
     autoApproveTv: boolean;
+    manageFiles: boolean;
     reportIssues: boolean;
     viewOthersRequests: boolean;
 };
@@ -681,6 +685,7 @@ export type UpdateUserRequest = {
     autoApproveMovies?: boolean;
     autoApproveTv?: boolean;
     disabled?: boolean;
+    manageFiles?: boolean;
     reportIssues?: boolean;
     role?: string;
     viewOthersRequests?: boolean;
@@ -1703,6 +1708,7 @@ export type SearchResultsReceived = {
     releases: ReleaseDecision[] | null;
     search: string;
     status: string;
+    title: string;
 };
 export type SearchStarted = {
     episodes: string[] | null;
@@ -1801,6 +1807,28 @@ export type WhisperCompleted = {
     mediaFile: string;
     stagedPath: string;
 };
+/**
+ * What the signed-in user may do with a title's media files
+ */
+export function getTitleAccess(id: string, { accept }: {
+    accept?: string;
+} = {}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: TitleAccessResponse;
+    } | {
+        status: 400;
+        data: HttpError;
+    } | {
+        status: 500;
+        data: HttpError;
+    }>(`/api/access/titles/${encodeURIComponent(id)}`, {
+        ...opts,
+        headers: oazapfts.mergeHeaders(opts?.headers, {
+            Accept: accept
+        })
+    }));
+}
 /**
  * Every blocklist entry, newest first, expired temporary ones included (admin)
  */
@@ -1964,7 +1992,7 @@ export function updateCustomFormat(id: string, customFormatRequest: CustomFormat
     })));
 }
 /**
- * Whether each of a title's files meets its profile's cutoff and may still be upgraded (admin)
+ * Whether each of a title's files meets its profile's cutoff and may still be upgraded (file managers)
  */
 export function listCutoffStatus(title: string, { accept }: {
     accept?: string;
@@ -2034,7 +2062,7 @@ export function setDownloadOptions(downloadOptionsRequest: DownloadOptionsReques
     })));
 }
 /**
- * Downloads still in qBittorrent with their last polled progress, newest first (admin)
+ * Downloads still in qBittorrent with their last polled progress, newest first; file managers see their titles' only
  */
 export function listDownloads({ accept }: {
     accept?: string;
@@ -2056,7 +2084,7 @@ export function listDownloads({ accept }: {
     }));
 }
 /**
- * Remove a download from qBittorrent, with its data when deleteData is set (admin)
+ * Remove a download from qBittorrent, with its data when deleteData is set (file managers)
  */
 export function removeDownload(id: string, { deleteData, accept }: {
     deleteData?: boolean;
@@ -2450,7 +2478,7 @@ export function setSearchOptions(searchOptionsRequest: SearchOptionsRequest, { a
     })));
 }
 /**
- * Start a search; results stream on the live topic search:<id>, and a non-interactive one grabs on its own (admin)
+ * Start a search; results stream on the live topic search:<id>, and a non-interactive one grabs on its own (file managers)
  */
 export function startSearch(startSearchRequest: StartSearchRequest, { accept }: {
     accept?: string;
@@ -2474,7 +2502,7 @@ export function startSearch(startSearchRequest: StartSearchRequest, { accept }: 
     })));
 }
 /**
- * Cancel a search's in-flight indexer queries (admin)
+ * Cancel a search's in-flight indexer queries (file managers)
  */
 export function cancelSearch(id: string, { accept }: {
     accept?: string;
@@ -2497,7 +2525,7 @@ export function cancelSearch(id: string, { accept }: {
     }));
 }
 /**
- * A search's cached state, for reconnect and refresh (admin)
+ * A search's cached state, for reconnect and refresh (file managers)
  */
 export function getSearch(id: string, { accept }: {
     accept?: string;
@@ -2519,7 +2547,7 @@ export function getSearch(id: string, { accept }: {
     }));
 }
 /**
- * Grab a release from the search's cached results; override grabs a rejected one (admin)
+ * Grab a release from the search's cached results; override grabs a rejected one (file managers; override is admin)
  */
 export function grabRelease(id: string, grabRequest: GrabRequest, { accept }: {
     accept?: string;
@@ -3897,7 +3925,7 @@ export function getCoverage({ titles, accept }: {
     }));
 }
 /**
- * One title's media files, or several titles' files in input order; newest first per title (admin)
+ * One title's media files (file managers), or several titles' files in input order (admin); newest first per title
  */
 export function listMediaFiles({ title, titles, transcoded, accept }: {
     title?: string;
@@ -3926,7 +3954,7 @@ export function listMediaFiles({ title, titles, transcoded, accept }: {
     }));
 }
 /**
- * Delete a media file from disk; other contexts drop what they keep for it (admin)
+ * Delete a media file from disk; other contexts drop what they keep for it (file managers)
  */
 export function deleteMediaFile(id: string, { accept }: {
     accept?: string;
@@ -3949,7 +3977,7 @@ export function deleteMediaFile(id: string, { accept }: {
     }));
 }
 /**
- * One media file with its media info (admin)
+ * One media file with its media info (file managers)
  */
 export function getMediaFile(id: string, { accept }: {
     accept?: string;
@@ -5011,7 +5039,7 @@ export function retryRequest(id: string, { accept }: {
     }));
 }
 /**
- * A media file's subtitles and wanted-language coverage (admin)
+ * A media file's subtitles and wanted-language coverage (file managers)
  */
 export function getFileSubtitles(mediaFileId: string, { accept }: {
     accept?: string;
@@ -5033,7 +5061,7 @@ export function getFileSubtitles(mediaFileId: string, { accept }: {
     }));
 }
 /**
- * Scored OpenSubtitles results for one language of the file, best first (admin)
+ * Scored OpenSubtitles results for one language of the file, best first (file managers)
  */
 export function listSubtitleCandidates(mediaFileId: string, language: string, { forced, accept }: {
     forced?: boolean;
@@ -5059,7 +5087,7 @@ export function listSubtitleCandidates(mediaFileId: string, language: string, { 
     }));
 }
 /**
- * Download a candidate, sync it and store it as the file's sidecar (admin)
+ * Download a candidate, sync it and store it as the file's sidecar (file managers)
  */
 export function downloadSubtitle(mediaFileId: string, downloadSubtitleRequest: DownloadSubtitleRequest, { accept }: {
     accept?: string;
@@ -5083,7 +5111,7 @@ export function downloadSubtitle(mediaFileId: string, downloadSubtitleRequest: D
     })));
 }
 /**
- * Search the file's missing languages now, skipping the backoff (admin)
+ * Search the file's missing languages now, skipping the backoff (file managers)
  */
 export function searchFileSubtitles(mediaFileId: string, { accept }: {
     accept?: string;
@@ -5174,7 +5202,7 @@ export function setSubtitleSettings(subtitleSettingsBody: SubtitleSettingsBody, 
     })));
 }
 /**
- * Remove a sidecar subtitle (admin)
+ * Remove a sidecar subtitle (file managers)
  */
 export function deleteSubtitle(subtitleId: string, { accept }: {
     accept?: string;
