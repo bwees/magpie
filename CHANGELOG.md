@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1](https://github.com/bwees/magpie/compare/v0.7.0...v0.7.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **activity:** stop flagging searches that found no releases as failed ([16189b5](https://github.com/bwees/magpie/commit/16189b5ed17bdbaa89e08542a4806e7ed878a7e8))
+* **catalog:** unrelease episodes whose air date moves into the future ([030fc40](https://github.com/bwees/magpie/commit/030fc405cd8e1665afcf582ad29ef30e170703dc))
+
 ## [0.7.0](https://github.com/bwees/magpie/compare/v0.6.0...v0.7.0) (2026-10-16)
 
 
