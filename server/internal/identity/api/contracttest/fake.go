@@ -103,7 +103,7 @@ func (f *Fake) sorted(keep func(api.User) bool) []api.User {
 
 func effective(u api.User) api.User {
 	if u.IsAdmin() {
-		u.Permissions = api.Permissions{AutoApproveMovies: true, AutoApproveTV: true, ViewOthersRequests: true, ReportIssues: true}
+		u.Permissions = api.Permissions{AutoApproveMovies: true, AutoApproveTV: true, ViewOthersRequests: true, ReportIssues: true, ManageFiles: true}
 	}
 	return u
 }

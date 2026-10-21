@@ -12,12 +12,13 @@ import (
 	"magpie/internal/domain"
 	"magpie/internal/library"
 	"magpie/internal/library/api"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/httpserver"
 )
 
 func (f *importFixture) serve(admin bool) http.Handler {
-	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{library.NewController(f.service)}).Mux
+	mux := httpserver.Build(config.Env{}, httpserver.ModeServe, []httpserver.Controller{library.NewController(f.service, access.NewFileGate(nil))}).Mux
 	principal := domain.Principal{User: domain.NewID[domain.UserID](), Admin: admin}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r.WithContext(domain.WithPrincipal(r.Context(), principal)))

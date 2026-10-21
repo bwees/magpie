@@ -115,6 +115,24 @@ func (s *Service) File(ctx context.Context, file domain.MediaFileID) (FileView, 
 	return FileView{Subtitles: nonNil(st.Subtitles), Wanted: nonNil(st.Wanted)}, nil
 }
 
+// FileTitle returns the title a media file belongs to. ErrNotFound if Library doesn't know the file.
+func (s *Service) FileTitle(ctx context.Context, file domain.MediaFileID) (domain.TitleID, error) {
+	f, err := s.deps.Library.File(ctx, file)
+	if errors.Is(err, libraryapi.ErrNotFound) {
+		return "", ErrNotFound
+	}
+	return f.Title, err
+}
+
+// SubtitleTitle returns the title of the media file a subtitle belongs to.
+func (s *Service) SubtitleTitle(ctx context.Context, id SubtitleID) (domain.TitleID, error) {
+	sub, err := subtitle(s.deps.DB.Read(ctx), id)
+	if err != nil {
+		return "", err
+	}
+	return s.FileTitle(ctx, sub.MediaFileID)
+}
+
 func nonNil[T any](list []T) []T {
 	if list == nil {
 		return []T{}

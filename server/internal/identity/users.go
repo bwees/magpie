@@ -27,6 +27,7 @@ type UserChange struct {
 	AutoApproveTV      *bool
 	ViewOthersRequests *bool
 	ReportIssues       *bool
+	ManageFiles        *bool
 	Disabled           *bool
 }
 

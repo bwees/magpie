@@ -133,6 +133,7 @@ func (SearchStarted) Durable() bool         { return true }
 // live search dialog.
 type SearchResultsReceived struct {
 	Search   domain.SearchID   `json:"search"`
+	Title    domain.TitleID    `json:"title"`
 	Indexer  string            `json:"indexer"`
 	Status   IndexerRunStatus  `json:"status"`
 	Message  string            `json:"message"` // failure reason for FAILED/SKIPPED

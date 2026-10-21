@@ -95,6 +95,33 @@ export const REQUESTER_SIDEBAR_GROUPS: NavGroup[] = [
 
 export const REQUESTER_BOTTOM_TABS: BottomTab[] = [NAV_ITEMS.HOME, SEARCH_TAB, NAV_ITEMS.REQUESTS];
 
+/** File managers also get Activity, which shows them only their titles' downloads. */
+export const FILE_MANAGER_SIDEBAR_GROUPS: NavGroup[] = [
+	...REQUESTER_SIDEBAR_GROUPS,
+	{ label: 'System', items: [NAV_ITEMS.ACTIVITY] }
+];
+
+export const FILE_MANAGER_BOTTOM_TABS: BottomTab[] = [...REQUESTER_BOTTOM_TABS, NAV_ITEMS.ACTIVITY];
+
+/** Which navigation a signed-in user gets. */
+export enum NavRole {
+	ADMIN = 'ADMIN',
+	FILE_MANAGER = 'FILE_MANAGER',
+	REQUESTER = 'REQUESTER'
+}
+
+const SIDEBAR_GROUPS_BY_ROLE: Record<NavRole, NavGroup[]> = {
+	[NavRole.ADMIN]: SIDEBAR_GROUPS,
+	[NavRole.FILE_MANAGER]: FILE_MANAGER_SIDEBAR_GROUPS,
+	[NavRole.REQUESTER]: REQUESTER_SIDEBAR_GROUPS
+};
+
+const BOTTOM_TABS_BY_ROLE: Record<NavRole, BottomTab[]> = {
+	[NavRole.ADMIN]: BOTTOM_TABS,
+	[NavRole.FILE_MANAGER]: FILE_MANAGER_BOTTOM_TABS,
+	[NavRole.REQUESTER]: REQUESTER_BOTTOM_TABS
+};
+
 /** Settings → Notifications is the one settings page every user has. */
 export const NOTIFICATION_SETTINGS_PATH = settingsPath(SettingsSection.NOTIFICATIONS);
 
@@ -105,12 +132,12 @@ const ADMIN_ONLY_ITEMS: NavItem[] = [
 	NAV_ITEMS.SETTINGS
 ];
 
-export function sidebarGroupsFor(admin: boolean): NavGroup[] {
-	return admin ? SIDEBAR_GROUPS : REQUESTER_SIDEBAR_GROUPS;
+export function sidebarGroupsFor(role: NavRole): NavGroup[] {
+	return SIDEBAR_GROUPS_BY_ROLE[role];
 }
 
-export function bottomTabsFor(admin: boolean): BottomTab[] {
-	return admin ? BOTTOM_TABS : REQUESTER_BOTTOM_TABS;
+export function bottomTabsFor(role: NavRole): BottomTab[] {
+	return BOTTOM_TABS_BY_ROLE[role];
 }
 
 /** Whether only admins may open pathname. */
@@ -119,6 +146,18 @@ export function isAdminOnly(pathname: string): boolean {
 		return false;
 	}
 	return ADMIN_ONLY_ITEMS.some((item) => ownsPath(item, pathname));
+}
+
+/** File managers open the Activity page itself, but not its admin sub-pages such as agents. */
+export function mayOpen(pathname: string, role: NavRole): boolean {
+	switch (role) {
+		case NavRole.ADMIN:
+			return true;
+		case NavRole.FILE_MANAGER:
+			return pathname === Route.ACTIVITY || !isAdminOnly(pathname);
+		case NavRole.REQUESTER:
+			return !isAdminOnly(pathname);
+	}
 }
 
 const ALL_ITEMS: NavItem[] = Object.values(NAV_ITEMS);

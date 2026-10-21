@@ -8,6 +8,7 @@ import (
 
 	"magpie/internal/acquisition/api"
 	"magpie/internal/domain"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/problem"
 	"magpie/internal/platform/settings"
@@ -87,10 +88,11 @@ type DownloadOptionsRequest struct {
 // DownloadController serves Activity → Downloads and Blocklist, and Settings → Downloads.
 type DownloadController struct {
 	downloads *DownloadService
+	gate      *access.FileGate
 }
 
-func NewDownloadController(d *DownloadService) *DownloadController {
-	return &DownloadController{downloads: d}
+func NewDownloadController(d *DownloadService, g *access.FileGate) *DownloadController {
+	return &DownloadController{downloads: d, gate: g}
 }
 
 func (c *DownloadController) Register(s *fuego.Server) {
@@ -99,10 +101,10 @@ func (c *DownloadController) Register(s *fuego.Server) {
 
 	fuego.Get(s, "/acquisition/downloads", c.list, tags,
 		fuego.OptionOperationID("listDownloads"),
-		fuego.OptionSummary("Downloads still in qBittorrent with their last polled progress, newest first (admin)"))
+		fuego.OptionSummary("Downloads still in qBittorrent with their last polled progress, newest first; file managers see their titles' only"))
 	fuego.Delete(s, "/acquisition/downloads/{id}", c.remove, tags, downloadPath,
 		fuego.OptionOperationID("removeDownload"),
-		fuego.OptionSummary("Remove a download from qBittorrent, with its data when deleteData is set (admin)"),
+		fuego.OptionSummary("Remove a download from qBittorrent, with its data when deleteData is set (file managers)"),
 		fuego.OptionQueryBool(queryDeleteData, "Also delete the downloaded data"),
 		fuego.OptionDefaultStatusCode(http.StatusNoContent))
 	fuego.Get(s, "/acquisition/blocklist", c.blocklist, tags,
@@ -122,10 +124,11 @@ func (c *DownloadController) Register(s *fuego.Server) {
 }
 
 func (c *DownloadController) list(ctx fuego.ContextNoBody) ([]DownloadResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	views, err := c.downloads.Downloads(ctx.Context())
+	if err != nil {
 		return nil, err
 	}
-	views, err := c.downloads.Downloads(ctx.Context())
+	views, err = access.Filter(ctx.Context(), c.gate, views, func(v DownloadView) domain.TitleID { return v.Title })
 	if err != nil {
 		return nil, err
 	}
@@ -137,14 +140,22 @@ func (c *DownloadController) list(ctx fuego.ContextNoBody) ([]DownloadResponse, 
 }
 
 func (c *DownloadController) remove(ctx fuego.ContextNoBody) (any, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	if err := access.RequireManager(ctx.Context()); err != nil {
+		return nil, err
+	}
+	id := domain.DownloadID(ctx.PathParam(pathDownloadID))
+	title, err := c.downloads.DownloadTitle(ctx.Context(), id)
+	if err != nil {
+		return nil, downloadProblem(err)
+	}
+	if err := c.gate.Require(ctx.Context(), title); err != nil {
 		return nil, err
 	}
 	deleteData, err := strconv.ParseBool(ctx.QueryParam(queryDeleteData))
 	if ctx.QueryParam(queryDeleteData) != "" && err != nil {
 		return nil, problem.New(problem.TypeBadRequest, http.StatusBadRequest, "deleteData must be true or false")
 	}
-	_, err = c.downloads.Remove(ctx.Context(), domain.DownloadID(ctx.PathParam(pathDownloadID)), deleteData)
+	_, err = c.downloads.Remove(ctx.Context(), id, deleteData)
 	return nil, downloadProblem(err)
 }
 

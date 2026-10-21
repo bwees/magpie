@@ -4446,6 +4446,9 @@
 					"autoApproveTv": {
 						"type": "boolean"
 					},
+					"manageFiles": {
+						"type": "boolean"
+					},
 					"reportIssues": {
 						"type": "boolean"
 					},
@@ -4456,6 +4459,7 @@
 				"required": [
 					"autoApproveMovies",
 					"autoApproveTv",
+					"manageFiles",
 					"reportIssues",
 					"viewOthersRequests"
 				],
@@ -5952,6 +5956,9 @@
 					},
 					"status": {
 						"type": "string"
+					},
+					"title": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -5959,7 +5966,8 @@
 					"message",
 					"releases",
 					"search",
-					"status"
+					"status",
+					"title"
 				],
 				"type": "object"
 			},
@@ -6551,6 +6559,18 @@
 					"severity",
 					"text",
 					"type"
+				],
+				"type": "object"
+			},
+			"TitleAccessResponse": {
+				"description": "TitleAccessResponse schema",
+				"properties": {
+					"manageFiles": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"manageFiles"
 				],
 				"type": "object"
 			},
@@ -7334,6 +7354,9 @@
 					"disabled": {
 						"type": "boolean"
 					},
+					"manageFiles": {
+						"type": "boolean"
+					},
 					"reportIssues": {
 						"type": "boolean"
 					},
@@ -7552,6 +7575,77 @@
 	},
 	"openapi": "3.1.0",
 	"paths": {
+		"/api/access/titles/{id}": {
+			"get": {
+				"description": "#### Controller: \n\n`magpie/internal/platform/access.(*Controller).title`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
+				"operationId": "getTitleAccess",
+				"parameters": [
+					{
+						"description": "Title ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "Accept",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TitleAccessResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Bad Request _(validation or deserialization error)_"
+					},
+					"500": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							},
+							"application/xml": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPError"
+								}
+							}
+						},
+						"description": "Internal Server Error _(panics)_"
+					}
+				},
+				"summary": "What the signed-in user may do with a title's media files",
+				"tags": [
+					"api",
+					"access"
+				]
+			}
+		},
 		"/api/acquisition/blocklist": {
 			"get": {
 				"description": "#### Controller: \n\n`magpie/internal/acquisition.(*DownloadController).blocklist`\n\n#### Middlewares:\n\n- `magpie/internal/platform/httpserver.holdStatus`\n- `magpie/internal/identity.(*Service).Middleware`\n\n---\n\n",
@@ -8115,7 +8209,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Whether each of a title's files meets its profile's cutoff and may still be upgraded (admin)",
+				"summary": "Whether each of a title's files meets its profile's cutoff and may still be upgraded (file managers)",
 				"tags": [
 					"api",
 					"acquisition"
@@ -8313,7 +8407,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Downloads still in qBittorrent with their last polled progress, newest first (admin)",
+				"summary": "Downloads still in qBittorrent with their last polled progress, newest first; file managers see their titles' only",
 				"tags": [
 					"api",
 					"acquisition"
@@ -8392,7 +8486,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Remove a download from qBittorrent, with its data when deleteData is set (admin)",
+				"summary": "Remove a download from qBittorrent, with its data when deleteData is set (file managers)",
 				"tags": [
 					"api",
 					"acquisition"
@@ -9564,7 +9658,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Start a search; results stream on the live topic search:\u003cid\u003e, and a non-interactive one grabs on its own (admin)",
+				"summary": "Start a search; results stream on the live topic search:\u003cid\u003e, and a non-interactive one grabs on its own (file managers)",
 				"tags": [
 					"api",
 					"acquisition"
@@ -9635,7 +9729,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Cancel a search's in-flight indexer queries (admin)",
+				"summary": "Cancel a search's in-flight indexer queries (file managers)",
 				"tags": [
 					"api",
 					"acquisition"
@@ -9704,7 +9798,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "A search's cached state, for reconnect and refresh (admin)",
+				"summary": "A search's cached state, for reconnect and refresh (file managers)",
 				"tags": [
 					"api",
 					"acquisition"
@@ -9786,7 +9880,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Grab a release from the search's cached results; override grabs a rejected one (admin)",
+				"summary": "Grab a release from the search's cached results; override grabs a rejected one (file managers; override is admin)",
 				"tags": [
 					"api",
 					"acquisition"
@@ -14042,7 +14136,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "One title's media files, or several titles' files in input order; newest first per title (admin)",
+				"summary": "One title's media files (file managers), or several titles' files in input order (admin); newest first per title",
 				"tags": [
 					"api",
 					"library"
@@ -14113,7 +14207,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Delete a media file from disk; other contexts drop what they keep for it (admin)",
+				"summary": "Delete a media file from disk; other contexts drop what they keep for it (file managers)",
 				"tags": [
 					"api",
 					"library"
@@ -14182,7 +14276,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "One media file with its media info (admin)",
+				"summary": "One media file with its media info (file managers)",
 				"tags": [
 					"api",
 					"library"
@@ -17413,7 +17507,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "A media file's subtitles and wanted-language coverage (admin)",
+				"summary": "A media file's subtitles and wanted-language coverage (file managers)",
 				"tags": [
 					"api",
 					"subtitles"
@@ -17504,7 +17598,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Scored OpenSubtitles results for one language of the file, best first (admin)",
+				"summary": "Scored OpenSubtitles results for one language of the file, best first (file managers)",
 				"tags": [
 					"api",
 					"subtitles"
@@ -17586,7 +17680,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Download a candidate, sync it and store it as the file's sidecar (admin)",
+				"summary": "Download a candidate, sync it and store it as the file's sidecar (file managers)",
 				"tags": [
 					"api",
 					"subtitles"
@@ -17657,7 +17751,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Search the file's missing languages now, skipping the backoff (admin)",
+				"summary": "Search the file's missing languages now, skipping the backoff (file managers)",
 				"tags": [
 					"api",
 					"subtitles"
@@ -17923,7 +18017,7 @@
 						"description": "Internal Server Error _(panics)_"
 					}
 				},
-				"summary": "Remove a sidecar subtitle (admin)",
+				"summary": "Remove a sidecar subtitle (file managers)",
 				"tags": [
 					"api",
 					"subtitles"
@@ -18994,6 +19088,9 @@
 		}
 	},
 	"tags": [
+		{
+			"name": "access"
+		},
 		{
 			"name": "acquisition"
 		},

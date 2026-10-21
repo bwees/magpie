@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"magpie/internal/domain"
+	identityapi "magpie/internal/identity/api"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/config"
 	"magpie/internal/platform/httpserver"
@@ -433,4 +434,27 @@ func TestBusEventsReachTheGateway(t *testing.T) {
 	if got := s.next(); got.Type != typeFileImported {
 		t.Fatalf("got %+v", got)
 	}
+}
+
+func TestSearchEventsReachFileManagersOfRequestedTitles(t *testing.T) {
+	roles := newRoleFixture()
+	roles.identity.Put(identityapi.User{
+		ID: requester.User, Username: "requester", Role: identityapi.RoleRequester,
+		Permissions: domain.Permissions{ManageFiles: true},
+	})
+	h := newHub(testConfig(), roles.filter)
+	url := serve(t, h)
+	mine, theirs := domain.NewID[domain.SearchID](), domain.NewID[domain.SearchID]()
+
+	manager := dial(t, url, requester)
+	manager.send(LiveClientMessage{Op: OpSubscribe, Topics: []string{SearchTopicPrefix + string(mine), SearchTopicPrefix + string(theirs)}})
+	manager.attach()
+
+	publish(h, typeSearchCompleted, string(roles.otherTitle), searchCompleted{Search: theirs, Title: roles.otherTitle})
+	publish(h, typeSearchCompleted, string(roles.myTitle), searchCompleted{Search: mine, Title: roles.myTitle})
+
+	if got := manager.next(); got.Topic != SearchTopicPrefix+string(mine) {
+		t.Fatalf("file manager got %+v, want only the search for their requested title", got)
+	}
+	manager.expectQuiet()
 }

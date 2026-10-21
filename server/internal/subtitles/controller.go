@@ -1,6 +1,7 @@
 package subtitles
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"magpie/internal/domain"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/parse"
 	"magpie/internal/platform/problem"
@@ -119,10 +121,23 @@ type QuotaResponse struct {
 
 type Controller struct {
 	subtitles *Service
+	gate      *access.FileGate
 }
 
-func NewController(s *Service) *Controller {
-	return &Controller{subtitles: s}
+func NewController(s *Service, g *access.FileGate) *Controller {
+	return &Controller{subtitles: s, gate: g}
+}
+
+// requireFile returns a problem unless the principal may manage the file's title.
+func (c *Controller) requireFile(ctx context.Context, file domain.MediaFileID) error {
+	if err := access.RequireManager(ctx); err != nil {
+		return err
+	}
+	title, err := c.subtitles.FileTitle(ctx, file)
+	if err != nil {
+		return subtitlesProblem(err)
+	}
+	return c.gate.Require(ctx, title)
 }
 
 func (c *Controller) Register(s *fuego.Server) {
@@ -131,23 +146,23 @@ func (c *Controller) Register(s *fuego.Server) {
 
 	fuego.Get(s, "/subtitles/files/{mediaFileId}", c.file, tags, filePath,
 		fuego.OptionOperationID("getFileSubtitles"),
-		fuego.OptionSummary("A media file's subtitles and wanted-language coverage (admin)"))
+		fuego.OptionSummary("A media file's subtitles and wanted-language coverage (file managers)"))
 	fuego.Post(s, "/subtitles/files/{mediaFileId}/search", c.search, tags, filePath,
 		fuego.OptionOperationID("searchFileSubtitles"),
-		fuego.OptionSummary("Search the file's missing languages now, skipping the backoff (admin)"),
+		fuego.OptionSummary("Search the file's missing languages now, skipping the backoff (file managers)"),
 		fuego.OptionDefaultStatusCode(http.StatusAccepted))
 	fuego.Get(s, "/subtitles/files/{mediaFileId}/candidates", c.candidates, tags, filePath,
 		fuego.OptionOperationID("listSubtitleCandidates"),
-		fuego.OptionSummary("Scored OpenSubtitles results for one language of the file, best first (admin)"),
+		fuego.OptionSummary("Scored OpenSubtitles results for one language of the file, best first (file managers)"),
 		fuego.OptionQuery(queryLanguage, "ISO 639-1 language", fuego.ParamRequired()),
 		fuego.OptionQueryBool(queryForced, "Forced (foreign parts only) subtitles"))
 	fuego.Post(s, "/subtitles/files/{mediaFileId}/download", c.download, tags, filePath,
 		fuego.OptionOperationID("downloadSubtitle"),
-		fuego.OptionSummary("Download a candidate, sync it and store it as the file's sidecar (admin)"))
+		fuego.OptionSummary("Download a candidate, sync it and store it as the file's sidecar (file managers)"))
 	fuego.Delete(s, "/subtitles/{subtitleId}", c.remove, tags,
 		fuego.OptionPath(pathSubtitleID, "Subtitle ID"),
 		fuego.OptionOperationID("deleteSubtitle"),
-		fuego.OptionSummary("Remove a sidecar subtitle (admin)"),
+		fuego.OptionSummary("Remove a sidecar subtitle (file managers)"),
 		fuego.OptionDefaultStatusCode(http.StatusNoContent))
 	fuego.Get(s, "/subtitles/settings", c.settings, tags,
 		fuego.OptionOperationID("getSubtitleSettings"),
@@ -161,10 +176,10 @@ func (c *Controller) Register(s *fuego.Server) {
 }
 
 func (c *Controller) file(ctx fuego.ContextNoBody) (FileSubtitlesResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	id := domain.MediaFileID(ctx.PathParam(pathMediaFileID))
+	if err := c.requireFile(ctx.Context(), id); err != nil {
 		return FileSubtitlesResponse{}, err
 	}
-	id := domain.MediaFileID(ctx.PathParam(pathMediaFileID))
 	view, err := c.subtitles.File(ctx.Context(), id)
 	if err != nil {
 		return FileSubtitlesResponse{}, subtitlesProblem(err)
@@ -173,10 +188,10 @@ func (c *Controller) file(ctx fuego.ContextNoBody) (FileSubtitlesResponse, error
 }
 
 func (c *Controller) search(ctx fuego.ContextNoBody) (FileSubtitlesResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	id := domain.MediaFileID(ctx.PathParam(pathMediaFileID))
+	if err := c.requireFile(ctx.Context(), id); err != nil {
 		return FileSubtitlesResponse{}, err
 	}
-	id := domain.MediaFileID(ctx.PathParam(pathMediaFileID))
 	view, err := c.subtitles.SearchNow(ctx.Context(), id)
 	if err != nil {
 		return FileSubtitlesResponse{}, subtitlesProblem(err)
@@ -185,14 +200,15 @@ func (c *Controller) search(ctx fuego.ContextNoBody) (FileSubtitlesResponse, err
 }
 
 func (c *Controller) candidates(ctx fuego.ContextNoBody) ([]CandidateResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	id := domain.MediaFileID(ctx.PathParam(pathMediaFileID))
+	if err := c.requireFile(ctx.Context(), id); err != nil {
 		return nil, err
 	}
 	track, err := trackFrom(ctx.QueryParam(queryLanguage), ctx.QueryParam(queryForced))
 	if err != nil {
 		return nil, err
 	}
-	views, err := c.subtitles.Candidates(ctx.Context(), domain.MediaFileID(ctx.PathParam(pathMediaFileID)), track.Language, track.Forced)
+	views, err := c.subtitles.Candidates(ctx.Context(), id, track.Language, track.Forced)
 	if err != nil {
 		return nil, subtitlesProblem(err)
 	}
@@ -208,7 +224,8 @@ func (c *Controller) candidates(ctx fuego.ContextNoBody) ([]CandidateResponse, e
 }
 
 func (c *Controller) download(ctx fuego.ContextWithBody[DownloadSubtitleRequest]) (FileSubtitlesResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	id := domain.MediaFileID(ctx.PathParam(pathMediaFileID))
+	if err := c.requireFile(ctx.Context(), id); err != nil {
 		return FileSubtitlesResponse{}, err
 	}
 	body, err := ctx.Body()
@@ -219,7 +236,6 @@ func (c *Controller) download(ctx fuego.ContextWithBody[DownloadSubtitleRequest]
 	if err != nil {
 		return FileSubtitlesResponse{}, err
 	}
-	id := domain.MediaFileID(ctx.PathParam(pathMediaFileID))
 	view, err := c.subtitles.Download(ctx.Context(), id, track.Language, track.Forced, body.FileID)
 	if err != nil {
 		return FileSubtitlesResponse{}, subtitlesProblem(err)
@@ -228,10 +244,18 @@ func (c *Controller) download(ctx fuego.ContextWithBody[DownloadSubtitleRequest]
 }
 
 func (c *Controller) remove(ctx fuego.ContextNoBody) (any, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	if err := access.RequireManager(ctx.Context()); err != nil {
 		return nil, err
 	}
-	return nil, subtitlesProblem(c.subtitles.DeleteSubtitle(ctx.Context(), SubtitleID(ctx.PathParam(pathSubtitleID))))
+	id := SubtitleID(ctx.PathParam(pathSubtitleID))
+	title, err := c.subtitles.SubtitleTitle(ctx.Context(), id)
+	if err != nil {
+		return nil, subtitlesProblem(err)
+	}
+	if err := c.gate.Require(ctx.Context(), title); err != nil {
+		return nil, err
+	}
+	return nil, subtitlesProblem(c.subtitles.DeleteSubtitle(ctx.Context(), id))
 }
 
 func (c *Controller) settings(ctx fuego.ContextNoBody) (SubtitleSettingsBody, error) {

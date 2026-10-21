@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"magpie/internal/domain"
-	"magpie/internal/platform/httpserver"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/problem"
 
 	"github.com/go-fuego/fuego"
@@ -30,26 +30,27 @@ type CutoffStatusResponse struct {
 // CutoffController serves the cutoff state of a title's files for the title page.
 type CutoffController struct {
 	cutoff *CutoffService
+	gate   *access.FileGate
 }
 
-func NewCutoffController(s *CutoffService) *CutoffController {
-	return &CutoffController{cutoff: s}
+func NewCutoffController(s *CutoffService, g *access.FileGate) *CutoffController {
+	return &CutoffController{cutoff: s, gate: g}
 }
 
 func (c *CutoffController) Register(s *fuego.Server) {
 	fuego.Get(s, "/acquisition/cutoff", c.list, fuego.OptionTags(tagAcquisition),
 		fuego.OptionOperationID("listCutoffStatus"),
-		fuego.OptionSummary("Whether each of a title's files meets its profile's cutoff and may still be upgraded (admin)"),
+		fuego.OptionSummary("Whether each of a title's files meets its profile's cutoff and may still be upgraded (file managers)"),
 		fuego.OptionQuery(queryTitle, "Title ID", fuego.ParamRequired()))
 }
 
 func (c *CutoffController) list(ctx fuego.ContextNoBody) ([]CutoffStatusResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
-		return nil, err
-	}
 	title := domain.TitleID(ctx.QueryParam(queryTitle))
 	if title == "" {
 		return nil, problem.New(TypeTitleRequired, http.StatusBadRequest, "Pass the title")
+	}
+	if err := c.gate.Require(ctx.Context(), title); err != nil {
+		return nil, err
 	}
 	statuses, err := c.cutoff.CutoffStatuses(ctx.Context(), title)
 	if err != nil {

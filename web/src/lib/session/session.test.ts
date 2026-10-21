@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { NavRole } from '$lib/navigation/nav';
 import { AuthRoute, isAuthRoute, redirectFor, SessionStatus } from './session.svelte';
 
 const HOME = '/';
 const SETTINGS = '/settings/general';
 const NOTIFICATIONS = '/settings/notifications';
-const ADMIN = true;
-const REQUESTER = false;
+const ADMIN = NavRole.ADMIN;
+const REQUESTER = NavRole.REQUESTER;
 
 describe('redirectFor', () => {
 	it('sends everyone to the wizard until the admin exists', () => {
@@ -41,6 +42,14 @@ describe('redirectFor', () => {
 		expect(redirectFor(SessionStatus.SIGNED_IN, '/movies', false, REQUESTER)).toBe(HOME);
 		expect(redirectFor(SessionStatus.SIGNED_IN, NOTIFICATIONS, false, REQUESTER)).toBeUndefined();
 		expect(redirectFor(SessionStatus.SIGNED_IN, '/requests', false, REQUESTER)).toBeUndefined();
+	});
+
+	it('lets file managers open Activity but not its admin sub-pages', () => {
+		const manager = NavRole.FILE_MANAGER;
+		expect(redirectFor(SessionStatus.SIGNED_IN, '/activity', false, manager)).toBeUndefined();
+		expect(redirectFor(SessionStatus.SIGNED_IN, '/activity/agents', false, manager)).toBe(HOME);
+		expect(redirectFor(SessionStatus.SIGNED_IN, SETTINGS, false, manager)).toBe(HOME);
+		expect(redirectFor(SessionStatus.SIGNED_IN, '/activity', false, REQUESTER)).toBe(HOME);
 	});
 
 	it('waits while the session loads', () => {

@@ -7,6 +7,7 @@ type Permissions struct {
 	AutoApproveTV      bool `json:"autoApproveTv"`
 	ViewOthersRequests bool `json:"viewOthersRequests"`
 	ReportIssues       bool `json:"reportIssues"`
+	ManageFiles        bool `json:"manageFiles"`
 }
 
 // Principal is the signed-in user. Identity's middleware sets it and every controller reads it.

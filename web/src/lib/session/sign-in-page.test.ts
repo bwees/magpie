@@ -37,7 +37,8 @@ const USER: MeResponse = {
 		autoApproveMovies: false,
 		autoApproveTv: false,
 		viewOthersRequests: false,
-		reportIssues: true
+		reportIssues: true,
+		manageFiles: false
 	}
 };
 const ALL_METHODS = { jellyfin: true, quickConnect: true, jellyfinReachable: true };

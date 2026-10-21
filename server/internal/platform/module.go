@@ -2,6 +2,7 @@
 package platform
 
 import (
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/backup"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/config"
@@ -28,5 +29,6 @@ var Module = fx.Module("platform",
 	backup.Module,
 	health.Module,
 	connections.Module,
+	access.Module,
 	httpserver.Module,
 )

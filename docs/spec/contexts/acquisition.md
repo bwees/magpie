@@ -88,7 +88,7 @@ type CutoffStatus struct {
 
 ## Events published
 
-All durable unless marked ephemeral. Aggregate ID = title ID (searches, downloads, cutoff), so a title's events stay ordered. The two ephemeral events carry no title: `SearchResultsReceived` uses the search ID and `DownloadProgressed` the download ID.
+All durable unless marked ephemeral. Aggregate ID = title ID (searches, downloads, cutoff), so a title's events stay ordered. The two ephemeral events use their own aggregate: `SearchResultsReceived` the search ID and `DownloadProgressed` the download ID. `SearchResultsReceived` still names its title so the live filter can pass it to file managers.
 
 ```go
 type SearchStarted struct {
@@ -103,6 +103,7 @@ type SearchStarted struct {
 // Ephemeral: one per indexer answer (or failure). Never persisted; drives the live search dialog.
 type SearchResultsReceived struct {
     Search   domain.SearchID
+    Title    domain.TitleID
     Indexer  string
     Status   IndexerRunStatus // DONE, FAILED, SKIPPED (no ID support and title search found nothing)
     Message  string           // failure reason for FAILED/SKIPPED

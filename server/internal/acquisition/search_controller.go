@@ -1,6 +1,7 @@
 package acquisition
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"magpie/internal/acquisition/api"
 	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
+	"magpie/internal/platform/access"
 	"magpie/internal/platform/httpserver"
 	"magpie/internal/platform/problem"
 
@@ -90,10 +92,11 @@ type GrabResponse struct {
 type SearchController struct {
 	searches  *SearchService
 	downloads *DownloadService
+	gate      *access.FileGate
 }
 
-func NewSearchController(s *SearchService, d *DownloadService) *SearchController {
-	return &SearchController{searches: s, downloads: d}
+func NewSearchController(s *SearchService, d *DownloadService, g *access.FileGate) *SearchController {
+	return &SearchController{searches: s, downloads: d, gate: g}
 }
 
 func (c *SearchController) Register(s *fuego.Server) {
@@ -102,27 +105,27 @@ func (c *SearchController) Register(s *fuego.Server) {
 
 	fuego.Post(s, "/acquisition/searches", c.start, tags,
 		fuego.OptionOperationID("startSearch"),
-		fuego.OptionSummary("Start a search; results stream on the live topic search:<id>, and a non-interactive one grabs on its own (admin)"),
+		fuego.OptionSummary("Start a search; results stream on the live topic search:<id>, and a non-interactive one grabs on its own (file managers)"),
 		fuego.OptionDefaultStatusCode(http.StatusCreated))
 	fuego.Get(s, "/acquisition/searches/{id}", c.get, tags, searchPath,
 		fuego.OptionOperationID("getSearch"),
-		fuego.OptionSummary("A search's cached state, for reconnect and refresh (admin)"))
+		fuego.OptionSummary("A search's cached state, for reconnect and refresh (file managers)"))
 	fuego.Delete(s, "/acquisition/searches/{id}", c.cancel, tags, searchPath,
 		fuego.OptionOperationID("cancelSearch"),
-		fuego.OptionSummary("Cancel a search's in-flight indexer queries (admin)"),
+		fuego.OptionSummary("Cancel a search's in-flight indexer queries (file managers)"),
 		fuego.OptionDefaultStatusCode(http.StatusNoContent))
 	fuego.Post(s, "/acquisition/searches/{id}/grab", c.grab, tags, searchPath,
 		fuego.OptionOperationID("grabRelease"),
-		fuego.OptionSummary("Grab a release from the search's cached results; override grabs a rejected one (admin)"),
+		fuego.OptionSummary("Grab a release from the search's cached results; override grabs a rejected one (file managers; override is admin)"),
 		fuego.OptionDefaultStatusCode(http.StatusAccepted))
 }
 
 func (c *SearchController) start(ctx fuego.ContextWithBody[StartSearchRequest]) (SearchResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
-		return SearchResponse{}, err
-	}
 	body, err := ctx.Body()
 	if err != nil {
+		return SearchResponse{}, err
+	}
+	if err := c.gate.Require(ctx.Context(), body.Title); err != nil {
 		return SearchResponse{}, err
 	}
 	trigger := api.TriggerUserAuto
@@ -137,36 +140,51 @@ func (c *SearchController) start(ctx fuego.ContextWithBody[StartSearchRequest]) 
 }
 
 func (c *SearchController) get(ctx fuego.ContextNoBody) (SearchResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
-		return SearchResponse{}, err
-	}
-	snapshot, err := c.searches.Search(domain.SearchID(ctx.PathParam(pathSearchID)))
+	snapshot, err := c.managedSearch(ctx.Context(), domain.SearchID(ctx.PathParam(pathSearchID)))
 	if err != nil {
-		return SearchResponse{}, searchProblem(err)
+		return SearchResponse{}, err
 	}
 	return searchResponse(snapshot), nil
 }
 
 func (c *SearchController) cancel(ctx fuego.ContextNoBody) (any, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+	snapshot, err := c.managedSearch(ctx.Context(), domain.SearchID(ctx.PathParam(pathSearchID)))
+	if err != nil {
 		return nil, err
 	}
-	return nil, searchProblem(c.searches.Cancel(domain.SearchID(ctx.PathParam(pathSearchID))))
+	return nil, searchProblem(c.searches.Cancel(snapshot.ID))
 }
 
 func (c *SearchController) grab(ctx fuego.ContextWithBody[GrabRequest]) (GrabResponse, error) {
-	if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
-		return GrabResponse{}, err
-	}
 	body, err := ctx.Body()
 	if err != nil {
 		return GrabResponse{}, err
 	}
-	result, err := c.downloads.Grab(ctx.Context(), domain.SearchID(ctx.PathParam(pathSearchID)), body.ReleaseID, body.Override)
+	if body.Override {
+		if err := httpserver.RequireAdmin(ctx.Context()); err != nil {
+			return GrabResponse{}, err
+		}
+	}
+	snapshot, err := c.managedSearch(ctx.Context(), domain.SearchID(ctx.PathParam(pathSearchID)))
+	if err != nil {
+		return GrabResponse{}, err
+	}
+	result, err := c.downloads.Grab(ctx.Context(), snapshot.ID, body.ReleaseID, body.Override)
 	if err != nil {
 		return GrabResponse{}, searchProblem(err)
 	}
 	return GrabResponse(result), nil
+}
+
+func (c *SearchController) managedSearch(ctx context.Context, id domain.SearchID) (SearchSnapshot, error) {
+	if err := access.RequireManager(ctx); err != nil {
+		return SearchSnapshot{}, err
+	}
+	snapshot, err := c.searches.Search(id)
+	if err != nil {
+		return SearchSnapshot{}, searchProblem(err)
+	}
+	return snapshot, c.gate.Require(ctx, snapshot.Title)
 }
 
 func searchProblem(err error) error {

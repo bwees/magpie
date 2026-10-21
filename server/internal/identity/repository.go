@@ -41,6 +41,7 @@ type userRow struct {
 	AutoApproveTV      bool `gorm:"column:auto_approve_tv"`
 	ViewOthersRequests bool
 	ReportIssues       bool
+	ManageFiles        bool
 	Disabled           bool
 	CreatedAt          time.Time
 	LastLoginAt        *time.Time
@@ -62,6 +63,7 @@ func (r userRow) user() api.User {
 			AutoApproveTV:      r.AutoApproveTV,
 			ViewOthersRequests: r.ViewOthersRequests,
 			ReportIssues:       r.ReportIssues,
+			ManageFiles:        r.ManageFiles,
 		},
 	}
 	if u.IsAdmin() {
@@ -85,6 +87,7 @@ func (r userRow) with(change UserChange) userRow {
 		&r.AutoApproveTV:      change.AutoApproveTV,
 		&r.ViewOthersRequests: change.ViewOthersRequests,
 		&r.ReportIssues:       change.ReportIssues,
+		&r.ManageFiles:        change.ManageFiles,
 		&r.Disabled:           change.Disabled,
 	} {
 		if value != nil {
@@ -110,11 +113,12 @@ func rowFromUser(u api.User) userRow {
 		AutoApproveTV:      u.Permissions.AutoApproveTV,
 		ViewOthersRequests: u.Permissions.ViewOthersRequests,
 		ReportIssues:       u.Permissions.ReportIssues,
+		ManageFiles:        u.Permissions.ManageFiles,
 		Disabled:           u.Disabled,
 	}
 }
 
-var allPermissions = api.Permissions{AutoApproveMovies: true, AutoApproveTV: true, ViewOthersRequests: true, ReportIssues: true}
+var allPermissions = api.Permissions{AutoApproveMovies: true, AutoApproveTV: true, ViewOthersRequests: true, ReportIssues: true, ManageFiles: true}
 
 type sessionRow struct {
 	TokenHash  string `gorm:"primaryKey"`
@@ -275,6 +279,7 @@ func (r *Repository) saveAccess(tx *gorm.DB, row userRow) error {
 		"auto_approve_tv":      row.AutoApproveTV,
 		"view_others_requests": row.ViewOthersRequests,
 		"report_issues":        row.ReportIssues,
+		"manage_files":         row.ManageFiles,
 		"disabled":             row.Disabled,
 	}).Error
 }

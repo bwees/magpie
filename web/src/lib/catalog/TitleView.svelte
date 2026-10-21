@@ -14,10 +14,12 @@
 	import TitleSettings from '$lib/catalog/TitleSettings.svelte';
 	import { TIMELINE_COLUMN_QUERY, TitleTab } from '$lib/catalog/layout';
 	import FileList from '$lib/library/FileList.svelte';
+	import { TitleAccess } from '$lib/library/title-access.svelte';
 	import { TitleFiles } from '$lib/library/title-files.svelte';
 	import { PageStatus, TitlePage } from '$lib/catalog/title-page.svelte';
 	import { getLive } from '$lib/live/live-client.svelte';
 	import { Route } from '$lib/navigation/nav';
+	import { getSession } from '$lib/session/session.svelte';
 
 	/** The parent keys this view on the id, so one view shows one title for its whole life. */
 	let { id }: { id: string } = $props();
@@ -32,6 +34,8 @@
 	const pipeline = new TitlePipeline(id, SDK_SOURCE);
 	// svelte-ignore state_referenced_locally
 	const files = new TitleFiles(id);
+	// svelte-ignore state_referenced_locally
+	const access = new TitleAccess(id, getSession().isAdmin);
 	/** The tab the user picked; until then the page opens on its default tab. */
 	let picked = $state<TitleTab | undefined>();
 	const defaultTab = $derived(
@@ -41,6 +45,7 @@
 
 	onMount(() => {
 		void title.load();
+		void access.load();
 		return title.watch(live);
 	});
 
@@ -87,7 +92,13 @@
 	</section>
 {:else}
 	<div class="flex flex-col gap-6">
-		<TitleHero title={title.title} {pipeline} posterUrl={title.posterUrl} tint={title.tint} />
+		<TitleHero
+			title={title.title}
+			{pipeline}
+			posterUrl={title.posterUrl}
+			tint={title.tint}
+			manageFiles={access.manageFiles}
+		/>
 
 		<div class="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_340px]">
 			<Tabs.Root
@@ -107,7 +118,7 @@
 				</Tabs.List>
 				{#if title.isSeries}
 					<Tabs.Content value={TitleTab.EPISODES} class="pt-4">
-						<EpisodesTab page={title} {pipeline} {files} />
+						<EpisodesTab page={title} {pipeline} {files} manageFiles={access.manageFiles} />
 					</Tabs.Content>
 				{/if}
 				<Tabs.Content value={TitleTab.TIMELINE} class="pt-4 lg:hidden">

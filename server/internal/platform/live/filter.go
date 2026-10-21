@@ -25,6 +25,7 @@ type viewerAccess struct {
 	admin              bool
 	disabled           bool
 	viewOthersRequests bool
+	manageFiles        bool
 }
 
 func (f RoleFilter) Allows(ctx context.Context, viewer domain.Principal, s scope) bool {
@@ -54,14 +55,28 @@ func (f RoleFilter) allows(ctx context.Context, viewer domain.Principal, access 
 	}
 }
 
-// seesTopics passes topic events, the interactive search results, to enabled admins only.
-func (a viewerAccess) seesTopics() bool {
-	return a.admin && !a.disabled
+// seesTopic passes topic events, the interactive search results, to enabled admins, and to file managers
+// when the search is for a title whose requests they may see.
+func (f RoleFilter) seesTopic(ctx context.Context, viewer domain.Principal, access viewerAccess, s scope) bool {
+	switch {
+	case access.disabled:
+		return false
+	case access.admin:
+		return true
+	case access.manageFiles:
+		return f.requestedAny(ctx, viewer.User, s.titles, access.viewOthersRequests)
+	default:
+		return false
+	}
 }
 
 func (f RoleFilter) access(ctx context.Context, viewer domain.Principal) (viewerAccess, error) {
 	if f.Identity == nil {
-		return viewerAccess{admin: viewer.Admin, viewOthersRequests: viewer.Permissions.ViewOthersRequests}, nil
+		return viewerAccess{
+			admin:              viewer.Admin,
+			viewOthersRequests: viewer.Permissions.ViewOthersRequests,
+			manageFiles:        viewer.Permissions.ManageFiles,
+		}, nil
 	}
 	user, err := f.Identity.User(ctx, viewer.User)
 	if err != nil {
@@ -71,6 +86,7 @@ func (f RoleFilter) access(ctx context.Context, viewer domain.Principal) (viewer
 		admin:              user.IsAdmin(),
 		disabled:           user.Disabled,
 		viewOthersRequests: user.Permissions.ViewOthersRequests,
+		manageFiles:        user.Permissions.ManageFiles,
 	}, nil
 }
 
