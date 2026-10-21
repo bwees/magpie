@@ -94,9 +94,17 @@ type seriesUpdate struct {
 // seriesChanges is what applySeries changed.
 type seriesChanges struct {
 	// episodes are all the series' episodes in the current numbering.
-	episodes []episodeRow
-	added    []episodeRow
-	moves    []api.EpisodeMove
+	episodes   []episodeRow
+	added      []episodeRow
+	moves      []api.EpisodeMove
+	unreleased []domain.EpisodeID
+}
+
+func (s *Service) publishUnreleased(tx *gorm.DB, title domain.TitleID, changes seriesChanges) error {
+	if len(changes.unreleased) == 0 {
+		return nil
+	}
+	return s.publish(tx, api.EpisodesUnreleased{Title: title, Episodes: changes.unreleased})
 }
 
 func (c seriesChanges) monitored() []domain.EpisodeID {
@@ -137,10 +145,13 @@ func (s *Service) applySeries(tx *gorm.DB, row titleRow, snap seriesSnapshot, up
 		index[e.TmdbEpisodeID] = i
 	}
 	now := s.now()
+	changes := seriesChanges{moves: []api.EpisodeMove{}}
 	for _, season := range snap.seasons {
 		for _, tmdb := range season.Episodes {
 			if i, ok := index[int64(tmdb.ID)]; ok {
-				applyEpisode(&episodes[i], tmdb, now)
+				if applyEpisode(&episodes[i], tmdb, now) {
+					changes.unreleased = append(changes.unreleased, domain.EpisodeID(episodes[i].ID))
+				}
 				continue
 			}
 			fresh := episodeRow{ID: string(domain.NewID[domain.EpisodeID]()), TitleID: row.ID, TmdbEpisodeID: int64(tmdb.ID)}
@@ -167,7 +178,6 @@ func (s *Service) applySeries(tx *gorm.DB, row titleRow, snap seriesSnapshot, up
 		return update.newSeason(number)
 	}
 
-	changes := seriesChanges{moves: []api.EpisodeMove{}}
 	for i := range episodes {
 		e := &episodes[i]
 		from, existed := before[e.ID]
@@ -224,16 +234,19 @@ func newSeasonID() string {
 	return ulid.Make().String()
 }
 
-// applyEpisode copies TMDB's metadata. A released episode whose air date moves into the future goes back
-// to unreleased, so the release clock releases it again on the new date.
-func applyEpisode(row *episodeRow, e TmdbEpisode, now time.Time) {
+// applyEpisode copies TMDB's metadata and reports whether it unreleased the episode. A released episode
+// whose air date moves into the future goes back to unreleased, so the release clock releases it again on
+// the new date.
+func applyEpisode(row *episodeRow, e TmdbEpisode, now time.Time) bool {
 	row.AiredSeason, row.AiredNumber = e.Season, e.Number
 	row.Name = e.Name
 	row.AirDate = utc(e.AirDate)
 	row.RuntimeMinutes = e.RuntimeMinutes
 	if row.Released && row.AirDate != nil && !airedBy(row.AirDate, now) {
 		row.Released, row.ReleasedAt = false, nil
+		return true
 	}
+	return false
 }
 
 // applySeriesMeta copies TMDB's series metadata onto a row.
@@ -425,6 +438,9 @@ func (s *Service) refreshSeries(ctx context.Context, row titleRow) error {
 		if err != nil {
 			return err
 		}
+		if err := s.publishUnreleased(tx, id, changes); err != nil {
+			return err
+		}
 		if len(changes.moves) > 0 || groupDropped {
 			if err := s.publish(tx, api.EpisodeGroupChanged{Title: id, GroupID: snap.groupID, Moves: changes.moves}); err != nil {
 				return err
@@ -478,6 +494,9 @@ func (s *Service) SelectEpisodeGroup(ctx context.Context, id domain.TitleID, gro
 			}
 			changes, err := s.applySeries(tx, current, snap, seriesUpdate{newSeason: futureSeasons(current)})
 			if err != nil {
+				return err
+			}
+			if err := s.publishUnreleased(tx, id, changes); err != nil {
 				return err
 			}
 			if err := s.publish(tx, api.EpisodeGroupChanged{Title: id, GroupID: groupID, Moves: changes.moves}); err != nil {

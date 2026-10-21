@@ -222,6 +222,26 @@ func TestNoReleasesIsNotAFailedSearch(t *testing.T) {
 	assertStage(t, h.row(title), api.StageRequested, false, detailNoReleases)
 }
 
+func TestUnreleasedEpisodeIsNoLongerSearching(t *testing.T) {
+	h := newHarness(t)
+	title, episodes := h.series([2]int{1, 1}, [2]int{1, 2})
+	search := domain.NewID[domain.SearchID]()
+	h.deliver(titleAdded(title, domain.MediaKindSeries, episodes...))
+	h.deliver(acquisitionapi.SearchStarted{Search: search, Title: title, Episodes: episodes})
+	h.deliver(acquisitionapi.SearchCompleted{Search: search, Title: title, Outcome: acquisitionapi.OutcomeNothingAccepted})
+
+	h.deliver(catalogapi.EpisodesUnreleased{Title: title, Episodes: episodes[1:]})
+
+	for _, row := range h.pipeline(title) {
+		switch *row.Episode {
+		case episodes[0]:
+			assertStage(t, row, api.StageSearching, true, detailNoAcceptedRelease)
+		case episodes[1]:
+			assertStage(t, row, api.StageRequested, false, "")
+		}
+	}
+}
+
 // Seed 8.
 func TestOlderEventArrivingLateIsIgnored(t *testing.T) {
 	h := newHarness(t)

@@ -15,6 +15,7 @@ const (
 	TypeLanguagesChanged    = "catalog.LanguagesChanged"
 	TypeEpisodesAnnounced   = "catalog.EpisodesAnnounced"
 	TypeWantedReleased      = "catalog.WantedReleased"
+	TypeEpisodesUnreleased  = "catalog.EpisodesUnreleased"
 	TypeEpisodeGroupChanged = "catalog.EpisodeGroupChanged"
 	TypeTitleRemoved        = "catalog.TitleRemoved"
 )
@@ -138,6 +139,16 @@ func (WantedReleased) Type() string          { return TypeWantedReleased }
 func (e WantedReleased) AggregateID() string { return string(e.Title) }
 func (WantedReleased) Durable() bool         { return true }
 
+// EpisodesUnreleased is durable: a refresh moved released episodes' air dates into the future.
+type EpisodesUnreleased struct {
+	Title    domain.TitleID     `json:"title"`
+	Episodes []domain.EpisodeID `json:"episodes"`
+}
+
+func (EpisodesUnreleased) Type() string          { return TypeEpisodesUnreleased }
+func (e EpisodesUnreleased) AggregateID() string { return string(e.Title) }
+func (EpisodesUnreleased) Durable() bool         { return true }
+
 // EpisodeGroupChanged is durable: the numbering of a series changed.
 type EpisodeGroupChanged struct {
 	Title   domain.TitleID `json:"title"`
@@ -178,6 +189,7 @@ func Messages() []domain.Message {
 		LanguagesChanged{},
 		EpisodesAnnounced{},
 		WantedReleased{},
+		EpisodesUnreleased{},
 		EpisodeGroupChanged{},
 		TitleRemoved{},
 	}

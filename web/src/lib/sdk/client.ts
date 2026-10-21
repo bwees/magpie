@@ -1422,6 +1422,10 @@ export type EpisodesAnnounced = {
     episodes: EpisodeRef[] | null;
     title: string;
 };
+export type EpisodesUnreleased = {
+    episodes: string[] | null;
+    title: string;
+};
 export type ExternalIDs = {
     imdb?: string;
     tmdb: number;

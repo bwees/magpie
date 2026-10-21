@@ -142,6 +142,7 @@ type Event struct {
 | `catalog.ScanFolderMatched` | Catalog | folder, title | Library → link files in place |
 | `catalog.EpisodesAnnounced` | Catalog | title, episodes | Acquisition → RSS eligibility; Requests → add items in scope |
 | `catalog.WantedReleased` | Catalog | title, episodes (release point reached) | Acquisition → search; Requests → add items |
+| `catalog.EpisodesUnreleased` | Catalog | title, episodes (a refresh moved their air dates into the future) | Activity → pipeline rows stop showing a search |
 | `catalog.EpisodeGroupChanged` | Catalog | title, old→new numbering | Library → rename/re-link files, `FileRenamed` per moved file |
 | `catalog.TitleRemoved` | Catalog | title, deleteFiles | Acquisition → cancel; Library → delete/unlink + `FileDeleted`; Transcode → cancel jobs; Requests → close issues; Activity → drop timeline |
 | `requests.RequestCreated` | Requests | request, user, kind, tmdb, scope (pending only) | Activity → admin notification + attention item |

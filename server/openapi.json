@@ -1531,6 +1531,28 @@
 				],
 				"type": "object"
 			},
+			"EpisodesUnreleased": {
+				"description": "EpisodesUnreleased schema",
+				"properties": {
+					"episodes": {
+						"items": {
+							"type": "string"
+						},
+						"type": [
+							"array",
+							"null"
+						]
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"episodes",
+					"title"
+				],
+				"type": "object"
+			},
 			"ErrorItem": {
 				"properties": {
 					"more": {

@@ -401,6 +401,10 @@ func TestRefreshUnreleasesAnEpisodeWhoseAirDateMovesIntoTheFuture(t *testing.T) 
 	if got, _ := h.repo.Episode(context.Background(), episode.ID); got.Released {
 		t.Error("still released after its air date moved a week out")
 	}
+	unreleased := events[api.EpisodesUnreleased](h)
+	if len(unreleased) != 1 || !slices.Equal(unreleased[0].Episodes, []domain.EpisodeID{episode.ID}) {
+		t.Errorf("EpisodesUnreleased = %+v, want one for %s", unreleased, episode.ID)
+	}
 	h.clock.Advance(week - day)
 	h.runTask(catalog.ReleaseClockTask{})
 	if got, _ := h.repo.Episode(context.Background(), episode.ID); !got.Released {

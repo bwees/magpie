@@ -78,6 +78,12 @@ func init() {
 		return changes
 	})
 
+	onPipeline(func(e catalogapi.EpisodesUnreleased) []pipelineChange {
+		return change(rowTarget{Title: e.Title, Episodes: e.Episodes}, func(f *facets) {
+			f.Search, f.Note = searchIdle, ""
+		})
+	})
+
 	onPipeline(func(e acquisitionapi.SearchStarted) []pipelineChange {
 		return change(rowTarget{Title: e.Title, Episodes: e.Episodes}, func(f *facets) {
 			f.Search, f.Note = searchRunning, ""

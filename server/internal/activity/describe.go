@@ -221,6 +221,9 @@ func init() {
 		}
 		return description{subject: titled(e.Title, e.Episodes...), Text: plural(len(e.Episodes), "episode released", "episodes released")}
 	})
+	on(func(e catalogapi.EpisodesUnreleased) description {
+		return description{subject: titled(e.Title, e.Episodes...), Text: plural(len(e.Episodes), "episode's air date moved later", "episodes' air dates moved later")}
+	})
 	on(func(e catalogapi.EpisodeGroupChanged) description {
 		return description{subject: titled(e.Title), Text: "Episode order changed"}
 	})
