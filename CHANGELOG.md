@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/bwees/magpie/compare/v0.7.1...v0.7.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **activity:** reset the pipeline when an episode's air date moves later ([e5008d9](https://github.com/bwees/magpie/commit/e5008d9f4332aab4dd2fac0c9733804cdb76d530))
+
 ## [0.7.1](https://github.com/bwees/magpie/compare/v0.7.0...v0.7.1) (2026-10-21)
 
 
