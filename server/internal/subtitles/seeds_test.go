@@ -526,6 +526,7 @@ func TestSearchStopsWhenTheJobIsCancelled(t *testing.T) {
 			done <- err
 		}
 	}()
+	<-h.os.Entered(fakes.OpenSubtitlesSearch)
 	cancel()
 	select {
 	case err := <-done:

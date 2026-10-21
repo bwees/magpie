@@ -19,6 +19,7 @@ type Script struct {
 	queued    map[Method][]error
 	always    map[Method]error
 	calls     []Method
+	entered   map[Method]chan struct{}
 }
 
 // Delay makes every call wait d before it runs.
@@ -70,11 +71,33 @@ func (s *Script) Called(m Method) int {
 	return len(slices.DeleteFunc(s.Calls(), func(c Method) bool { return c != m }))
 }
 
+// Entered returns a channel that closes once m has been called.
+func (s *Script) Entered(m Method) <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.entered == nil {
+		s.entered = map[Method]chan struct{}{}
+	}
+	ch, ok := s.entered[m]
+	if !ok {
+		ch = make(chan struct{})
+		s.entered[m] = ch
+		if slices.Contains(s.calls, m) {
+			close(ch)
+		}
+	}
+	return ch
+}
+
 // Enter starts a call to m: it records the call, waits out the latency and returns the scripted error.
 // A cancelled ctx ends the wait early with ctx.Err().
 func (s *Script) Enter(ctx context.Context, m Method) error {
 	s.mu.Lock()
+	first := !slices.Contains(s.calls, m)
 	s.calls = append(s.calls, m)
+	if ch, ok := s.entered[m]; ok && first {
+		close(ch)
+	}
 	wait := s.latency
 	if d, ok := s.perMethod[m]; ok {
 		wait = d
