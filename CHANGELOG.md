@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/bwees/magpie/compare/v0.7.2...v0.8.0) (2026-10-28)
+
+
+### Features
+
+* add manage files permission for requesters ([21f7993](https://github.com/bwees/magpie/commit/21f7993b5c67788bc287c981126d965d4a3cd9f2))
+
 ## [0.7.2](https://github.com/bwees/magpie/compare/v0.7.1...v0.7.2) (2026-10-21)
 
 
