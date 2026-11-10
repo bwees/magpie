@@ -73,6 +73,7 @@ type TitleUpdate struct {
 	Profile              *domain.ProfileID
 	Monitored            *bool
 	MonitorFutureSeasons *bool
+	AllowUpgrades        *bool
 }
 
 // DiscoverItem is one TMDB result, marked with its Title when it's already in the library.
@@ -608,6 +609,9 @@ func (s *Service) updateTitle(tx *gorm.DB, id domain.TitleID, update TitleUpdate
 	}
 	if update.MonitorFutureSeasons != nil {
 		row.MonitorFutureSeasons = *update.MonitorFutureSeasons
+	}
+	if update.AllowUpgrades != nil {
+		row.AllowUpgrades = *update.AllowUpgrades
 	}
 	if err := s.repo.saveTitle(tx, row); err != nil {
 		return err

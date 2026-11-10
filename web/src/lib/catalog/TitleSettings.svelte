@@ -19,7 +19,17 @@
 		LanguageSource
 	} from './title-settings.svelte';
 
-	let { page, onRemoved }: { page: TitlePage; onRemoved: () => void } = $props();
+	let {
+		page,
+		onRemoved,
+		onUpgradesChanged
+	}: { page: TitlePage; onRemoved: () => void; onUpgradesChanged: () => void } = $props();
+
+	async function setAllowUpgrades(allowed: boolean) {
+		if (await page.setAllowUpgrades(allowed)) {
+			onUpgradesChanged();
+		}
+	}
 
 	const order = $derived(new EpisodeOrder(page));
 	const languages = $derived(new LanguageOverride(page));
@@ -67,6 +77,20 @@
 				id="title-monitored"
 				checked={page.title.monitored}
 				onCheckedChange={(checked) => page.setMonitored(checked)}
+			/>
+		</div>
+
+		<div class="flex items-center justify-between gap-4">
+			<div>
+				<label for="title-allow-upgrades" class="text-sm font-medium">Always upgrade</label>
+				<p class="text-xs text-muted-foreground">
+					Keep upgrading this title when upgrades are off in Settings → Quality
+				</p>
+			</div>
+			<Switch
+				id="title-allow-upgrades"
+				checked={page.title.allowUpgrades}
+				onCheckedChange={setAllowUpgrades}
 			/>
 		</div>
 

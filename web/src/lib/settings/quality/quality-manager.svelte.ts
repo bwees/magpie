@@ -138,6 +138,16 @@ export class QualitySettingsManager {
 		}
 	}
 
+	async setUpgrades(enabled: boolean) {
+		if (!this.settings) {
+			return;
+		}
+		this.settings.upgradesEnabled = enabled;
+		if (!(await this.saveSettings()) && this.settings) {
+			this.settings.upgradesEnabled = !enabled;
+		}
+	}
+
 	async saveSettings(): Promise<boolean> {
 		if (!this.settings) {
 			return false;

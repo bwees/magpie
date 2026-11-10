@@ -180,7 +180,7 @@ func newSearchFixture(t *testing.T) searchFixture {
 		Store: store, Bus: b, Jobs: f.jobs, Searches: registry,
 	}
 	f = f.restarted()
-	f.cutoff = acquisition.NewCutoffService(acquisition.CutoffDeps{DB: d, Repo: repo, Catalog: f.catalog, Bus: b})
+	f.cutoff = acquisition.NewCutoffService(acquisition.CutoffDeps{DB: d, Repo: repo, Catalog: f.catalog, Store: store, Bus: b})
 	return f
 }
 

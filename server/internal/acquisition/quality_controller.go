@@ -1,6 +1,7 @@
 package acquisition
 
 import (
+	"cmp"
 	"errors"
 	"net/http"
 	"time"
@@ -160,6 +161,8 @@ type AcquisitionSettingsResponse struct {
 	DefaultDelayMinutes int              `json:"defaultDelayMinutes"`
 	SettleWindowSeconds int              `json:"settleWindowSeconds"`
 	TrashSyncEnabled    bool             `json:"trashSyncEnabled"`
+	// UpgradesEnabled off stops every automatic upgrade, except for titles that allow them.
+	UpgradesEnabled bool `json:"upgradesEnabled"`
 }
 
 type AcquisitionSettingsRequest struct {
@@ -167,6 +170,8 @@ type AcquisitionSettingsRequest struct {
 	DefaultDelayMinutes int              `json:"defaultDelayMinutes"`
 	SettleWindowSeconds int              `json:"settleWindowSeconds"`
 	TrashSyncEnabled    bool             `json:"trashSyncEnabled"`
+	// UpgradesEnabled left out keeps the current value.
+	UpgradesEnabled *bool `json:"upgradesEnabled,omitempty"`
 }
 
 // QualityController serves Settings → Quality and the profile pickers.
@@ -455,11 +460,16 @@ func (c *QualityController) updateSettings(ctx fuego.ContextWithBody[Acquisition
 	if err != nil {
 		return AcquisitionSettingsResponse{}, err
 	}
+	current, err := c.quality.Settings(ctx.Context())
+	if err != nil {
+		return AcquisitionSettingsResponse{}, err
+	}
 	cfg, err := c.quality.UpdateSettings(ctx.Context(), QualitySettings{
 		DefaultProfile:   body.DefaultProfileID,
 		DefaultDelay:     time.Duration(body.DefaultDelayMinutes) * time.Minute,
 		SettleWindow:     time.Duration(body.SettleWindowSeconds) * time.Second,
 		TrashSyncEnabled: body.TrashSyncEnabled,
+		UpgradesEnabled:  *cmp.Or(body.UpgradesEnabled, &current.UpgradesEnabled),
 	})
 	if err != nil {
 		return AcquisitionSettingsResponse{}, qualityProblem(err)
@@ -578,5 +588,6 @@ func settingsResponse(cfg QualitySettings) AcquisitionSettingsResponse {
 		DefaultDelayMinutes: int(cfg.DefaultDelay / time.Minute),
 		SettleWindowSeconds: int(cfg.SettleWindow / time.Second),
 		TrashSyncEnabled:    cfg.TrashSyncEnabled,
+		UpgradesEnabled:     cfg.UpgradesEnabled,
 	}
 }

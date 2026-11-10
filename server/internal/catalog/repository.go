@@ -50,6 +50,7 @@ type titleRow struct {
 	ProfileID            string
 	Monitored            bool
 	MonitorFutureSeasons bool
+	AllowUpgrades        bool
 	EpisodeGroupID       string
 	LanguagesOverride    *string
 	Origin               string
@@ -531,6 +532,7 @@ func (row titleRow) toAPI() (api.Title, error) {
 		Profile:              domain.ProfileID(row.ProfileID),
 		Monitored:            row.Monitored,
 		MonitorFutureSeasons: row.MonitorFutureSeasons,
+		AllowUpgrades:        row.AllowUpgrades,
 		EpisodeGroupID:       row.EpisodeGroupID,
 		Dates:                row.releaseDates(),
 		Released:             row.Released,

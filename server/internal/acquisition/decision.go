@@ -153,14 +153,16 @@ type decisionInput struct {
 	// Languages are the title's wanted languages, beside its original language.
 	Languages []domain.Language
 	// Removed are downloads the user removed for this search; Queue and History leave them out.
-	Removed   []domain.DownloadID
-	Profile   ScoringProfile
-	Files     []existingFile
-	Blocklist []api.BlocklistEntry
-	Queue     []activeGrab
-	History   []activeGrab
-	Pending   []activeGrab
-	Delay     time.Duration
+	Removed []domain.DownloadID
+	Profile ScoringProfile
+	// UpgradesDisabled rejects every release that would replace an existing file.
+	UpgradesDisabled bool
+	Files            []existingFile
+	Blocklist        []api.BlocklistEntry
+	Queue            []activeGrab
+	History          []activeGrab
+	Pending          []activeGrab
+	Delay            time.Duration
 	// MaxScore is the profile's maximum attainable CF score: the early-grab and delay-bypass threshold.
 	MaxScore int
 	// MaximumSize is the global size cap in bytes; 0 means none.
@@ -212,8 +214,9 @@ var tierOne = []specification{
 }
 
 // grabTimeSpecs run again right before an automatic grab, on the blocklist and downloads as they are then, so
-// a search doesn't grab what another search grabbed or blocklisted since it started.
+// a search doesn't grab what another search grabbed or blocklisted, or an upgrade turned off, since it started.
 var grabTimeSpecs = []specification{
+	{upgradeTriggers, upgradable},
 	{allTriggers, blocklisted},
 	{allTriggers, queued},
 	{rssTriggers, history},
@@ -575,7 +578,11 @@ func (in *decisionInput) replacedFiles(c candidate) []existingFile {
 }
 
 func upgradable(c candidate, in *decisionInput) (api.Rejection, bool) {
-	for _, f := range in.replacedFiles(c) {
+	replaced := in.replacedFiles(c)
+	if in.UpgradesDisabled && len(replaced) > 0 {
+		return permanent(api.RejectUpgradeNotAllowed, "Upgrades are turned off"), true
+	}
+	for _, f := range replaced {
 		if rejection, rejected := upgradeRejection(in.Profile.Profile(), c.Eval, f); rejected {
 			return rejection, true
 		}

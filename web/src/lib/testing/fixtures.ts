@@ -34,6 +34,7 @@ export function title(overrides: Partial<TitleResponse> = {}): TitleResponse {
 		languagesOverride: null,
 		monitored: true,
 		monitorFutureSeasons: false,
+		allowUpgrades: false,
 		origin: 'REQUEST',
 		originalLanguage: 'en',
 		profileId: 'P1',

@@ -434,6 +434,8 @@ How the specs read their inputs:
 
 A file with `transcoded = true` is never upgraded automatically; only REGRAB or an interactive grab replaces it.
 
+With the global Upgrades setting off, every release that would replace a file is rejected (`UPGRADE_NOT_ALLOWED`) before the rule above, propers included, unless the Title has `allowUpgrades`. The cutoff-unmet sweep skips those titles, and `/cutoff` reports `upgradesAllowed = false` for their files.
+
 **Cutoff met** = quality ≥ cutoff AND CF score ≥ upgrade-until. Evaluated on every `FileImported`, on `ProfileChanged` for that Title, and when a profile's contents change (re-evaluated for files using it, emitting `CutoffMet` for newly met files). The resolution presets set upgrade-until to 0, so reaching the resolution is enough.
 - Editing or deleting a profile queues the job `acquisition.rescore-files` for the files scored under it. Editing or deleting a custom format, blocking a term and a TRaSH sync queue it for every file. The job rescores one title per transaction from each row's stored release name (else path), quality and size.
 - A transcoded file keeps its original score and is never published again.

@@ -26,7 +26,7 @@ Knows what exists (from TMDB) and what is wanted: Titles, seasons, episodes, the
 
 | Table | Key columns |
 |---|---|
-| `catalog_titles` | `id`, `kind`, `tmdbId` (unique per kind), `tvdbId?`, `imdbId?`, `externalIdSource` (`TMDB` \| `IMPORT`), `name`, `originalName`, `aliases` JSON, `year`, `overview`, `originalLanguage`, `runtimeMinutes?`, `seriesStatus?` (`CONTINUING` \| `ENDED`), `profileId`, `monitored`, `monitorFutureSeasons`, `episodeGroupId?`, `languagesOverride?` JSON, `origin`, `requestedBy?`, `requestId?` (the request that created it; a redelivered request is a no-op), `addedAt`, `metadataRefreshedAt`, `releaseDigitalAt?`, `releasePhysicalAt?`, `releaseTheatricalAt?`, `released`, `releasedAt?` |
+| `catalog_titles` | `id`, `kind`, `tmdbId` (unique per kind), `tvdbId?`, `imdbId?`, `externalIdSource` (`TMDB` \| `IMPORT`), `name`, `originalName`, `aliases` JSON, `year`, `overview`, `originalLanguage`, `runtimeMinutes?`, `seriesStatus?` (`CONTINUING` \| `ENDED`), `profileId`, `monitored`, `monitorFutureSeasons`, `allowUpgrades` (upgrades this Title while they are off globally), `episodeGroupId?`, `languagesOverride?` JSON, `origin`, `requestedBy?`, `requestId?` (the request that created it; a redelivered request is a no-op), `addedAt`, `metadataRefreshedAt`, `releaseDigitalAt?`, `releasePhysicalAt?`, `releaseTheatricalAt?`, `released`, `releasedAt?` |
 | `catalog_seasons` | `id`, `titleId`, `number` (in the current numbering), `monitored` |
 | `catalog_episodes` | `id`, `titleId`, `tmdbEpisodeId` (unique), `seasonNumber`, `episodeNumber` (current numbering), `airedSeason`, `airedNumber` (TMDB aired order), `name`, `airDate?`, `runtimeMinutes?`, `monitored`, `released`, `releasedAt?` |
 | `catalog_images` | `titleId`, `kind` (`POSTER` \| `BACKDROP` \| `LOGO`), `tmdbPath`, `localPath`, `fetchedAt` |
@@ -274,7 +274,7 @@ Routes under `/api/catalog`. Schemas come from fuego's OpenAPI.
   - Each series also carries `seasonCount` (numbered seasons, no specials), `wantedEpisodeCount` (monitored, released episodes; 0 when the series is unmonitored) and `nextEpisode` (`season`, `number`, `airDate` of the first announced, unreleased episode; left out when there is none). Movies have 0, 0 and no `nextEpisode`. The TV page reads them.
   - Catalog can't read Activity, so there is no activity sort: Home's "Recently active" order comes from `GET /api/activity/pipeline?recent=true`, and its names and posters from `GET /titles?ids=`.
 - `GET /titles/{id}` one Title with seasons and episodes.
-- `PATCH /titles/{id}` set `profileId`, `monitored`, `monitorFutureSeasons` (admin).
+- `PATCH /titles/{id}` set `profileId`, `monitored`, `monitorFutureSeasons`, `allowUpgrades` (admin).
 - `PATCH /titles/{id}/seasons/{n}` set season monitoring (admin).
 - `PATCH /titles/{id}/episodes/{episodeId}` set episode monitoring (admin).
 - `GET /titles/{id}/episode-groups` list TMDB episode groups for a series.

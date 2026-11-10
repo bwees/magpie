@@ -130,28 +130,30 @@ type SeasonResponse struct {
 }
 
 type TitleResponse struct {
-	ID                   domain.TitleID       `json:"id" validate:"required"`
-	Kind                 domain.MediaKind     `json:"kind" validate:"required"`
-	TmdbID               domain.TmdbID        `json:"tmdbId" validate:"required"`
-	TvdbID               *string              `json:"tvdbId"`
-	ImdbID               *string              `json:"imdbId"`
-	Name                 string               `json:"name" validate:"required"`
-	OriginalName         string               `json:"originalName" validate:"required"`
-	Overview             string               `json:"overview" validate:"required"`
-	Year                 int                  `json:"year" validate:"required"`
-	RuntimeMinutes       int                  `json:"runtimeMinutes" validate:"required"`
-	OriginalLanguage     domain.Language      `json:"originalLanguage" validate:"required"`
-	SeriesStatus         string               `json:"seriesStatus" validate:"required"`
-	ProfileID            domain.ProfileID     `json:"profileId" validate:"required"`
-	Monitored            bool                 `json:"monitored" validate:"required"`
-	MonitorFutureSeasons bool                 `json:"monitorFutureSeasons" validate:"required"`
-	Released             bool                 `json:"released" validate:"required"`
-	ReleasedAt           *time.Time           `json:"releasedAt"`
-	ReleaseDates         ReleaseDatesResponse `json:"releaseDates" validate:"required"`
-	Origin               domain.Origin        `json:"origin" validate:"required"`
-	RequestedBy          *domain.UserID       `json:"requestedBy"`
-	AddedAt              time.Time            `json:"addedAt" validate:"required"`
-	Images               TitleImagesResponse  `json:"images" validate:"required"`
+	ID                   domain.TitleID   `json:"id" validate:"required"`
+	Kind                 domain.MediaKind `json:"kind" validate:"required"`
+	TmdbID               domain.TmdbID    `json:"tmdbId" validate:"required"`
+	TvdbID               *string          `json:"tvdbId"`
+	ImdbID               *string          `json:"imdbId"`
+	Name                 string           `json:"name" validate:"required"`
+	OriginalName         string           `json:"originalName" validate:"required"`
+	Overview             string           `json:"overview" validate:"required"`
+	Year                 int              `json:"year" validate:"required"`
+	RuntimeMinutes       int              `json:"runtimeMinutes" validate:"required"`
+	OriginalLanguage     domain.Language  `json:"originalLanguage" validate:"required"`
+	SeriesStatus         string           `json:"seriesStatus" validate:"required"`
+	ProfileID            domain.ProfileID `json:"profileId" validate:"required"`
+	Monitored            bool             `json:"monitored" validate:"required"`
+	MonitorFutureSeasons bool             `json:"monitorFutureSeasons" validate:"required"`
+	// AllowUpgrades keeps upgrading this title while upgrades are turned off in Settings → Quality.
+	AllowUpgrades bool                 `json:"allowUpgrades" validate:"required"`
+	Released      bool                 `json:"released" validate:"required"`
+	ReleasedAt    *time.Time           `json:"releasedAt"`
+	ReleaseDates  ReleaseDatesResponse `json:"releaseDates" validate:"required"`
+	Origin        domain.Origin        `json:"origin" validate:"required"`
+	RequestedBy   *domain.UserID       `json:"requestedBy"`
+	AddedAt       time.Time            `json:"addedAt" validate:"required"`
+	Images        TitleImagesResponse  `json:"images" validate:"required"`
 	// EpisodeGroupID is the TMDB episode group numbering the episodes; "" is aired order.
 	EpisodeGroupID string `json:"episodeGroupId" validate:"required"`
 	// LanguagesOverride is null when the Title uses the global wanted languages.
@@ -223,6 +225,7 @@ type UpdateTitleRequest struct {
 	ProfileID            *domain.ProfileID `json:"profileId,omitempty"`
 	Monitored            *bool             `json:"monitored,omitempty"`
 	MonitorFutureSeasons *bool             `json:"monitorFutureSeasons,omitempty"`
+	AllowUpgrades        *bool             `json:"allowUpgrades,omitempty"`
 }
 
 type RefreshTitleResponse struct {
@@ -478,7 +481,10 @@ func (c *Controller) updateTitle(ctx fuego.ContextWithBody[UpdateTitleRequest]) 
 	if err != nil {
 		return TitleResponse{}, err
 	}
-	update := TitleUpdate{Profile: body.ProfileID, Monitored: body.Monitored, MonitorFutureSeasons: body.MonitorFutureSeasons}
+	update := TitleUpdate{
+		Profile: body.ProfileID, Monitored: body.Monitored,
+		MonitorFutureSeasons: body.MonitorFutureSeasons, AllowUpgrades: body.AllowUpgrades,
+	}
 	view, err := c.service.UpdateTitle(ctx.Context(), domain.TitleID(ctx.PathParam(pathTitleID)), update)
 	if err != nil {
 		return TitleResponse{}, titleError(err)
@@ -778,6 +784,7 @@ func titleResponse(v TitleView) TitleResponse {
 		ProfileID:            v.Profile,
 		Monitored:            v.Monitored,
 		MonitorFutureSeasons: v.MonitorFutureSeasons,
+		AllowUpgrades:        v.AllowUpgrades,
 		Released:             v.Released,
 		ReleasedAt:           v.ReleasedAt,
 		ReleaseDates:         ReleaseDatesResponse(v.Dates),

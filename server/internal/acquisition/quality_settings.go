@@ -1,8 +1,10 @@
 package acquisition
 
 import (
+	"context"
 	"time"
 
+	catalogapi "magpie/internal/catalog/api"
 	"magpie/internal/domain"
 	"magpie/internal/platform/owner"
 	"magpie/internal/platform/settings"
@@ -22,6 +24,7 @@ var (
 	DefaultDelayKey     = settings.NewKey(owner.Acquisition, "defaultDelay", settings.Duration(MinDefaultDelay))
 	SettleWindowKey     = settings.NewKey(owner.Acquisition, "settleWindow", settings.Duration(DefaultSettleWindow))
 	TrashSyncEnabledKey = settings.NewKey(owner.Acquisition, "trashSyncEnabled", true)
+	UpgradesEnabledKey  = settings.NewKey(owner.Acquisition, "upgradesEnabled", true)
 
 	trashSyncStateKey = settings.NewKey(owner.Acquisition, "trashSyncState", TrashSyncState{})
 	presetsSeededKey  = settings.NewKey(owner.Acquisition, "presetsSeeded", false)
@@ -33,6 +36,16 @@ type QualitySettings struct {
 	DefaultDelay     time.Duration
 	SettleWindow     time.Duration
 	TrashSyncEnabled bool
+	// UpgradesEnabled off stops every automatic upgrade, except for titles that allow them.
+	UpgradesEnabled bool
+}
+
+// titleUpgradesEnabled reports whether automatic upgrades may replace the title's files.
+func titleUpgradesEnabled(ctx context.Context, store *settings.Store, title catalogapi.Title) (bool, error) {
+	if title.AllowUpgrades {
+		return true, nil
+	}
+	return UpgradesEnabledKey.Get(ctx, store)
 }
 
 // TrashSyncState records the last TRaSH sync attempt.
