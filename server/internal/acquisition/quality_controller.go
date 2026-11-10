@@ -160,6 +160,8 @@ type AcquisitionSettingsResponse struct {
 	DefaultDelayMinutes int              `json:"defaultDelayMinutes"`
 	SettleWindowSeconds int              `json:"settleWindowSeconds"`
 	TrashSyncEnabled    bool             `json:"trashSyncEnabled"`
+	// UpgradesEnabled off stops every automatic upgrade, except for titles that allow them.
+	UpgradesEnabled bool `json:"upgradesEnabled"`
 }
 
 type AcquisitionSettingsRequest struct {
@@ -167,6 +169,7 @@ type AcquisitionSettingsRequest struct {
 	DefaultDelayMinutes int              `json:"defaultDelayMinutes"`
 	SettleWindowSeconds int              `json:"settleWindowSeconds"`
 	TrashSyncEnabled    bool             `json:"trashSyncEnabled"`
+	UpgradesEnabled     bool             `json:"upgradesEnabled"`
 }
 
 // QualityController serves Settings → Quality and the profile pickers.
@@ -460,6 +463,7 @@ func (c *QualityController) updateSettings(ctx fuego.ContextWithBody[Acquisition
 		DefaultDelay:     time.Duration(body.DefaultDelayMinutes) * time.Minute,
 		SettleWindow:     time.Duration(body.SettleWindowSeconds) * time.Second,
 		TrashSyncEnabled: body.TrashSyncEnabled,
+		UpgradesEnabled:  body.UpgradesEnabled,
 	})
 	if err != nil {
 		return AcquisitionSettingsResponse{}, qualityProblem(err)
@@ -578,5 +582,6 @@ func settingsResponse(cfg QualitySettings) AcquisitionSettingsResponse {
 		DefaultDelayMinutes: int(cfg.DefaultDelay / time.Minute),
 		SettleWindowSeconds: int(cfg.SettleWindow / time.Second),
 		TrashSyncEnabled:    cfg.TrashSyncEnabled,
+		UpgradesEnabled:     cfg.UpgradesEnabled,
 	}
 }

@@ -270,6 +270,11 @@ func (s *SearchService) decisionInput(ctx context.Context, req SearchRequest) (*
 	if in.Profile, err = s.deps.Quality.TitleProfile(ctx, title); err != nil {
 		return nil, searchTarget{}, err
 	}
+	upgrades, err := titleUpgradesEnabled(ctx, s.deps.Store, title)
+	if err != nil {
+		return nil, searchTarget{}, err
+	}
+	in.UpgradesDisabled = !upgrades
 	files, err := s.deps.Library.FilesForTitle(ctx, title.ID)
 	if err != nil {
 		return nil, searchTarget{}, err

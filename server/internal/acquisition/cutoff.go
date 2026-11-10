@@ -11,6 +11,7 @@ import (
 	libraryapi "magpie/internal/library/api"
 	"magpie/internal/platform/bus"
 	"magpie/internal/platform/db"
+	"magpie/internal/platform/settings"
 
 	"go.uber.org/fx"
 	"gorm.io/gorm"
@@ -22,6 +23,7 @@ type CutoffDeps struct {
 	DB      *db.DB
 	Repo    *Repository
 	Catalog catalogapi.Reader
+	Store   *settings.Store
 	Bus     *bus.Bus
 }
 
@@ -154,5 +156,23 @@ func (s *CutoffService) save(tx *gorm.DB, before, after FileScore) error {
 
 // CutoffStatuses lists the cutoff state of a title's scored files for the title page.
 func (s *CutoffService) CutoffStatuses(ctx context.Context, title domain.TitleID) ([]api.CutoffStatus, error) {
-	return s.deps.Repo.CutoffStatuses(ctx, title)
+	statuses, err := s.deps.Repo.CutoffStatuses(ctx, title)
+	if err != nil {
+		return nil, err
+	}
+	t, err := s.deps.Catalog.Title(ctx, title)
+	if errors.Is(err, catalogapi.ErrNotFound) {
+		return statuses, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	upgrades, err := titleUpgradesEnabled(ctx, s.deps.Store, t)
+	if err != nil {
+		return nil, err
+	}
+	for i := range statuses {
+		statuses[i].UpgradesAllowed = statuses[i].UpgradesAllowed && upgrades
+	}
+	return statuses, nil
 }

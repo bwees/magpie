@@ -34,7 +34,8 @@ export enum MediaKind {
 /** Switches on the Title itself. */
 enum TitleFlag {
 	MONITORED = 'monitored',
-	MONITOR_FUTURE_SEASONS = 'monitorFutureSeasons'
+	MONITOR_FUTURE_SEASONS = 'monitorFutureSeasons',
+	ALLOW_UPGRADES = 'allowUpgrades'
 }
 
 /** Catalog events that change what the title page shows. */
@@ -139,6 +140,11 @@ export class TitlePage {
 	/** Whether seasons TMDB announces later start monitored. */
 	setMonitorFutureSeasons(monitored: boolean): Promise<void> {
 		return this.#setFlag(TitleFlag.MONITOR_FUTURE_SEASONS, monitored);
+	}
+
+	/** Whether this title keeps upgrading while upgrades are off in Settings → Quality. */
+	setAllowUpgrades(allowed: boolean): Promise<void> {
+		return this.#setFlag(TitleFlag.ALLOW_UPGRADES, allowed);
 	}
 
 	async #setFlag(flag: TitleFlag, value: boolean): Promise<void> {

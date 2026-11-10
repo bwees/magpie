@@ -130,6 +130,24 @@
 		</form>
 
 		<Card.Root>
+			<Card.Content class="flex items-center justify-between gap-4">
+				<div>
+					<div class="text-sm font-medium">Upgrades</div>
+					<div class="text-xs text-muted-foreground">
+						Replace files with better releases. When off, only titles set to allow upgrades are
+						upgraded.
+					</div>
+				</div>
+				<Switch
+					checked={settings.upgradesEnabled}
+					disabled={manager.savingSettings}
+					onCheckedChange={(checked) => manager.setUpgrades(checked)}
+					aria-label="Upgrade files automatically"
+				/>
+			</Card.Content>
+		</Card.Root>
+
+		<Card.Root>
 			<Card.Content class="grid gap-3">
 				<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div>

@@ -60,6 +60,7 @@ export interface SettingsDraft {
 	defaultDelayMinutes: NumberField;
 	settleWindowSeconds: NumberField;
 	trashSyncEnabled: boolean;
+	upgradesEnabled: boolean;
 }
 
 export function settingsDraft(settings: AcquisitionSettingsResponse): SettingsDraft {
@@ -89,7 +90,8 @@ export function settingsRequest(draft: SettingsDraft): AcquisitionSettingsReques
 		defaultProfileId: draft.defaultProfileId,
 		defaultDelayMinutes: draft.defaultDelayMinutes ?? LIMITS.DELAY_MINUTES.MIN,
 		settleWindowSeconds: draft.settleWindowSeconds ?? LIMITS.SETTLE_SECONDS.MIN,
-		trashSyncEnabled: draft.trashSyncEnabled
+		trashSyncEnabled: draft.trashSyncEnabled,
+		upgradesEnabled: draft.upgradesEnabled
 	};
 }
 

@@ -42,8 +42,10 @@ type Title struct {
 	Profile              domain.ProfileID
 	Monitored            bool
 	MonitorFutureSeasons bool
-	EpisodeGroupID       string // "" = TMDB aired order
-	Dates                ReleaseDates
+	// AllowUpgrades keeps upgrading this title while upgrades are turned off for the instance.
+	AllowUpgrades  bool
+	EpisodeGroupID string // "" = TMDB aired order
+	Dates          ReleaseDates
 	// Released follows the global "released" rule for movies; for series, any episode is released.
 	Released    bool
 	ReleasedAt  *time.Time

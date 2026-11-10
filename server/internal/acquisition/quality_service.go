@@ -421,6 +421,9 @@ func (s *QualityService) Settings(ctx context.Context) (QualitySettings, error) 
 	if cfg.TrashSyncEnabled, err = TrashSyncEnabledKey.Get(ctx, s.store); err != nil {
 		return cfg, err
 	}
+	if cfg.UpgradesEnabled, err = UpgradesEnabledKey.Get(ctx, s.store); err != nil {
+		return cfg, err
+	}
 	cfg.DefaultDelay, cfg.SettleWindow = delay.Std(), settle.Std()
 	return cfg, nil
 }
@@ -445,6 +448,7 @@ func (s *QualityService) UpdateSettings(ctx context.Context, cfg QualitySettings
 			DefaultDelayKey.SetTx(tx, settings.Duration(cfg.DefaultDelay)),
 			SettleWindowKey.SetTx(tx, settings.Duration(cfg.SettleWindow)),
 			TrashSyncEnabledKey.SetTx(tx, cfg.TrashSyncEnabled),
+			UpgradesEnabledKey.SetTx(tx, cfg.UpgradesEnabled),
 		)
 	})
 	if err != nil {

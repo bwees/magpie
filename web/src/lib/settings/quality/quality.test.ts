@@ -39,7 +39,8 @@ const SETTINGS = {
 	defaultProfileId: 'p1080',
 	defaultDelayMinutes: 0,
 	settleWindowSeconds: 30,
-	trashSyncEnabled: true
+	trashSyncEnabled: true,
+	upgradesEnabled: true
 };
 const NEVER_SYNCED: TrashStatusResponse = { enabled: true };
 

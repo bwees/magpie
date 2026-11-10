@@ -333,12 +333,14 @@ export type AcquisitionSettingsResponse = {
     defaultProfileId: string;
     settleWindowSeconds: number;
     trashSyncEnabled: boolean;
+    upgradesEnabled: boolean;
 };
 export type AcquisitionSettingsRequest = {
     defaultDelayMinutes: number;
     defaultProfileId: string;
     settleWindowSeconds: number;
     trashSyncEnabled: boolean;
+    upgradesEnabled: boolean;
 };
 export type TrashProfileResponse = {
     app: string;
@@ -564,6 +566,7 @@ export type SeasonResponse = {
 };
 export type TitleResponse = {
     addedAt: string;
+    allowUpgrades: boolean;
     episodeGroupId: string;
     id: string;
     images: TitleImagesResponse;
@@ -597,6 +600,7 @@ export type RemoveTitleResponse = {
     id: string;
 };
 export type UpdateTitleRequest = {
+    allowUpgrades?: boolean;
     monitorFutureSeasons?: boolean;
     monitored?: boolean;
     profileId?: string;

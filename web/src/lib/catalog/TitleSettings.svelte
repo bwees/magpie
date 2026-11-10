@@ -70,6 +70,20 @@
 			/>
 		</div>
 
+		<div class="flex items-center justify-between gap-4">
+			<div>
+				<label for="title-allow-upgrades" class="text-sm font-medium">Always upgrade</label>
+				<p class="text-xs text-muted-foreground">
+					Keep upgrading this title when upgrades are off in Settings → Quality
+				</p>
+			</div>
+			<Switch
+				id="title-allow-upgrades"
+				checked={page.title.allowUpgrades}
+				onCheckedChange={(checked) => page.setAllowUpgrades(checked)}
+			/>
+		</div>
+
 		{#if page.isSeries}
 			<div class="flex items-center justify-between gap-4">
 				<div>

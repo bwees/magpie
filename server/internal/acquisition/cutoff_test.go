@@ -187,6 +187,30 @@ func TestFilesBelowTheCutoffAreSweptWhateverTheirOrigin(t *testing.T) {
 	})
 }
 
+func TestUpgradesTurnedOffSkipTheSweepUnlessTheTitleAllowsThem(t *testing.T) {
+	f := newSearchFixture(t)
+	f.useScoredProfile(t, cutoffAt2160p)
+	file := f.fileImported(low2160p, parse.QualityWEBDL2160p, domain.OriginDownload)
+	f.deliverScores(t, file)
+	if err := acquisition.UpgradesEnabledKey.Set(context.Background(), f.store, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if swept := f.sweptTitles(t); len(swept) != 0 {
+		t.Errorf("swept %v with upgrades off, want nothing", swept)
+	}
+	statuses, err := f.cutoff.CutoffStatuses(context.Background(), f.title.ID)
+	if err != nil || len(statuses) != 1 || statuses[0].UpgradesAllowed {
+		t.Errorf("statuses = %+v, %v; want upgrades not allowed", statuses, err)
+	}
+
+	f.title.AllowUpgrades = true
+	f.catalog.PutTitle(f.title)
+	if swept := f.sweptTitles(t); !slices.Equal(swept, []domain.TitleID{f.title.ID}) {
+		t.Errorf("swept %v, want the title that allows upgrades", swept)
+	}
+}
+
 // Seed acquisition #14.
 func TestARedeliveredFileImportedPublishesCutoffMetOnce(t *testing.T) {
 	f := newSearchFixture(t)

@@ -145,6 +145,7 @@ function movie(id: string, name: string, year: number, overview = ''): TitleResp
 		languagesOverride: null,
 		monitored: true,
 		monitorFutureSeasons: false,
+		allowUpgrades: false,
 		origin: REQUEST_ORIGIN,
 		originalLanguage: ENGLISH,
 		profileId: 'P1',

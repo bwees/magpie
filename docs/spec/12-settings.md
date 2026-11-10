@@ -86,6 +86,7 @@ Owner: **Acquisition**. Decided in [ticket 10](../../.scratch/v1-spec/issues/10-
 | Profile scores: min CF score, cutoff CF score, upgrade-until | from preset | integers |
 | Custom formats (Advanced) | TRaSH-linked set | regexes compile with `regexp2`, 100 ms match timeout |
 | "Block term" quick action | none | creates a CF scored −10000 |
+| Upgrades | on | when off, no automatic grab replaces a library file and the cutoff-unmet sweep skips the title, unless the Title has `allowUpgrades` (title page → Always upgrade). REGRAB and interactive grabs still replace files. |
 | TRaSH Guides sync | on, daily; **Sync now** queues one | user score overrides kept across syncs; the first-run quality step starts the first sync |
 | Delay before grabbing (default delay profile) | 0 min | 0–1440. Bypassed when the release meets the cutoff or reaches the profile's maximum attainable CF score. |
 | Search settle window | 30 s | 5–120 s |

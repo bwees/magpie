@@ -307,6 +307,30 @@ func TestARegrabSkipsTheUpgradeRule(t *testing.T) {
 	}
 }
 
+func TestUpgradesTurnedOffRejectEveryReplacement(t *testing.T) {
+	title := movieTitle()
+	in := newInput(t, title, tieredProfile(t))
+	in.Trigger = api.TriggerAuto
+	in.UpgradesDisabled = true
+	existing := Evaluate(movie(t, "Movie.Title.2024.720p.WEB-DL.DDP5.1.H.264-GRP"), in.Profile)
+	in.Files = []existingFile{{File: libraryapi.MediaFile{Title: title.ID, Quality: existing.Quality}, Eval: existing, Group: "GRP"}}
+	ix := testIndexer("Nyaa", DefaultIndexerPriority)
+
+	for _, name := range []string{
+		"Movie.Title.2024.2160p.WEB-DL.DDP5.1.H.265-HIGH",
+		"Movie.Title.2024.720p.WEB-DL.PROPER.DDP5.1.H.264-GRP",
+	} {
+		if got := in.decided(0, item(name), ix); !slices.Contains(reasons(got.Rejections), api.RejectUpgradeNotAllowed) {
+			t.Errorf("%s: %+v, want UPGRADE_NOT_ALLOWED", name, got.Rejections)
+		}
+	}
+
+	in.Trigger = api.TriggerRegrab
+	if got := in.decided(0, item("Movie.Title.2024.2160p.WEB-DL.DDP5.1.H.265-HIGH"), ix); !got.accepted() {
+		t.Errorf("REGRAB with upgrades off: %+v, want accepted", got.Rejections)
+	}
+}
+
 // Seed acquisition #18.
 func TestUpgradeRuleAgainstTheExistingFile(t *testing.T) {
 	title := movieTitle()

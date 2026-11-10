@@ -40,6 +40,10 @@ func (s *SearchService) SweepMissing(ctx context.Context) error {
 // may still be upgraded, whether it was downloaded, scanned or migrated.
 func (s *SearchService) SweepCutoffUnmet(ctx context.Context) error {
 	return s.sweep(ctx, func(ctx context.Context, w wantedTitle) ([]catalogapi.Episode, bool, error) {
+		upgrades, err := titleUpgradesEnabled(ctx, s.deps.Store, w.title)
+		if err != nil || !upgrades {
+			return nil, false, err
+		}
 		below, err := upgradableFileScores(s.deps.DB.Read(ctx), w.title.ID)
 		if err != nil {
 			return nil, false, err
