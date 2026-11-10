@@ -130,7 +130,11 @@
 					</Tabs.Content>
 				{/if}
 				<Tabs.Content value={TitleTab.SETTINGS} class="pt-4">
-					<TitleSettings page={title} onRemoved={() => goto(Route.HOME)} />
+					<TitleSettings
+						page={title}
+						onRemoved={() => goto(Route.HOME)}
+						onUpgradesChanged={() => files.load()}
+					/>
 				</Tabs.Content>
 			</Tabs.Root>
 			<aside class="hidden w-[340px] lg:block">

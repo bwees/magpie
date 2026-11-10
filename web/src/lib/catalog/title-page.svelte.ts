@@ -133,31 +133,36 @@ export class TitlePage {
 		}
 	}
 
-	setMonitored(monitored: boolean): Promise<void> {
+	setMonitored(monitored: boolean): Promise<boolean> {
 		return this.#setFlag(TitleFlag.MONITORED, monitored);
 	}
 
 	/** Whether seasons TMDB announces later start monitored. */
-	setMonitorFutureSeasons(monitored: boolean): Promise<void> {
+	setMonitorFutureSeasons(monitored: boolean): Promise<boolean> {
 		return this.#setFlag(TitleFlag.MONITOR_FUTURE_SEASONS, monitored);
 	}
 
-	/** Whether this title keeps upgrading while upgrades are off in Settings → Quality. */
-	setAllowUpgrades(allowed: boolean): Promise<void> {
+	/**
+	 * Whether this title keeps upgrading while upgrades are off in Settings → Quality.
+	 * Resolves true once the server saved it.
+	 */
+	setAllowUpgrades(allowed: boolean): Promise<boolean> {
 		return this.#setFlag(TitleFlag.ALLOW_UPGRADES, allowed);
 	}
 
-	async #setFlag(flag: TitleFlag, value: boolean): Promise<void> {
+	async #setFlag(flag: TitleFlag, value: boolean): Promise<boolean> {
 		const title = this.title;
 		if (!title) {
-			return;
+			return false;
 		}
 		title[flag] = value;
 		try {
 			this.title = await this.#api.update(this.id, { [flag]: value });
+			return true;
 		} catch (error) {
 			title[flag] = !value;
-			toast.error(apiErrorMessage(error, 'Could not change monitoring.'));
+			toast.error(apiErrorMessage(error, 'Could not save the change.'));
+			return false;
 		}
 	}
 

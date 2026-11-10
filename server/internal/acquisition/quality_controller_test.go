@@ -162,6 +162,30 @@ func TestProfileEndpoints(t *testing.T) {
 	}
 }
 
+func TestUpgradesEnabledLeftOutKeepsTheStoredValue(t *testing.T) {
+	handler, _ := serveQuality(t, admin())
+	profiles := decode[[]acquisition.ProfileSummaryResponse](t, do(handler, http.MethodGet, "/api/acquisition/profiles", ""))
+
+	for _, step := range []struct {
+		field string
+		want  bool
+	}{
+		{"", true},
+		{`,"upgradesEnabled":false`, false},
+		{"", false},
+		{`,"upgradesEnabled":true`, true},
+	} {
+		body := fmt.Sprintf(`{"defaultProfileId":%q,"defaultDelayMinutes":0,"settleWindowSeconds":30,"trashSyncEnabled":true%s}`, profiles[0].ID, step.field)
+		rec := do(handler, http.MethodPut, "/api/acquisition/settings", body)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("PUT %s = %d %s", body, rec.Code, rec.Body)
+		}
+		if got := decode[acquisition.AcquisitionSettingsResponse](t, rec).UpgradesEnabled; got != step.want {
+			t.Errorf("PUT %s: upgradesEnabled = %v, want %v", body, got, step.want)
+		}
+	}
+}
+
 func TestSettingsBlockTermAndTrashEndpoints(t *testing.T) {
 	handler, queue := serveQuality(t, admin())
 	profiles := decode[[]acquisition.ProfileSummaryResponse](t, do(handler, http.MethodGet, "/api/acquisition/profiles", ""))

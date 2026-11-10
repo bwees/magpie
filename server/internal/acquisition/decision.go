@@ -214,8 +214,9 @@ var tierOne = []specification{
 }
 
 // grabTimeSpecs run again right before an automatic grab, on the blocklist and downloads as they are then, so
-// a search doesn't grab what another search grabbed or blocklisted since it started.
+// a search doesn't grab what another search grabbed or blocklisted, or an upgrade turned off, since it started.
 var grabTimeSpecs = []specification{
+	{upgradeTriggers, upgradable},
 	{allTriggers, blocklisted},
 	{allTriggers, queued},
 	{rssTriggers, history},

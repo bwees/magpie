@@ -24,8 +24,7 @@
 					"defaultDelayMinutes",
 					"defaultProfileId",
 					"settleWindowSeconds",
-					"trashSyncEnabled",
-					"upgradesEnabled"
+					"trashSyncEnabled"
 				],
 				"type": "object"
 			},

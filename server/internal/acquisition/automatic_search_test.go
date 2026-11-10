@@ -2,6 +2,7 @@ package acquisition_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"testing"
@@ -237,6 +238,30 @@ func TestAnAutomaticSearchGrabsWhenTheSettleWindowPasses(t *testing.T) {
 	}
 	if done := f.completed(t); done.Outcome != api.OutcomeGrabbed || !slices.Equal(done.FailedIndexers, []string{"Stuck"}) {
 		t.Errorf("SearchCompleted = %+v, want GRABBED with Stuck failed", done)
+	}
+}
+
+func TestTurningUpgradesOffDuringASearchStopsItsUpgradeGrab(t *testing.T) {
+	for _, off := range []bool{false, true} {
+		t.Run(fmt.Sprintf("turned off %v", off), func(t *testing.T) {
+			f := newSearchFixture(t)
+			f.useTieredProfile(t)
+			f.setSettleWindow(t, shortWindow)
+			f.libraryFile(acceptedName, false, "")
+			f.indexer(t, fastID, "Fast", idCaps, fastAnswer, release(cutoffName))
+			f.indexer(t, stuckID, "Stuck", idCaps, neverAnswers)
+
+			f.startAuto(t, api.TriggerAuto)
+			f.waitForSettle(t)
+			if err := acquisition.UpgradesEnabledKey.Set(context.Background(), f.store, !off); err != nil {
+				t.Fatal(err)
+			}
+			f.settle(t)
+
+			if grabs := f.grabbed(t); (len(grabs) == 0) != off {
+				t.Errorf("grabs = %+v with upgrades turned off %v", grabs, off)
+			}
+		})
 	}
 }
 

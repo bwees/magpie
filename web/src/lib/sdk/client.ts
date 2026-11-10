@@ -340,7 +340,7 @@ export type AcquisitionSettingsRequest = {
     defaultProfileId: string;
     settleWindowSeconds: number;
     trashSyncEnabled: boolean;
-    upgradesEnabled: boolean;
+    upgradesEnabled?: boolean;
 };
 export type TrashProfileResponse = {
     app: string;

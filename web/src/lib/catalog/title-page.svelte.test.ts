@@ -135,6 +135,20 @@ describe('TitlePage', () => {
 		expect(page.title?.monitored).toBe(true);
 	});
 
+	it('reports whether the server saved Always upgrade', async () => {
+		const api = new FakeApi();
+		api.stored = conclave({ allowUpgrades: false });
+		const page = new TitlePage(TITLE_ID, api);
+		await page.load();
+
+		expect(await page.setAllowUpgrades(true)).toBe(true);
+		expect(page.title?.allowUpgrades).toBe(true);
+
+		api.failUpdate = true;
+		expect(await page.setAllowUpgrades(false)).toBe(false);
+		expect(page.title?.allowUpgrades).toBe(true);
+	});
+
 	it('writes a new quality profile through the title update and reverts on failure', async () => {
 		const api = new FakeApi();
 		api.stored = conclave({ profileId: 'p1080' });

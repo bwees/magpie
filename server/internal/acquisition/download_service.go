@@ -232,7 +232,7 @@ func (s *DownloadService) fallbackWhere(ctx context.Context, out *grabOutcome, c
 			return
 		}
 		if len(rejections) > 0 {
-			slog.InfoContext(ctx, "skipping a release grabbed or blocklisted since the search started",
+			slog.InfoContext(ctx, "skipping a release grabbed, blocklisted or no longer an allowed upgrade since the search started",
 				"release", next.Candidate.Item.Title, "reason", rejections[0].Reason)
 			continue
 		}
@@ -249,13 +249,21 @@ func (s *DownloadService) fallbackWhere(ctx context.Context, out *grabOutcome, c
 	}
 }
 
-// recheck runs grabTimeSpecs on the title's blocklist and downloads as they are now. The downloads this
-// outcome drops don't count as queued.
+// recheck runs grabTimeSpecs on the title's upgrade switch, blocklist and downloads as they are now. The
+// downloads this outcome drops don't count as queued.
 func (s *DownloadService) recheck(ctx context.Context, out *grabOutcome, d decidedRelease) ([]api.Rejection, error) {
 	in := *out.search.input
 	in.Now = s.now()
 	in.Removed = slices.Concat(in.Removed, out.dropped())
-	var err error
+	title, err := s.deps.Catalog.Title(ctx, in.Title.ID)
+	if err != nil {
+		return nil, err
+	}
+	upgrades, err := titleUpgradesEnabled(ctx, s.deps.Store, title)
+	if err != nil {
+		return nil, err
+	}
+	in.UpgradesDisabled = !upgrades
 	if in.Blocklist, err = s.deps.Repo.Blocklist(ctx, in.Title.ID); err != nil {
 		return nil, err
 	}

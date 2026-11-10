@@ -152,6 +152,29 @@ describe('QualitySettingsManager', () => {
 		expect(manager.defaultProfileId).toBe('p720');
 	});
 
+	it('turns upgrades off and puts the switch back when the save fails', async () => {
+		sdk.updateAcquisitionSettings.mockImplementationOnce(async (request) => request);
+		const manager = new QualitySettingsManager();
+		await manager.load();
+
+		await manager.setUpgrades(false);
+		expect(sdk.updateAcquisitionSettings).toHaveBeenCalledWith({
+			...SETTINGS,
+			upgradesEnabled: false
+		});
+		expect(manager.settings?.upgradesEnabled).toBe(false);
+
+		sdk.updateAcquisitionSettings.mockRejectedValueOnce({ data: { detail: 'down' } });
+		await manager.setUpgrades(true);
+		expect(manager.settings?.upgradesEnabled).toBe(false);
+		expect(manager.settingsError).toBe('down');
+
+		manager.settings!.settleWindowSeconds = null;
+		await manager.setUpgrades(true);
+		expect(manager.settings?.upgradesEnabled).toBe(false);
+		expect(sdk.updateAcquisitionSettings).toHaveBeenCalledTimes(2);
+	});
+
 	it('waits for a newer sync attempt after Sync now', async () => {
 		const synced = { enabled: true, lastAttemptAt: 'now', lastSyncedAt: 'now' };
 		sdk.syncTrash.mockResolvedValue(NEVER_SYNCED);
