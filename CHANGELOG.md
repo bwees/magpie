@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/bwees/magpie/compare/v0.8.0...v0.9.0) (2026-11-10)
+
+
+### Features
+
+* **acquisition:** add a global upgrade switch with a per-title override ([#13](https://github.com/bwees/magpie/issues/13)) ([d4e0eb2](https://github.com/bwees/magpie/commit/d4e0eb248b9b7e38a62c299530f0557ab86253e6))
+
 ## [0.8.0](https://github.com/bwees/magpie/compare/v0.7.2...v0.8.0) (2026-10-28)
 
 
