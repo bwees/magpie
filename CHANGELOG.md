@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1](https://github.com/bwees/magpie/compare/v0.9.0...v0.9.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **acquisition:** delete an imported torrent's folder once it leaves qBittorrent ([#15](https://github.com/bwees/magpie/issues/15)) ([395cc86](https://github.com/bwees/magpie/commit/395cc86f8473f9fb1a9320170e4ad79bd35a4959))
+* **web:** stop stale pages from reloading forever after a deploy ([#17](https://github.com/bwees/magpie/issues/17)) ([01fa435](https://github.com/bwees/magpie/commit/01fa435eb1df3126a963d364f1c20cb27266356b))
+
 ## [0.9.0](https://github.com/bwees/magpie/compare/v0.8.0...v0.9.0) (2026-11-10)
 
 
