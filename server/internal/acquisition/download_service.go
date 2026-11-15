@@ -49,6 +49,8 @@ type DownloadDeps struct {
 	Catalog     catalogapi.Reader
 	Prowlarr    Prowlarr
 	QBittorrent QBittorrent
+	Location    DownloadLocation
+	Files       DownloadFiles
 	Store       *settings.Store
 	Bus         *bus.Bus
 	Jobs        searchJobs

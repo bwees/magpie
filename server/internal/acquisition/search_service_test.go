@@ -124,6 +124,7 @@ type searchFixture struct {
 	catalog      *catalogtest.Fake
 	library      *librarytest.Fake
 	qbit         *fakes.QBittorrent
+	disk         *downloadDisk
 	events       *recorder
 	title        catalogapi.Title
 }
@@ -163,6 +164,7 @@ func newSearchFixture(t *testing.T) searchFixture {
 		catalog: catalogtest.NewFake(catalogtest.Fixture{Titles: []catalogapi.Title{title}}),
 		library: librarytest.NewFake(librarytest.Fixture{}),
 		qbit:    fakes.NewQBittorrent(),
+		disk:    &downloadDisk{savePath: savePath},
 		events:  events,
 		title:   title,
 		jobs:    jobs,
@@ -176,7 +178,7 @@ func newSearchFixture(t *testing.T) searchFixture {
 	t.Cleanup(f.searches.Close)
 	f.clock = &clock{now: time.Now().Truncate(time.Second)}
 	f.downloadDeps = acquisition.DownloadDeps{
-		DB: d, Repo: repo, Catalog: f.catalog, Prowlarr: f.prowlarr, QBittorrent: f.qbit,
+		DB: d, Repo: repo, Catalog: f.catalog, Prowlarr: f.prowlarr, QBittorrent: f.qbit, Location: f.disk, Files: f.disk,
 		Store: store, Bus: b, Jobs: f.jobs, Searches: registry,
 	}
 	f = f.restarted()
