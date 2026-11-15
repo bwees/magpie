@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"magpie/internal/acquisition"
 	"magpie/internal/library"
 )
 
@@ -24,7 +25,10 @@ const (
 // FileSystem is the operating system's filesystem.
 type FileSystem struct{}
 
-var _ library.FileSystem = FileSystem{}
+var (
+	_ library.FileSystem        = FileSystem{}
+	_ acquisition.DownloadFiles = FileSystem{}
+)
 
 func NewFileSystem() FileSystem { return FileSystem{} }
 
@@ -126,6 +130,10 @@ func (FileSystem) Rename(src, dst string) error {
 
 func (FileSystem) Remove(path string) error {
 	return os.Remove(path)
+}
+
+func (FileSystem) RemoveAll(path string) error {
+	return os.RemoveAll(path)
 }
 
 func (FileSystem) MkdirAll(path string) error {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"path/filepath"
 	"slices"
 	"time"
 
@@ -250,13 +252,18 @@ func (s *DownloadService) MarkImported(tx *gorm.DB, id domain.DownloadID) error 
 	return s.deps.Jobs.EnqueueTx(tx, releaseImportedTask{Download: id})
 }
 
-// ReleaseImported removes an imported torrent from qBittorrent and keeps its data, which Library moved.
+// ReleaseImported removes an imported torrent from qBittorrent once Library moved its videos.
 func (s *DownloadService) ReleaseImported(ctx context.Context, id domain.DownloadID) error {
-	return s.retire(ctx, id, false)
+	state, err := s.sync(ctx)
+	if err != nil {
+		return err
+	}
+	return s.retire(ctx, id, state)
 }
 
-// retire removes an imported download from qBittorrent; it stays IMPORTED.
-func (s *DownloadService) retire(ctx context.Context, id domain.DownloadID, deleteData bool) error {
+// retire removes an imported download from qBittorrent with its data and whatever else is left in its
+// folder; it stays IMPORTED.
+func (s *DownloadService) retire(ctx context.Context, id domain.DownloadID, state SyncState) error {
 	d, err := s.deps.Repo.Download(ctx, id)
 	if errors.Is(err, ErrDownloadNotFound) {
 		return nil
@@ -264,8 +271,11 @@ func (s *DownloadService) retire(ctx context.Context, id domain.DownloadID, dele
 	if err != nil || d.RemovedAt != nil || d.State != api.StateImported {
 		return err
 	}
-	if err := s.deps.QBittorrent.Delete(ctx, deleteData, d.QbitHash); ignoreGone(err) != nil {
+	if err := s.deps.QBittorrent.Delete(ctx, true, d.QbitHash); ignoreGone(err) != nil {
 		return err
+	}
+	if t, ok := state.Torrents[d.QbitHash]; ok {
+		s.removeContent(ctx, d.ID, t.ContentPath)
 	}
 	err = s.deps.DB.Write(ctx, func(tx *gorm.DB) error {
 		_, err := moveDownload(tx, id, []api.DownloadState{api.StateImported}, map[string]any{"removed_at": s.now().UTC()})
@@ -324,8 +334,42 @@ func (s *DownloadService) CheckSeedingGoals(ctx context.Context) error {
 			goal = global.forIndexer(ix.Settings)
 		}
 		if goal.metBy(t) {
-			errs = append(errs, s.retire(ctx, d.ID, true))
+			errs = append(errs, s.retire(ctx, d.ID, state))
 		}
 	}
 	return errors.Join(errs...)
+}
+
+var errOutsideSavePath = errors.New("acquisition: not strictly inside qBittorrent's save path")
+
+// removeContent deletes what qBittorrent leaves of a torrent's folder or single file. It only logs a
+// failure: the torrent is already gone from qBittorrent.
+func (s *DownloadService) removeContent(ctx context.Context, id domain.DownloadID, contentPath string) {
+	path, err := s.contentPath(ctx, contentPath)
+	if err == nil {
+		err = s.deps.Files.RemoveAll(path)
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "acquisition: couldn't delete an imported download's folder", "download", id, "path", path, "error", err)
+		return
+	}
+	slog.InfoContext(ctx, "acquisition: deleted an imported download's folder", "download", id, "path", path)
+}
+
+func (s *DownloadService) contentPath(ctx context.Context, reported string) (string, error) {
+	root, err := s.deps.Location.SavePath(ctx)
+	if err != nil {
+		return "", err
+	}
+	path, err := s.deps.Location.LocalPath(ctx, reported)
+	if err == nil && !insideSavePath(root, path) {
+		err = errOutsideSavePath
+	}
+	return path, err
+}
+
+// insideSavePath refuses the save path itself and anything outside it.
+func insideSavePath(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && filepath.IsAbs(root) && filepath.IsAbs(path) && rel != "." && filepath.IsLocal(rel)
 }

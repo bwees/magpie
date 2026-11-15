@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	contentPath = "/downloads/movie"
+	savePath    = "/downloads"
+	contentPath = savePath + "/movie"
 	globalRatio = 2.0
 	globalDays  = 14
 	day         = 24 * time.Hour
@@ -104,7 +105,7 @@ func TestASeedingDownloadIsRemovedWithItsDataOnceTheRatioGoalIsMet(t *testing.T)
 
 	f.qbit.Update(hash, func(tr *acquisition.Torrent) { tr.Ratio = globalRatio - 0.1 })
 	f.checkGoals(t)
-	if len(f.qbit.Deletions()) != 0 {
+	if len(f.qbit.Deletions()) != 0 || len(f.disk.removed) != 0 {
 		t.Fatal("removed before the ratio goal")
 	}
 	f.qbit.Update(hash, func(tr *acquisition.Torrent) { tr.Ratio = globalRatio })
@@ -112,6 +113,9 @@ func TestASeedingDownloadIsRemovedWithItsDataOnceTheRatioGoalIsMet(t *testing.T)
 
 	if !slices.Equal(f.qbit.Deletions(), []fakes.Deletion{{Hash: hash, DeleteFiles: true}}) {
 		t.Errorf("deletions = %+v, want the torrent with its data", f.qbit.Deletions())
+	}
+	if !slices.Equal(f.disk.removed, []string{contentPath}) {
+		t.Errorf("removed = %v, want the torrent's folder", f.disk.removed)
 	}
 	if d := f.download(t, id); d.State != api.StateImported || d.RemovedAt == nil {
 		t.Errorf("download = %+v, want IMPORTED and removed", d)
@@ -154,7 +158,7 @@ func TestAnIndexerGoalWinsOverTheGlobalGoal(t *testing.T) {
 }
 
 // Seed acquisition #20.
-func TestADontSeedDownloadIsRemovedWithoutItsDataOnImport(t *testing.T) {
+func TestADontSeedDownloadIsRemovedWithItsFolderOnImport(t *testing.T) {
 	f := newSearchFixture(t)
 	f.setSeeding(t, api.DontSeed)
 	id := f.completedDownload(t, acceptedName)
@@ -162,9 +166,12 @@ func TestADontSeedDownloadIsRemovedWithoutItsDataOnImport(t *testing.T) {
 	f.deliverLibrary(t, imported(id))
 	f.deliverLibrary(t, imported(id))
 
-	want := []fakes.Deletion{{Hash: magnetHash(acceptedName), DeleteFiles: false}}
+	want := []fakes.Deletion{{Hash: magnetHash(acceptedName), DeleteFiles: true}}
 	if !slices.Equal(f.qbit.Deletions(), want) {
 		t.Errorf("deletions = %+v, want %+v once", f.qbit.Deletions(), want)
+	}
+	if !slices.Equal(f.disk.removed, []string{contentPath}) {
+		t.Errorf("removed = %v, want the torrent's folder once", f.disk.removed)
 	}
 	if d := f.download(t, id); d.State != api.StateImported || d.RemovedAt == nil {
 		t.Errorf("download = %+v, want IMPORTED and removed", d)
@@ -340,7 +347,7 @@ func TestMappingAWaitingImportMarksItImportedAndAppliesTheSeedingMode(t *testing
 
 	f.deliverLibrary(t, imported(id))
 
-	want := []fakes.Deletion{{Hash: magnetHash(acceptedName), DeleteFiles: false}}
+	want := []fakes.Deletion{{Hash: magnetHash(acceptedName), DeleteFiles: true}}
 	if !slices.Equal(f.qbit.Deletions(), want) {
 		t.Errorf("deletions = %+v, want %+v", f.qbit.Deletions(), want)
 	}
@@ -395,5 +402,85 @@ func TestRemovingAnImportedDownloadLeavesItAlone(t *testing.T) {
 	}
 	if d := f.download(t, id); d.State != api.StateImported || d.RemovedAt != nil {
 		t.Errorf("download = %+v, want IMPORTED", d)
+	}
+}
+
+// downloadDisk is qBittorrent's save path, seen unmapped, and the paths deleted under it.
+type downloadDisk struct {
+	savePath string
+	removed  []string
+}
+
+func (d *downloadDisk) SavePath(context.Context) (string, error)              { return d.savePath, nil }
+func (d *downloadDisk) LocalPath(_ context.Context, p string) (string, error) { return p, nil }
+func (d *downloadDisk) RemoveAll(p string) error {
+	d.removed = append(d.removed, p)
+	return nil
+}
+
+// finishedDownload grabs a release and lets it finish in qBittorrent at contentPath.
+func (f searchFixture) finishedDownload(t *testing.T, contentPath string) domain.DownloadID {
+	t.Helper()
+	s := f.searched(t, release(acceptedName))
+	id := f.startedMagnet(t, s, acceptedName, acquisition.TorrentFile{Path: "Movie.mkv", Size: 1, Priority: 1})
+	f.qbit.Update(magnetHash(acceptedName), finish(contentPath))
+	f.poll(t)
+	return id
+}
+
+func TestASingleFileTorrentIsDeletedAfterImport(t *testing.T) {
+	f := newSearchFixture(t)
+	f.setSeeding(t, api.DontSeed)
+	file := savePath + "/Movie.2024.mkv"
+
+	f.deliverLibrary(t, imported(f.finishedDownload(t, file)))
+
+	if !slices.Equal(f.disk.removed, []string{file}) {
+		t.Errorf("removed = %v, want the torrent's file", f.disk.removed)
+	}
+}
+
+func TestAnImportThatDidntSucceedKeepsItsFolder(t *testing.T) {
+	for name, failure := range map[string]libraryapi.ImportFailed{
+		"retryable": {Retryable: true},
+		"manual":    {Manual: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newSearchFixture(t)
+			f.setSeeding(t, api.DontSeed)
+			failure.Download = f.completedDownload(t, acceptedName)
+
+			f.deliverLibrary(t, failure)
+
+			if len(f.qbit.Deletions()) != 0 || len(f.disk.removed) != 0 {
+				t.Errorf("deletions = %+v, removed = %v; want the data kept for a retry", f.qbit.Deletions(), f.disk.removed)
+			}
+		})
+	}
+}
+
+func TestOnlyPathsStrictlyInsideTheSavePathAreDeleted(t *testing.T) {
+	for path, inside := range map[string]bool{
+		savePath + "/movie":     true,
+		savePath + "/Movie.mkv": true,
+		savePath:                false,
+		savePath + "/":          false,
+		savePath + "/movie/..":  false,
+		savePath + "/../movies": false,
+		savePath + "-old/movie": false,
+		"/":                     false,
+		"downloads/movie":       false,
+		"":                      false,
+	} {
+		if got := acquisition.InsideSavePath(savePath, path); got != inside {
+			t.Errorf("InsideSavePath(%q) = %v, want %v", path, got, inside)
+		}
+	}
+
+	f := newSearchFixture(t)
+	f.setSeeding(t, api.DontSeed)
+	f.deliverLibrary(t, imported(f.finishedDownload(t, savePath)))
+	if len(f.disk.removed) != 0 {
+		t.Errorf("removed = %v, want the save path itself left alone", f.disk.removed)
 	}
 }

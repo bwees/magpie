@@ -131,6 +131,20 @@ type QBittorrent interface {
 	FreeSpace(ctx context.Context) (int64, error)
 }
 
+// DownloadLocation is implemented by internal/adapters/qbittorrent.
+type DownloadLocation interface {
+	// SavePath is where qBittorrent saves Magpie's downloads, as the server sees it.
+	SavePath(ctx context.Context) (string, error)
+	// LocalPath maps a path qBittorrent reported to where the server sees it.
+	LocalPath(ctx context.Context, path string) (string, error)
+}
+
+// DownloadFiles is implemented by internal/adapters/disk.
+type DownloadFiles interface {
+	// RemoveAll deletes a file, or a folder with everything in it. A path already gone is not an error.
+	RemoveAll(path string) error
+}
+
 type WebAPIVersion struct{ Major, Minor, Patch int }
 
 // MinWebAPIVersion is qBittorrent 5.2's WebAPI version.

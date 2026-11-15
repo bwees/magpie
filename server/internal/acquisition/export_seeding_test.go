@@ -32,3 +32,5 @@ func RunDownloadTask(ctx context.Context, s *DownloadService, task backlite.Task
 	}
 	return false, nil
 }
+
+var InsideSavePath = insideSavePath
